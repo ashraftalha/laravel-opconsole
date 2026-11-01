@@ -1,13 +1,29 @@
 @if (session('opconsole_success'))
-    <div class="alert alert-success alert-dismissible fade show mt-0 mb-3" role="alert">
-        <i class="uil uil-check-circle fs-5 align-middle me-1"></i> {{ session('opconsole_success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    <div class="oc-flash oc-flash-success" role="status" data-oc-alert>
+        @include('opconsole::partials.icon', ['name' => 'check-circle'])
+        <span>{{ session('opconsole_success') }}</span>
+        <button type="button" class="oc-flash-close" data-oc-dismiss aria-label="Dismiss notification">
+            @include('opconsole::partials.icon', ['name' => 'x'])
+        </button>
+    </div>
+@endif
+
+@if (session('opconsole_warning'))
+    <div class="oc-flash oc-flash-warning" role="alert" data-oc-alert>
+        @include('opconsole::partials.icon', ['name' => 'alert-triangle'])
+        <span>{{ session('opconsole_warning') }}</span>
+        <button type="button" class="oc-flash-close" data-oc-dismiss aria-label="Dismiss notification">
+            @include('opconsole::partials.icon', ['name' => 'x'])
+        </button>
     </div>
 @endif
 
 @if (session('opconsole_error'))
-    <div class="alert alert-danger alert-dismissible fade show mt-0 mb-3" role="alert">
-        <i class="uil uil-exclamation-triangle fs-5 align-middle me-1"></i> {{ session('opconsole_error') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    <div class="oc-flash oc-flash-danger" role="alert" data-oc-alert>
+        @include('opconsole::partials.icon', ['name' => 'alert-octagon'])
+        <span>{{ session('opconsole_error') }}</span>
+        <button type="button" class="oc-flash-close" data-oc-dismiss aria-label="Dismiss notification">
+            @include('opconsole::partials.icon', ['name' => 'x'])
+        </button>
     </div>
 @endif

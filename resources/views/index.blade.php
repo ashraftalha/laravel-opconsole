@@ -1,90 +1,169 @@
 @extends($layout ?? 'opconsole::layout')
 
-{{-- No element here may use id="maintenance" or id="console": some host themes wire scripts to those ids. --}}
+{{-- Element IDs are prefixed or scoped to avoid colliding with host layout scripts when embedded via config('opconsole.layout'). --}}
 @section('title', 'OpConsole')
 
+@if ($layout)
+    @php
+        $ocRoutePrefix = config('opconsole.route.name_prefix', 'opconsole.');
+        $ocCssUrl = is_file(public_path('vendor/opconsole/opconsole.css'))
+            ? asset('vendor/opconsole/opconsole.css')
+            : route($ocRoutePrefix.'asset', 'opconsole.css');
+        $ocJsUrl = is_file(public_path('vendor/opconsole/opconsole.js'))
+            ? asset('vendor/opconsole/opconsole.js')
+            : route($ocRoutePrefix.'asset', 'opconsole.js');
+    @endphp
+    @push('styles')
+        <link href="{{ $ocCssUrl }}" rel="stylesheet">
+    @endpush
+    @push('scripts')
+        <script src="{{ $ocJsUrl }}" defer></script>
+    @endpush
+@endif
+
 @section('content')
-    <header class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-        <div>
-            @if ($backUrl)
-                <a href="{{ $backUrl }}" class="text-muted small"><i class="uil uil-arrow-left"></i> {{ $backLabel }}</a>
-            @endif
-            <h1 class="h4 mt-2 mb-0">OpConsole</h1>
-            <p class="text-muted small mb-0">Monitor. Diagnose. Maintain.</p>
-        </div>
-        <a href="{{ route(config('opconsole.route.name_prefix').'index') }}" class="btn btn-soft-primary"><i class="uil uil-sync"></i> Refresh status</a>
-    </header>
+    <div class="oc-embedded-shell">
+        @if ($layout)
+            @include('opconsole::partials.flash')
+        @endif
 
-    <div class="oc-workspace row g-4 mt-0">
-        <div class="col-12">
+        <div class="oc-sr-only" id="opconsole-live-region" aria-live="polite" aria-atomic="true"></div>
 
+        <header class="oc-header">
+            <div>
+                @if ($backUrl)
+                    <a href="{{ $backUrl }}" class="oc-back-link">
+                        @include('opconsole::partials.icon', ['name' => 'arrow-left'])
+                        <span>{{ $backLabel }}</span>
+                    </a>
+                @endif
+                <div class="oc-title-row">
+                    <h1 class="oc-title">OpConsole</h1>
+                    <span @class(['oc-env-badge', 'is-prod' => $environment['production'], 'is-debug' => $environment['debug'] && $environment['production']])>
+                        {{ $environment['name'] }}@if ($environment['debug']) · debug @endif
+                    </span>
+                </div>
+                <p class="oc-subtitle">Monitor. Diagnose. Maintain.</p>
+            </div>
+            <a href="{{ route(config('opconsole.route.name_prefix').'index') }}" class="btn btn-soft-primary">
+                @include('opconsole::partials.icon', ['name' => 'refresh'])
+                <span>Refresh status</span>
+            </a>
+        </header>
+
+        <div class="oc-workspace">
             {{-- Status at a glance --}}
-            <div class="row row-cols-md-3 row-cols-1 g-3 mt-1">
+            <section aria-label="Operational summary" class="oc-grid-3">
                 @foreach ($tiles as $tile)
-                    <div class="col">
+                    <div>
                         @if ($tile['link'])<a href="{{ $tile['link'] }}" class="oc-tile-link">@endif
-                            <div class="oc-tile" style="--c: {{ $tile['color'] }}">
-                                <span class="oc-tile-icon"><i class="uil {{ $tile['icon'] }}"></i></span>
-                                <div><strong>{{ $tile['value'] }}</strong><span>{{ $tile['label'] }} · <bdi>{{ $tile['sub'] }}</bdi></span></div>
+                            <div class="oc-tile {{ $tile['tone'] }}">
+                                <span class="oc-tile-icon">@include('opconsole::partials.icon', ['name' => $tile['icon']])</span>
+                                <div>
+                                    <strong>{{ $tile['value'] }}</strong>
+                                    <span>{{ $tile['label'] }} · <bdi>{{ $tile['sub'] }}</bdi></span>
+                                </div>
                             </div>
-                            @if ($tile['link'])</a>@endif
+                        @if ($tile['link'])</a>@endif
                     </div>
                 @endforeach
-            </div>
+            </section>
 
             {{-- What to do next, most urgent first --}}
-            <div class="oc-advice-list my-4" data-advice-count="{{ count($advice) }}">
+            <section aria-label="Operational recommendations" class="oc-advice-list" data-advice-count="{{ count($advice) }}">
                 @forelse ($advice as $item)
                     <div class="oc-advice {{ $item['class'] }}">
-                        <i class="uil {{ $item['icon'] }}"></i>
+                        @include('opconsole::partials.icon', ['name' => $item['icon']])
                         <span>{{ $item['text'] }}</span>
-                        @if ($item['link'])<a href="{{ $item['link'][0] }}" class="oc-advice-link">{{ $item['link'][1] }} <i class="uil uil-arrow-right"></i></a>@endif
+                        @if ($item['link'])
+                            <a href="{{ $item['link'][0] }}" class="oc-advice-link">
+                                <span>{{ $item['link'][1] }}</span>
+                                @include('opconsole::partials.icon', ['name' => 'arrow-right'])
+                            </a>
+                        @endif
                     </div>
                 @empty
                     @if ($checks['tone'] === 'is-ok')
-                        <div class="oc-advice oc-advice-ok"><i class="uil uil-check-circle"></i><span>Everything looks good. No action is needed.</span></div>
+                        <div class="oc-advice oc-advice-ok">
+                            @include('opconsole::partials.icon', ['name' => 'check-circle'])
+                            <span>Everything verified looks healthy. No immediate maintenance action is needed.</span>
+                        </div>
                     @endif
                 @endforelse
-            </div>
+            </section>
 
-            {{-- Actions --}}
+            {{-- Maintenance actions --}}
             @if (count($actions))
-                <div class="row g-3">
+                <section aria-label="Maintenance operations" class="oc-grid-3">
                     @foreach ($actions as $key => $action)
-                        <div class="col-md-4">
-                            <section class="oc-action" id="action-{{ $key }}">
-                                <span class="oc-action-icon"><i class="uil {{ $action['icon'] }}"></i></span>
-                                <h3>{{ $action['title'] }}</h3>
-                                <p>{{ $action['text'] }}</p>
+                        <article @class(['oc-action', 'is-high-risk' => $action['risk'] === 'high']) id="action-{{ $key }}">
+                            <div class="oc-action-top">
+                                <span class="oc-action-icon">@include('opconsole::partials.icon', ['name' => $action['icon']])</span>
+                                <span @class(['oc-risk-badge', 'is-high' => $action['risk'] === 'high', 'is-low' => $action['risk'] !== 'high'])>{{ $action['riskLabel'] }}</span>
+                            </div>
+                            <h2>{{ $action['title'] }}</h2>
+                            <code class="oc-command-pill" dir="ltr">{{ $action['command'] }}</code>
+                            <p>{{ $action['text'] }}</p>
 
-                                @if ($action['pending'])
-                                    <ul class="oc-migrations" dir="ltr">
-                                        @foreach ($action['pending'] as $migration)<li>{{ $migration }}</li>@endforeach
-                                    </ul>
-                                @endif
+                            @if ($action['pending'])
+                                <ul class="oc-migrations" dir="ltr" aria-label="Pending migrations">
+                                    @foreach (array_slice($action['pending'], 0, 8) as $migration)
+                                        <li>{{ $migration }}</li>
+                                    @endforeach
+                                    @if (count($action['pending']) > 8)
+                                        <li class="oc-migrations-more">+{{ count($action['pending']) - 8 }} more pending</li>
+                                    @endif
+                                </ul>
+                            @endif
 
-                                @if ($action['last'])
-                                    <small class="oc-action-last">
-                                        <i class="uil {{ $action['last']['ok'] ? 'uil-check text-success' : 'uil-times text-danger' }}"></i> {{ $action['last']['text'] }}
-                                    </small>
-                                @endif
+                            @if ($action['disabledReason'])
+                                <small class="oc-action-disabled-note">{{ $action['disabledReason'] }}</small>
+                            @endif
 
-                                <form method="POST" action="{{ route(config('opconsole.route.name_prefix').'run', $key) }}" data-confirm="{{ $action['confirm'] }}">
-                                    @csrf
-                                    <button type="submit" class="btn {{ $action['style'] }} w-100" @disabled(! $action['enabled'])><i class="uil {{ $action['icon'] }}"></i> {{ $action['button'] }}</button>
-                                </form>
-                            </section>
-                        </div>
+                            @if ($action['last'])
+                                <small class="oc-action-last">
+                                    @include('opconsole::partials.icon', ['name' => $action['last']['ok'] ? 'check' : 'x', 'class' => $action['last']['ok'] ? 'oc-icon oc-text-ok' : 'oc-icon oc-text-bad'])
+                                    <span>{{ $action['last']['text'] }}</span>
+                                </small>
+                            @endif
+
+                            <form
+                                method="POST"
+                                action="{{ route(config('opconsole.route.name_prefix').'run', $key) }}"
+                                data-confirm="{{ $action['confirm'] }}"
+                                data-confirm-title="{{ $action['confirmTitle'] }}"
+                                data-confirm-accept="{{ $action['confirmAccept'] }}"
+                                data-confirm-command="{{ $action['command'] }}"
+                                data-confirm-risk="{{ $action['risk'] }}"
+                                data-confirm-risk-label="{{ $action['riskLabel'] }}"
+                            >
+                                @csrf
+                                <button type="submit" class="btn {{ $action['style'] }} oc-w-full" @disabled(! $action['enabled'])>
+                                    @include('opconsole::partials.icon', ['name' => $action['icon']])
+                                    <span data-oc-btn-label>{{ $action['button'] }}</span>
+                                </button>
+                            </form>
+                        </article>
                     @endforeach
-                </div>
+                </section>
             @endif
 
             {{-- Output of the last action --}}
             @if ($output)
-                <section class="oc-section mt-4">
+                <section class="oc-section" aria-label="Last operation output">
                     <div class="oc-section-head">
-                        <b><i class="uil uil-brackets-curly"></i></b>
-                        <div><h3>Output: {{ $output['title'] }}</h3><small>Output from the last operation</small></div>
+                        <b>@include('opconsole::partials.icon', ['name' => 'terminal'])</b>
+                        <div>
+                            <h2>Output: {{ $output['title'] }}</h2>
+                            <small>Captured console output from the last operation</small>
+                        </div>
+                        <span @class(['oc-status-pill', 'is-ok' => $output['ok'], 'is-bad' => ! $output['ok'], 'oc-ms-auto' => true])>
+                            {{ $output['ok'] ? 'Succeeded' : 'Failed' }}
+                        </span>
+                        <button type="button" class="btn btn-sm btn-soft-secondary" data-copy="{{ $output['text'] }}">
+                            @include('opconsole::partials.icon', ['name' => 'copy'])
+                            <span data-oc-copy-label>Copy</span>
+                        </button>
                     </div>
                     <div class="oc-section-body">
                         <pre class="oc-output" dir="ltr">{{ $output['text'] }}</pre>
@@ -92,27 +171,38 @@
                 </section>
             @endif
 
-            {{-- Health checks: problems first --}}
-            <details class="oc-section mt-4 oc-check-details" id="checks">
+            {{-- Health checks: critical problems first, auto-expanded when problems exist --}}
+            <details class="oc-section oc-check-details" id="checks"{{ $checks['hasProblems'] ? ' open' : '' }}>
                 <summary class="oc-section-head oc-check-toggle">
-                    <b><i class="uil uil-heart-rate"></i></b>
-                    <div><h3>Health checks</h3><small>Application requirements, with problems listed first</small></div>
-                    <span class="oc-checks-summary {{ $checks['tone'] }} ms-auto" data-checks-summary>{{ $checks['summary'] }}</span>
-                    <i class="uil uil-angle-down oc-check-chevron" aria-hidden="true"></i>
+                    <b>@include('opconsole::partials.icon', ['name' => 'heart-rate'])</b>
+                    <div>
+                        <h2>Health checks</h2>
+                        <small>Application and environment diagnostics, critical issues listed first</small>
+                    </div>
+                    <span class="oc-checks-summary {{ $checks['tone'] }} oc-ms-auto" data-checks-summary>{{ $checks['summary'] }}</span>
+                    <span class="oc-check-chevron">@include('opconsole::partials.icon', ['name' => 'chevron-down'])</span>
                 </summary>
                 <div class="oc-section-body">
                     @foreach ($checks['groups'] as $group)
                         <div class="oc-check-group">
-                            <h4 class="oc-check-group-title">{{ $group['name'] }} <small>{{ $group['passed'] }}/{{ $group['total'] }}</small></h4>
+                            <h3 class="oc-check-group-title">
+                                <span>{{ $group['name'] }}</span>
+                                <small>{{ $group['passed'] }}/{{ $group['total'] }} healthy @if ($group['unknown']) · {{ $group['unknown'] }} unknown @endif</small>
+                            </h3>
                             <ul class="oc-checks oc-checks-grid">
                                 @foreach ($group['items'] as $check)
-                                    <li class="{{ $check['class'] }}">
-                                        <i class="uil {{ $check['icon'] }}"></i>
+                                    <li class="{{ $check['class'] }}" data-check-id="{{ $check['id'] }}" data-check-status="{{ $check['statusKey'] }}">
+                                        <span class="oc-check-icon">@include('opconsole::partials.icon', ['name' => $check['icon']])</span>
                                         <div>
-                                            <strong>{{ $check['label'] }}</strong>
+                                            <div class="oc-check-title-row">
+                                                <strong>{{ $check['label'] }}</strong>
+                                                @if ($check['statusKey'] !== 'healthy')
+                                                    <span class="oc-status-pill {{ $check['class'] }}">{{ $check['badge'] }}</span>
+                                                @endif
+                                            </div>
                                             <small>{{ $check['hint'] }}</small>
                                             @if ($check['value'])<code class="oc-check-value" dir="ltr">{{ $check['value'] }}</code>@endif
-                                            @if (! $check['ok'] && $check['fix'])
+                                            @if ($check['fix'] && (! $check['ok'] || $check['statusKey'] === 'unknown'))
                                                 <span class="oc-check-fix"><span>Fix:</span> <code dir="ltr">{{ $check['fix'] }}</code></span>
                                             @endif
                                         </div>
@@ -123,146 +213,250 @@
                     @endforeach
                 </div>
             </details>
-        </div>
 
-        {{-- System info, grouped; copyable for support --}}
-        <div class="col-12">
-            <details class="oc-section oc-system-info">
-                <summary class="oc-system-toggle"><span><i class="uil uil-info-circle"></i> System information</span><span>View details <i class="uil uil-angle-down"></i></span></summary>
-                <div class="oc-section-head">
-                    <b><i class="uil uil-info-circle"></i></b>
-                    <div><small>Copy these details when requesting support</small></div>
-                    <button type="button" class="btn btn-sm btn-soft-primary ms-auto" data-copy="{{ $infoText }}" title="Copy"><i class="uil uil-copy"></i> Copy</button>
-                </div>
-                <div class="oc-section-body oc-info-grid">
-                    @foreach ($info as $group => $rows)
-                        <div><h4 class="oc-info-group">{{ $group }}</h4>
-                        <dl class="oc-info">
-                            @foreach ($rows as $label => $value)
-                                <div><dt>{{ $label }}</dt><dd><bdi>{{ $value }}</bdi></dd></div>
-                            @endforeach
-                        </dl></div>
-                    @endforeach
-                    @if ($dbError)
-                        <small class="d-block text-danger mt-3" dir="ltr">{{ $dbError }}</small>
+            {{-- Audit history --}}
+            <details class="oc-section oc-history-details" id="history"{{ count($history['items']) > 0 ? ' open' : '' }}>
+                <summary class="oc-section-head oc-check-toggle">
+                    <b>@include('opconsole::partials.icon', ['name' => 'clock'])</b>
+                    <div>
+                        <h2>Operation history</h2>
+                        <small>Recent audited maintenance actions and log operations</small>
+                    </div>
+                    <span class="oc-checks-summary is-neutral oc-ms-auto">
+                        @if (! $history['available'])
+                            Audit table not migrated
+                        @else
+                            {{ count($history['items']) }} recent
+                        @endif
+                    </span>
+                    <span class="oc-check-chevron">@include('opconsole::partials.icon', ['name' => 'chevron-down'])</span>
+                </summary>
+                <div class="oc-section-body">
+                    @if (! $history['available'])
+                        @include('opconsole::partials.empty-state', ['message' => 'The opconsole_runs audit table has not been migrated yet. Run migrations to persist operation history.'])
+                    @elseif (! count($history['items']))
+                        @include('opconsole::partials.empty-state', ['message' => 'No operations have been recorded yet.'])
+                    @else
+                        <div class="oc-table-wrap">
+                            <table class="oc-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Operation</th>
+                                        <th scope="col">Status</th>
+                                        <th scope="col">Actor</th>
+                                        <th scope="col">Started</th>
+                                        <th scope="col">Duration</th>
+                                        <th scope="col">Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($history['items'] as $run)
+                                        <tr>
+                                            <td>
+                                                <strong>{{ $run['actionLabel'] }}</strong>
+                                                <code class="oc-inline-code" dir="ltr">{{ $run['command'] }}</code>
+                                            </td>
+                                            <td>
+                                                <span class="oc-status-pill {{ $run['statusClass'] }}" data-run-status="{{ $run['status'] }}">{{ $run['statusLabel'] }}</span>
+                                            </td>
+                                            <td><bdi>{{ $run['actor'] }}</bdi></td>
+                                            <td>
+                                                @if ($run['startedIso'])
+                                                    <time datetime="{{ $run['startedIso'] }}" title="{{ $run['startedExact'] }}">{{ $run['startedRelative'] }}</time>
+                                                @else
+                                                    —
+                                                @endif
+                                            </td>
+                                            <td dir="ltr">{{ $run['duration'] }}</td>
+                                            <td class="oc-table-details"><bdi>{{ $run['details'] }}</bdi></td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
                     @endif
                 </div>
             </details>
-        </div>
-    </div>
 
-    {{-- Log files --}}
-    <section class="oc-section mt-4" id="logs">
-        <div class="oc-section-head">
-            <b><i class="uil uil-file-alt"></i></b>
-            <div><h3>System logs</h3><small>Errors and warnings, newest first</small></div>
-        </div>
-        <div class="oc-section-body">
-            @if (! $log)
-                @include('opconsole::partials.empty-state', ['message' => 'No log files yet.'])
-            @else
-                {{-- File picker --}}
-                <div class="oc-log-files">
-                    @foreach ($logFiles as $file)
-                        <div @class(['oc-log-file', 'is-active' => $file['active']])>
-                            <a href="{{ $file['url'] }}" class="stretched-link" aria-label="Open {{ $file['name'] }}"><i class="uil uil-file"></i></a>
-                            <span dir="ltr">{{ $file['name'] }}</span>
-                            <small>{{ $file['meta'] }}</small>
-                            @if ($file['deletable'])
-                                <form method="POST" action="{{ route(config('opconsole.route.name_prefix').'log.delete', $file['name']) }}" class="oc-log-delete" data-confirm="Delete log file {{ $file['name'] }} permanently?">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" title="Delete file"><i class="uil uil-trash-alt"></i></button>
-                                </form>
-                            @endif
+            {{-- System info, grouped; copyable for support --}}
+            <details class="oc-section oc-system-info">
+                <summary class="oc-system-toggle">
+                    <span class="oc-inline-flex">@include('opconsole::partials.icon', ['name' => 'info']) <span>System information</span></span>
+                    <span class="oc-inline-flex"><span>View details</span> <span class="oc-check-chevron">@include('opconsole::partials.icon', ['name' => 'chevron-down'])</span></span>
+                </summary>
+                <div class="oc-section-head">
+                    <b>@include('opconsole::partials.icon', ['name' => 'info'])</b>
+                    <div><small>Runtime and service configuration summary (contains no raw secrets)</small></div>
+                    <button type="button" class="btn btn-sm btn-soft-primary oc-ms-auto" data-copy="{{ $infoText }}" title="Copy system summary">
+                        @include('opconsole::partials.icon', ['name' => 'copy'])
+                        <span data-oc-copy-label>Copy</span>
+                    </button>
+                </div>
+                <div class="oc-section-body oc-info-grid">
+                    @foreach ($info as $group => $rows)
+                        <div>
+                            <h3 class="oc-info-group">{{ $group }}</h3>
+                            <dl class="oc-info">
+                                @foreach ($rows as $label => $value)
+                                    <div><dt>{{ $label }}</dt><dd><bdi>{{ $value }}</bdi></dd></div>
+                                @endforeach
+                            </dl>
                         </div>
                     @endforeach
-                </div>
-
-                @if ($log['envChips'])
-                    <div class="oc-log-toolbar">
-                        <div class="oc-log-levels" aria-label="Environment">
-                            @foreach ($log['envChips'] as $chip)
-                                <a href="{{ $chip['url'] }}" @class(['oc-chip', 'is-active' => $chip['active']]) @if ($chip['env']) data-env="{{ $chip['env'] }}" @endif>{{ $chip['label'] }} <b>{{ $chip['count'] }}</b></a>
-                            @endforeach
-                        </div>
-                    </div>
-                @endif
-                <div class="oc-log-toolbar">
-                    <div class="oc-log-levels" aria-label="Level">
-                        @foreach ($log['levelChips'] as $chip)
-                            <a href="{{ $chip['url'] }}" @class(['oc-chip', $chip['style'], 'is-active' => $chip['active']]) @if ($chip['level']) data-level="{{ $chip['level'] }}" @endif>{{ $chip['label'] }} <b>{{ $chip['count'] }}</b></a>
-                        @endforeach
-                    </div>
-                    <form method="GET" action="{{ route(config('opconsole.route.name_prefix').'index') }}#logs" class="oc-log-search">
-                        <input type="hidden" name="log" value="{{ $log['name'] }}">
-                        <input type="hidden" name="env" value="{{ $log['env'] }}">
-                        @if ($log['level'])<input type="hidden" name="level" value="{{ $log['level'] }}">@endif
-                        <input type="search" aria-label="Search logs" name="q" value="{{ $log['search'] }}" class="form-control" placeholder="Search messages and stack traces…" maxlength="200" dir="auto">
-                        <button type="submit" class="btn btn-soft-primary" title="Search"><i class="uil uil-search"></i></button>
-                        @if ($log['search'] !== '')<a href="{{ $log['clearSearchUrl'] }}" class="btn btn-soft-secondary" title="Clear search"><i class="uil uil-times"></i></a>@endif
-                    </form>
-                    @if ($log['downloadUrl'])
-                        <a href="{{ $log['downloadUrl'] }}" class="btn btn-soft-secondary"><i class="uil uil-download-alt"></i> Download file</a>
+                    @if ($dbError)
+                        <small class="oc-db-error" dir="ltr">{{ $dbError }}</small>
                     @endif
                 </div>
+            </details>
 
-                <p class="text-muted small mb-3" data-log-summary>
-                    {{ $log['summary'] }}
-                    @if ($log['truncated'])· Only the last 2 MB are shown. Download the file to view older entries.@endif
-                </p>
+            {{-- Log files --}}
+            <section class="oc-section" id="logs" aria-labelledby="oc-logs-heading">
+                <div class="oc-section-head">
+                    <b>@include('opconsole::partials.icon', ['name' => 'file-text'])</b>
+                    <div>
+                        <h2 id="oc-logs-heading">System logs</h2>
+                        <small>Application log entries, newest first</small>
+                    </div>
+                </div>
+                <div class="oc-section-body">
+                    @if (! $log)
+                        @include('opconsole::partials.empty-state', ['message' => 'No log files yet.'])
+                    @else
+                        {{-- File picker --}}
+                        <nav class="oc-log-files" aria-label="Log files">
+                            @foreach ($logFiles as $file)
+                                <div @class(['oc-log-file', 'is-active' => $file['active']])>
+                                    <a href="{{ $file['url'] }}" class="oc-file-link" aria-label="Open {{ $file['name'] }}" @if ($file['active']) aria-current="true" @endif>
+                                        @include('opconsole::partials.icon', ['name' => 'file'])
+                                    </a>
+                                    <span dir="ltr">{{ $file['name'] }}</span>
+                                    <small>{{ $file['meta'] }}</small>
+                                    @if ($file['deletable'])
+                                        <form
+                                            method="POST"
+                                            action="{{ route(config('opconsole.route.name_prefix').'log.delete', $file['name']) }}"
+                                            class="oc-log-delete"
+                                            data-confirm="Permanently delete rotated log file {{ $file['name'] }}? This action cannot be undone."
+                                            data-confirm-title="Delete log file"
+                                            data-confirm-accept="Delete file"
+                                            data-confirm-risk="high"
+                                            data-confirm-risk-label="High risk · Permanent deletion"
+                                        >
+                                            @csrf @method('DELETE')
+                                            <button type="submit" aria-label="Delete {{ $file['name'] }}" title="Delete {{ $file['name'] }}">
+                                                @include('opconsole::partials.icon', ['name' => 'trash'])
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </nav>
 
-                @if ($log['groups'])
-                    <details class="oc-log-groups">
-                        <summary><i class="uil uil-layers"></i> Most frequent</summary>
-                        @foreach ($log['groups'] as $group)
-                            <div class="oc-log-group {{ $group['style'] }}">
-                                <span class="oc-log-count">×{{ $group['count'] }}</span>
-                                <span class="oc-log-message" dir="ltr">{{ $group['message'] }}</span>
-                                <span class="oc-log-meta" dir="ltr">{{ $group['last'] }}</span>
+                        @if ($log['envChips'])
+                            <div class="oc-log-toolbar">
+                                <div class="oc-log-levels" role="group" aria-label="Filter by environment">
+                                    @foreach ($log['envChips'] as $chip)
+                                        <a href="{{ $chip['url'] }}" @class(['oc-chip', 'is-active' => $chip['active']]) @if ($chip['active']) aria-current="true" @endif @if ($chip['env']) data-env="{{ $chip['env'] }}" @endif>
+                                            <span>{{ $chip['label'] }}</span> <b>{{ $chip['count'] }}</b>
+                                        </a>
+                                    @endforeach
+                                </div>
                             </div>
-                        @endforeach
-                    </details>
-                @endif
+                        @endif
 
-                {{-- Entries (messageHtml / detailsHtml are pre-escaped by PagePresenter, with <mark> around search matches) --}}
-                @forelse ($log['entries'] as $entry)
-                    <details class="oc-log-entry {{ $entry['style'] }}">
-                        <summary>
-                            <span class="oc-log-level">{{ $entry['level'] }}</span>
-                            <span class="oc-log-message" dir="ltr">{!! $entry['messageHtml'] !!}</span>
-                            <span class="oc-log-meta" dir="ltr">{{ $entry['meta'] }}</span>
-                        </summary>
-                        <div class="oc-log-body">
-                            <button type="button" class="btn btn-sm btn-soft-secondary" data-copy="{{ $entry['copy'] }}" title="Copy"><i class="uil uil-copy"></i> Copy entry</button>
-                            @if ($entry['detailsHtml'])
-                                <pre class="oc-output" dir="ltr">{!! $entry['detailsHtml'] !!}</pre>
+                        <div class="oc-log-toolbar">
+                            <div class="oc-log-levels" role="group" aria-label="Filter by log level">
+                                @foreach ($log['levelChips'] as $chip)
+                                    <a href="{{ $chip['url'] }}" @class(['oc-chip', $chip['style'], 'is-active' => $chip['active']]) @if ($chip['active']) aria-current="true" @endif @if ($chip['level']) data-level="{{ $chip['level'] }}" @endif>
+                                        <span>{{ $chip['label'] }}</span> <b>{{ $chip['count'] }}</b>
+                                    </a>
+                                @endforeach
+                            </div>
+                            <form method="GET" action="{{ route(config('opconsole.route.name_prefix').'index') }}#logs" class="oc-log-search" role="search">
+                                <input type="hidden" name="log" value="{{ $log['name'] }}">
+                                <input type="hidden" name="env" value="{{ $log['env'] }}">
+                                @if ($log['level'])<input type="hidden" name="level" value="{{ $log['level'] }}">@endif
+                                <label for="oc-log-search-input" class="oc-sr-only">Search logs</label>
+                                <input id="oc-log-search-input" type="search" aria-label="Search logs" name="q" value="{{ $log['search'] }}" class="form-control" placeholder="Search messages and stack traces…" maxlength="200" dir="auto">
+                                <button type="submit" class="btn btn-soft-primary" aria-label="Search" title="Search">
+                                    @include('opconsole::partials.icon', ['name' => 'search'])
+                                </button>
+                                @if ($log['search'] !== '')
+                                    <a href="{{ $log['clearSearchUrl'] }}" class="btn btn-soft-secondary" aria-label="Clear search" title="Clear search">
+                                        @include('opconsole::partials.icon', ['name' => 'x'])
+                                    </a>
+                                @endif
+                            </form>
+                            @if ($log['downloadUrl'])
+                                <a href="{{ $log['downloadUrl'] }}" class="btn btn-soft-secondary">
+                                    @include('opconsole::partials.icon', ['name' => 'download'])
+                                    <span>Download file</span>
+                                </a>
                             @endif
                         </div>
-                    </details>
-                @empty
-                    @include('opconsole::partials.empty-state', ['message' => 'No entries match this search.'])
-                @endforelse
 
-                @if ($log['moreUrl'])
-                    <a href="{{ $log['moreUrl'] }}" class="btn btn-soft-primary w-100 mt-2"><i class="uil uil-angle-down"></i> Show more</a>
-                @endif
-            @endif
+                        <p class="oc-log-summary" data-log-summary>
+                            <span>{{ $log['summary'] }}</span>
+                            @if ($log['truncated'])
+                                <span>· Showing the latest 2 MB tail only. Download the file to inspect older entries.</span>
+                            @endif
+                            @if ($log['resetFiltersUrl'])
+                                · <a href="{{ $log['resetFiltersUrl'] }}" class="oc-inline-link">Reset filters</a>
+                            @endif
+                        </p>
+
+                        @if ($log['groups'])
+                            <details class="oc-log-groups">
+                                <summary>@include('opconsole::partials.icon', ['name' => 'layers']) <span>Most frequent repeated entries</span></summary>
+                                @foreach ($log['groups'] as $group)
+                                    <div class="oc-log-group {{ $group['style'] }}">
+                                        <span class="oc-log-count">×{{ $group['count'] }}</span>
+                                        <span class="oc-log-message" dir="ltr">{{ $group['message'] }}</span>
+                                        <span class="oc-log-meta" dir="ltr">{{ $group['last'] }}</span>
+                                    </div>
+                                @endforeach
+                            </details>
+                        @endif
+
+                        {{-- Entries (messageHtml / detailsHtml are pre-escaped by PagePresenter, with <mark> around search matches) --}}
+                        @forelse ($log['entries'] as $entry)
+                            <details class="oc-log-entry {{ $entry['style'] }}">
+                                <summary>
+                                    <span class="oc-log-level">{{ $entry['level'] }}</span>
+                                    <span class="oc-log-message" dir="ltr">{!! $entry['messageHtml'] !!}</span>
+                                    <span class="oc-log-meta" dir="ltr">{{ $entry['meta'] }}</span>
+                                </summary>
+                                <div class="oc-log-body">
+                                    <button type="button" class="btn btn-sm btn-soft-secondary" data-copy="{{ $entry['copy'] }}" title="Copy log entry">
+                                        @include('opconsole::partials.icon', ['name' => 'copy'])
+                                        <span data-oc-copy-label>Copy entry</span>
+                                    </button>
+                                    @if ($entry['detailsHtml'])
+                                        <pre class="oc-output" dir="ltr">{!! $entry['detailsHtml'] !!}</pre>
+                                    @endif
+                                </div>
+                            </details>
+                        @empty
+                            @include('opconsole::partials.empty-state', [
+                                'message' => $log['emptyMessage'],
+                                'actionUrl' => $log['resetFiltersUrl'],
+                                'actionLabel' => $log['resetFiltersUrl'] ? 'Reset filters' : null,
+                            ])
+                        @endforelse
+
+                        @if ($log['moreUrl'])
+                            <a href="{{ $log['moreUrl'] }}" class="btn btn-soft-primary oc-w-full oc-mt-2">
+                                @include('opconsole::partials.icon', ['name' => 'chevron-down'])
+                                <span>Show more entries</span>
+                            </a>
+                        @endif
+                    @endif
+                </div>
+            </section>
         </div>
-    </section>
-@endsection
 
-@push('scripts')
-    <script>
-        (() => {
-            const checks = document.getElementById('checks');
-            const revealChecks = () => {
-                if (window.location.hash === '#checks') checks.open = true;
-            };
-            revealChecks();
-            window.addEventListener('hashchange', revealChecks);
-            document.querySelectorAll('a[href="#checks"]').forEach(link => {
-                link.addEventListener('click', () => { checks.open = true; });
-            });
-        })();
-    </script>
-@endpush
+        @if ($layout)
+            @include('opconsole::partials.confirm-modal')
+        @endif
+    </div>
+@endsection

@@ -128,4 +128,71 @@ class LogsTest extends TestCase
         $response->assertDontSee('<script>alert(1)</script>', false);
         $response->assertSee('&lt;script&gt;', false);
     }
+
+    /**
+     * Regression for F-08: an external symlink (or invalidly named file) with the newest mtime
+     * must not crash the dashboard, appear in the file selector, or trick delete() into allowing
+     * deletion of the actual newest valid log file.
+     */
+    public function test_newest_external_symlink_does_not_crash_dashboard_or_unlock_deleting_newest_valid_log(): void
+    {
+        $this->writeLog('laravel.log', "[2026-01-01 00:00:00] testing.ERROR: active log\n");
+        touch($this->logDir.'/laravel.log', time() - 120);
+
+        $outside = sys_get_temp_dir().'/opconsole-outside-newest-'.uniqid().'.log';
+        File::put($outside, "[2026-01-01 00:00:05] testing.ERROR: secret\n");
+
+        try {
+            symlink($outside, $this->logDir.'/escape.log');
+            File::put($this->logDir.'/invalid file name.log', 'bad');
+
+            $this->actingAsUser();
+
+            $this->get('/admin/opconsole')
+                ->assertOk()
+                ->assertSee('laravel.log')
+                ->assertDontSee('escape.log')
+                ->assertDontSee('invalid file name.log');
+
+            // laravel.log is still the newest *valid* log file and must remain protected from deletion.
+            $this->delete('/admin/opconsole/logs/laravel.log')
+                ->assertRedirect()
+                ->assertSessionHas('opconsole_error');
+
+            $this->assertFileExists($this->logDir.'/laravel.log');
+        } finally {
+            @unlink($outside);
+        }
+    }
+
+    /**
+     * Regression for F-07: a 404 or rejected download request must not record a false
+     * "succeeded" log.download audit row before file validation runs.
+     */
+    public function test_failed_or_missing_log_download_does_not_write_succeeded_audit_row(): void
+    {
+        $this->writeLog('laravel.log', "[2026-01-01 00:00:00] testing.INFO: ok\n");
+        $this->actingAsUser();
+
+        $this->get('/admin/opconsole/logs/nonexistent.log')->assertNotFound();
+        $this->assertDatabaseMissing('opconsole_runs', [
+            'action' => 'log.download',
+            'subject' => 'nonexistent.log',
+        ]);
+
+        $this->get('/admin/opconsole/logs/laravel.log')->assertOk();
+        $this->assertDatabaseHas('opconsole_runs', [
+            'action' => 'log.download',
+            'subject' => 'laravel.log',
+            'status' => 'succeeded',
+        ]);
+    }
+
+    public function test_deleting_nonexistent_log_returns_404_instead_of_newest_file_message(): void
+    {
+        $this->writeLog('laravel.log', "[2026-01-01 00:00:00] testing.INFO: current\n");
+        $this->actingAsUser();
+
+        $this->delete('/admin/opconsole/logs/missing.log')->assertNotFound();
+    }
 }

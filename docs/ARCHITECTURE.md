@@ -1,40 +1,53 @@
 # Architecture
 
-One service provider, one controller, five small `Support` classes, one model, one Gate-backed middleware. No facades, no repository layer, no DTO hierarchy, no per-command action classes — none of these were justified by a real problem in the source implementation this package was extracted from.
+One service provider, one controller, five focused `Support` classes, one Eloquent model, and one guard-aware Gate middleware. No facades, no repository layer, no DTO hierarchy, and no per-command action classes — keeping the package lightweight, readable, and trivial to audit.
 
 ```
 src/
-├── OpConsoleServiceProvider.php     Config merge, routes, views, translations, migrations, publishing, default Gates
+├── OpConsoleServiceProvider.php              Config merge, isolated lock store registration, routes, views, translations, migrations, publishing, default Gates
 ├── Http/
-│   ├── Controllers/OpConsoleController.php   4 actions: index, downloadLog, deleteLog, run
-│   └── Middleware/AuthorizeOpConsole.php     Gate::allows() wrapper, deny by default
-├── Models/OpConsoleRun.php          Audit row: started/succeeded/failed
-├── Contracts/HealthCheck.php        The one extension point
+│   ├── Controllers/OpConsoleController.php   5 actions: index, asset, downloadLog, deleteLog, run
+│   └── Middleware/AuthorizeOpConsole.php     Configured guard check + Gate::forUser() enforcement, fail-closed
+├── Models/OpConsoleRun.php                   Audit & history row: started / succeeded / failed
+├── Contracts/HealthCheck.php                 The single host extension contract
 └── Support/
-    ├── ConsoleStatus.php            Pure read model: database, caches, checks, info, advice
-    ├── ActionRunner.php             Writes (Artisan calls + audit), separate risk class from ConsoleStatus
-    ├── HealthChecks.php             Built-in checks + resolves config('opconsole.checks')
-    ├── LogViewer.php                Tail-read, parse, filter, group, delete/download storage/logs
-    └── PagePresenter.php            Turns ConsoleStatus + LogViewer output into view data; Blade only prints
+    ├── ConsoleStatus.php                     Read model: database/migrator snapshot, caches, checks, system info, advice, bounded audit history
+    ├── ActionRunner.php                      Write model: lock-store validation, atomic lock, allow-listed Artisan execution, sanitization, audit writes
+    ├── HealthChecks.php                      Built-in 4-state diagnostics + container-resolved config('opconsole.checks')
+    ├── LogViewer.php                         Request-scoped bounded tail reader (2 MB), text & NDJSON parser, filter/group, safe download/delete
+    └── PagePresenter.php                     View presenter: tiles, risk-graded action cards, sorted checks, operation history, filter URLs, XSS-safe highlighting
 ```
 
-## Why this shape
+---
 
-- **ConsoleStatus vs. ActionRunner split**: reads and writes have different risk profiles and different test needs (`Artisan::shouldReceive` vs. a pure fixture). Keeping them separate mirrors how they're authorized (`view_gate` vs. `run_gate`).
-- **PagePresenter does all the formatting**: Blade views contain no business logic — grouping, ordering, highlighting, and URL building all happen here. This is testable without a view-rendering round trip and keeps views easy to override.
-- **HealthChecks is the one extension point**: everything else is either a closed allow-list (the three Artisan actions) or a plain read. Host-specific checks register as classes in `config('opconsole.checks')`, resolved from the container, each returning the same array shape the built-in checks return.
-- **No queue execution**: the three actions are supposed to be fast. Making them async adds a new failure mode (worker not running) that is itself one of the things this page would need to report on. Revisit only if a host's migrations genuinely exceed the web timeout.
-- **OpConsoleRun doubles as "last run" and audit log**: one table, append-mostly (started rows are updated once to succeeded/failed), no FKs to the host's user table (`user_id` is a plain string so it works with int/UUID/ULID user keys alike).
+## Key Architectural Decisions
 
-## Request flow
+- **`ConsoleStatus` vs `ActionRunner` separation:** Reads and writes have distinct risk profiles, rate limits, and authorization Gates (`view_gate` vs `run_gate`). Separating them ensures diagnostic page loads never touch Artisan execution paths.
+- **Isolated `opconsole` lock store:** `OpConsoleServiceProvider` registers `cache.stores.opconsole` (`storage/framework/cache/opconsole`) automatically when not overridden by the host. `ActionRunner::validateLockStore()` verifies lock isolation fail-closed across both Laravel 12 and Laravel 13 so `optimize:clear` (`cache:clear`) can never flush an active maintenance lock.
+- **Request-scoped `LogViewer`:** Registered via `$this->app->scoped(LogViewer::class)` so `files()` and the 2 MB tail parse run at most once per HTTP request (reused across `ConsoleStatus::recentErrors()` and `OpConsoleController::index()`) while never leaking stale state across Laravel Octane / long-lived worker requests.
+- **`PagePresenter` owns all presentation logic:** Blade templates (`layout.blade.php`, `index.blade.php`, and `partials/*`) only print pre-formatted arrays and inline SVG icons. Grouping, severity ordering (`critical` → `warning` → `unknown` → `healthy`), stale-run classification (`Interrupted / Unknown`), URL generation, and raw-before-escape `<mark>` highlighting all live in `PagePresenter`.
+- **Self-contained, zero-CDN frontend:** `public/opconsole.css` and `public/opconsole.js` have zero runtime dependencies on Bootstrap, jQuery, or external icon fonts (`assets.use_cdn = false` by default) and emit zero inline `<script>` or `style=` attributes for strict Content-Security-Policy compatibility. If assets have not been published to `public/vendor/opconsole/` yet, `OpConsoleController::asset()` serves them behind `opconsole.authorize:view`.
+- **`HealthCheck` is the sole callable extension point:** `config/opconsole.php` contains zero closures (`config:cache` safe). Host applications register class names in `config('opconsole.checks')`; `HealthChecks` resolves each via the container, validates scalar types and shape, deduplicates repeated classes, and blocks collisions with built-in checks.
+- **Synchronous execution by design:** All three allow-listed Artisan commands execute synchronously within the web request. Asynchronous queue dispatch would introduce a dependency on a healthy queue worker — one of the exact failure modes OpConsole is used to diagnose.
+- **Bounded `OpConsoleRun` queries:** `ConsoleStatus` fetches the latest completed run per action via `SELECT MAX(id) ... GROUP BY action` and the 15 most recent audit rows via `ORDER BY id DESC LIMIT 15`, keeping SQL query count and memory constant regardless of historical table size. `user_id` is stored as a nullable string without foreign keys so integer, UUID, and ULID user primary keys all work portably across SQLite, MySQL/MariaDB, PostgreSQL, and SQL Server.
+
+---
+
+## Request Flow
 
 ```
-GET  {prefix}/            → opconsole.authorize:view → ConsoleStatus::status() + LogViewer::files()/read() → PagePresenter::page() → view
-GET  {prefix}/logs/{file} → opconsole.authorize:view → LogViewer::download()
-DELETE {prefix}/logs/{file} → opconsole.authorize:run + throttle → LogViewer::delete() → ActionRunner::record()
-POST {prefix}/{action}    → opconsole.authorize:run + throttle → ActionRunner::run() (Cache::lock, Artisan::call, audit row)
+GET    {prefix}/              → web + opconsole.authorize:view
+                              → ConsoleStatus::status() + LogViewer::files()/read() → PagePresenter::page() → Blade view
+
+GET    {prefix}/assets/{asset} → web + opconsole.authorize:view
+                              → OpConsoleController::asset() (serves opconsole.css / opconsole.js with nosniff)
+
+GET    {prefix}/logs/{file}   → web + opconsole.authorize:download + throttle:30,1,opconsole-download
+                              → LogViewer::path() → ActionRunner::record('log.download') → LogViewer::download()
+
+DELETE {prefix}/logs/{file}   → web + opconsole.authorize:delete + throttle:6,1,opconsole-delete
+                              → LogViewer::deleteOutcome() → ActionRunner::record('log.delete') → redirect
+
+POST   {prefix}/{action}      → web + opconsole.authorize:run + throttle:6,1,opconsole-run
+                              → ActionRunner::run() (validateLockStore → lock->get → recordStart → Artisan::call → recordFinish → lock->release) → redirect
 ```
-
-## Configuration-only extension points
-
-See `config/opconsole.php`. No closures are stored in config (that would break `config:cache`); the only callable extension point (`checks`) is a list of class names resolved from the container.

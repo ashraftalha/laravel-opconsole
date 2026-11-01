@@ -11,6 +11,8 @@ use Throwable;
 /** Everything the dashboard shows, gathered in one place. Pure read model. */
 class ConsoleStatus
 {
+    private const HISTORY_LIMIT = 15;
+
     public function __construct(
         private Migrator $migrator,
         private LogViewer $logs,
@@ -24,6 +26,7 @@ class ConsoleStatus
         $caches = $this->caches();
         $checks = $this->healthChecks->run($database, $host);
         $errors = $this->logs->recentErrors();
+        $audit = $this->audit();
 
         return [
             'app' => [
@@ -36,41 +39,71 @@ class ConsoleStatus
             'checks' => $checks,
             'errors' => $errors,
             'info' => $this->info($database, $caches),
-            'lastRuns' => $this->lastRuns(),
-            'advice' => $this->advice($database, $caches, $errors),
+            'lastRuns' => $audit['lastRuns'],
+            'history' => $audit['history'],
+            'advice' => $this->advice($database, $caches, $errors, $checks),
         ];
     }
 
     /** @return list<string> migration names not run yet */
     public function pendingMigrations(): array
     {
+        return $this->migrationState()['pending'];
+    }
+
+    /**
+     * Queries the migration repository at most once per call instead of duplicating
+     * repositoryExists() and getRan() queries.
+     *
+     * @return array{ran: int, pending: list<string>}
+     */
+    private function migrationState(): array
+    {
         $files = array_keys($this->migrator->getMigrationFiles([database_path('migrations'), ...$this->migrator->paths()]));
 
         if (! $this->migrator->repositoryExists()) {
-            return $files;
+            return ['ran' => 0, 'pending' => $files];
         }
 
-        return array_values(array_diff($files, $this->migrator->getRepository()->getRan()));
+        $ran = $this->migrator->getRepository()->getRan();
+
+        return [
+            'ran' => count($ran),
+            'pending' => array_values(array_diff($files, $ran)),
+        ];
     }
 
     private function database(): array
     {
-        $connection = config('database.default');
+        $connection = (string) config('database.default');
 
         try {
             DB::connection()->getPdo();
-            $pending = $this->pendingMigrations();
-            $ran = $this->migrator->repositoryExists() ? count($this->migrator->getRepository()->getRan()) : 0;
+            ['ran' => $ran, 'pending' => $pending] = $this->migrationState();
+            $dbName = DB::connection()->getDatabaseName();
+            if ($dbName !== '' && str_contains($dbName, DIRECTORY_SEPARATOR)) {
+                $dbName = basename($dbName);
+            }
 
-            return ['ok' => true, 'driver' => $connection, 'name' => DB::connection()->getDatabaseName(), 'ran' => $ran, 'pending' => $pending, 'error' => null];
+            return ['ok' => true, 'driver' => $connection, 'name' => $dbName, 'ran' => $ran, 'pending' => $pending, 'error' => null];
         } catch (Throwable $e) {
-            return ['ok' => false, 'driver' => $connection, 'name' => null, 'ran' => 0, 'pending' => [], 'error' => $e->getMessage()];
+            return [
+                'ok' => false,
+                'driver' => $connection,
+                'name' => null,
+                'ran' => 0,
+                'pending' => [],
+                'error' => ActionRunner::sanitizeText($e->getMessage()),
+            ];
         }
     }
 
     private function caches(): array
     {
-        $views = glob(config('view.compiled').'/*.php') ?: [];
+        $compiledPath = config('view.compiled');
+        $views = is_string($compiledPath) && $compiledPath !== '' && is_dir($compiledPath)
+            ? (glob(rtrim($compiledPath, '/\\').'/*.php') ?: [])
+            : [];
 
         return [
             'config' => app()->configurationIsCached(),
@@ -111,6 +144,7 @@ class ConsoleStatus
             'Services' => [
                 'Database' => $database['driver'].($database['name'] ? ' · '.$database['name'] : ''),
                 'Cache' => $caches['store'],
+                'Action lock' => (string) config('opconsole.concurrency.lock_store', 'opconsole'),
                 'Sessions' => config('session.driver'),
                 'Queues' => config('queue.default'),
                 'Mail' => config('mail.default'),
@@ -125,34 +159,95 @@ class ConsoleStatus
     }
 
     /**
-     * Latest finished run per action. Never throws: the audit table may not be
-     * migrated yet, especially right before the "migrate" action is used to create it.
+     * Bounded queries for latest finished run per action and recent audit history.
+     * Never throws when the audit table has not been migrated yet.
      *
-     * @return array<string, ?array{at: string, by: string, ok: bool}>
+     * @return array{
+     *     lastRuns: array<string, ?array{at: ?string, by: string, ok: bool}>,
+     *     history: array{available: bool, items: list<array{id: int, action: string, status: 'succeeded'|'failed'|'started'|'unknown', actor: string, startedAt: ?string, finishedAt: ?string, durationMs: ?int, exitCode: ?int, subject: ?string, error: ?string}>}
+     * }
      */
-    private function lastRuns(): array
+    private function audit(): array
     {
         $actions = array_keys(array_filter(config('opconsole.actions', [])));
+        $staleSeconds = max(5, (int) config('opconsole.concurrency.lock_seconds', 30)) * 2;
+        $staleThreshold = now()->subSeconds($staleSeconds);
 
         try {
-            $rows = OpConsoleRun::query()
-                ->whereIn('action', $actions)
-                ->whereIn('status', ['succeeded', 'failed'])
+            $rows = collect();
+            if ($actions !== []) {
+                $latestIds = OpConsoleRun::query()
+                    ->selectRaw('MAX(id) as id')
+                    ->whereIn('action', $actions)
+                    ->whereIn('status', ['succeeded', 'failed'])
+                    ->groupBy('action');
+
+                $rows = OpConsoleRun::query()
+                    ->whereIn('id', $latestIds)
+                    ->get(['id', 'action', 'status', 'user_label', 'finished_at'])
+                    ->keyBy('action');
+            }
+
+            $recentRows = OpConsoleRun::query()
                 ->latest('id')
-                ->get(['action', 'status', 'user_label', 'finished_at'])
-                ->unique('action')
-                ->keyBy('action');
+                ->limit(self::HISTORY_LIMIT)
+                ->get(['id', 'action', 'status', 'user_id', 'user_label', 'exit_code', 'subject', 'error', 'started_at', 'finished_at', 'created_at']);
+
+            $available = true;
         } catch (Throwable) {
             $rows = collect();
+            $recentRows = collect();
+            $available = false;
         }
 
-        return collect($actions)->mapWithKeys(fn ($action) => [
+        $lastRuns = collect($actions)->mapWithKeys(fn ($action) => [
             $action => $rows->has($action) ? [
                 'at' => $rows[$action]->finished_at?->toIso8601String(),
                 'by' => $rows[$action]->user_label ?? 'Unknown',
                 'ok' => $rows[$action]->status === 'succeeded',
             ] : null,
         ])->all();
+
+        $items = $recentRows->map(function (OpConsoleRun $row) use ($staleThreshold): array {
+            $startedAt = $row->started_at ?? $row->created_at;
+            $finishedAt = $row->finished_at;
+
+            // Do not infer success from a missing error: incomplete runs past the lock window are classified as unknown/interrupted.
+            /** @var 'succeeded'|'failed'|'started'|'unknown' $status */
+            $status = match ($row->status) {
+                'succeeded' => 'succeeded',
+                'failed' => 'failed',
+                'started' => ($startedAt !== null && $startedAt->greaterThanOrEqualTo($staleThreshold) && $finishedAt === null)
+                    ? 'started'
+                    : 'unknown',
+                default => 'unknown',
+            };
+
+            $durationMs = ($startedAt !== null && $finishedAt !== null)
+                ? max(0, (int) round($startedAt->diffInMilliseconds($finishedAt)))
+                : null;
+
+            return [
+                'id' => (int) $row->id,
+                'action' => (string) $row->action,
+                'status' => $status,
+                'actor' => $row->user_label ?: ($row->user_id !== null ? 'User #'.$row->user_id : 'System'),
+                'startedAt' => $startedAt?->toIso8601String(),
+                'finishedAt' => $finishedAt?->toIso8601String(),
+                'durationMs' => $durationMs,
+                'exitCode' => $row->exit_code !== null ? (int) $row->exit_code : null,
+                'subject' => $row->subject,
+                'error' => $row->error,
+            ];
+        })->values()->all();
+
+        return [
+            'lastRuns' => $lastRuns,
+            'history' => [
+                'available' => $available,
+                'items' => $items,
+            ],
+        ];
     }
 
     /**
@@ -160,7 +255,7 @@ class ConsoleStatus
      *
      * @return list<array{level: 'danger'|'warning'|'info', text: string, action: ?string}>
      */
-    private function advice(array $database, array $caches, array $errors): array
+    private function advice(array $database, array $caches, array $errors, array $checks): array
     {
         $advice = [];
 
@@ -168,6 +263,15 @@ class ConsoleStatus
             $advice[] = ['level' => 'danger', 'text' => 'Cannot connect to the database. Check DB_* settings in .env.', 'action' => null];
         } elseif ($database['pending']) {
             $advice[] = ['level' => 'warning', 'text' => 'There are '.count($database['pending']).' pending migrations. New features may require them.', 'action' => 'migrate'];
+        }
+
+        $criticalChecks = array_values(array_filter($checks, fn ($c) => $c['status'] === 'critical' && $c['id'] !== 'database.connection'));
+        if ($criticalChecks !== []) {
+            $advice[] = [
+                'level' => 'danger',
+                'text' => count($criticalChecks).' critical health '.(count($criticalChecks) === 1 ? 'check requires' : 'checks require').' immediate attention ('.$criticalChecks[0]['label'].').',
+                'action' => 'checks',
+            ];
         }
 
         if ($errors['count'] > 0) {

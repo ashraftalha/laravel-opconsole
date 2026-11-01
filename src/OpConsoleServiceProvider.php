@@ -3,6 +3,8 @@
 namespace AshrafTalha\OpConsole;
 
 use AshrafTalha\OpConsole\Http\Middleware\AuthorizeOpConsole;
+use AshrafTalha\OpConsole\Support\LogViewer;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -11,6 +13,16 @@ class OpConsoleServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/opconsole.php', 'opconsole');
+
+        $this->app->scoped(LogViewer::class);
+
+        if (! $this->app['config']->has('cache.stores.opconsole')) {
+            $this->app['config']->set('cache.stores.opconsole', [
+                'driver' => 'file',
+                'path' => storage_path('framework/cache/opconsole'),
+                'lock_path' => storage_path('framework/cache/opconsole'),
+            ]);
+        }
     }
 
     public function boot(): void
@@ -51,18 +63,34 @@ class OpConsoleServiceProvider extends ServiceProvider
     }
 
     /**
-     * Fail-closed by default: if the host application has not defined these
+     * Fail-closed by default: if the host application has not defined the default
      * Gates itself, OpConsole only allows access in the "local" environment.
-     * A host that wants different behaviour defines the Gate explicitly.
+     * Log download/delete default Gates delegate to view/run unless defined
+     * separately by the host; custom Gate names that are not defined fail closed.
      */
     private function registerDefaultGates(): void
     {
-        foreach (['view_gate', 'run_gate'] as $key) {
-            $name = config('opconsole.authorization.'.$key);
+        $defaults = [
+            'view' => 'viewOpConsole',
+            'run' => 'runOpConsoleActions',
+        ];
 
-            if ($name && ! Gate::has($name)) {
+        foreach ($defaults as $ability => $defaultName) {
+            $name = AuthorizeOpConsole::gateNameFor($ability);
+
+            if ($name === $defaultName && ! Gate::has($name)) {
                 Gate::define($name, fn ($user = null) => app()->environment('local'));
             }
+        }
+
+        $downloadGate = AuthorizeOpConsole::gateNameFor('download');
+        if ($downloadGate === 'downloadOpConsoleLogs' && ! Gate::has($downloadGate)) {
+            Gate::define($downloadGate, fn (?Authenticatable $user = null) => AuthorizeOpConsole::allows('view', $user));
+        }
+
+        $deleteGate = AuthorizeOpConsole::gateNameFor('delete');
+        if ($deleteGate === 'deleteOpConsoleLogs' && ! Gate::has($deleteGate)) {
+            Gate::define($deleteGate, fn (?Authenticatable $user = null) => AuthorizeOpConsole::allows('run', $user));
         }
     }
 }

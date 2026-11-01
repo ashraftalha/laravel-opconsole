@@ -6,10 +6,11 @@ use AshrafTalha\OpConsole\Contracts\HealthCheck;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Number;
+use Illuminate\Support\Str;
 
 /**
- * Generic, host-agnostic health checks grouped by area. Host-specific checks
- * (upload limits, branding assets, business rules, ...) do not belong here:
+ * Generic, host-agnostic health checks grouped by area. Application-specific checks
+ * (third-party service probes, custom queues, domain invariants, ...) do not belong here:
  * register them via config('opconsole.checks') instead.
  */
 class HealthChecks
@@ -17,94 +18,363 @@ class HealthChecks
     /** Hosts that all mean "this machine", so localhost vs 127.0.0.1 is not a mismatch. */
     private const LOOPBACK = ['localhost', '127.0.0.1', '::1', '[::1]'];
 
+    private const STATUSES = ['healthy', 'warning', 'critical', 'unknown'];
+
+    private ActionRunner $actionRunner;
+
+    public function __construct(?ActionRunner $actionRunner = null)
+    {
+        $this->actionRunner = $actionRunner ?? app(ActionRunner::class);
+    }
+
     /**
-     * @return list<array{group: string, label: string, ok: bool, severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}>
+     * @return list<array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}>
      */
     public function run(array $database, ?string $host): array
     {
-        return [...$this->builtIn($database, $host), ...$this->custom()];
+        $builtIn = $this->builtIn($database, $host);
+
+        return [...$builtIn, ...$this->custom($builtIn)];
     }
 
+    /**
+     * @return list<array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}>
+     */
     private function builtIn(array $database, ?string $host): array
     {
         $production = app()->isProduction();
         $memory = $this->iniBytes('memory_limit');
-        $driver = config('database.connections.'.$database['driver'].'.driver') ?? $database['driver'];
-        $extensions = ['mbstring', 'openssl', 'tokenizer', 'ctype', 'json', 'pdo_'.$driver];
+        $driver = (string) (config('database.connections.'.$database['driver'].'.driver') ?? $database['driver']);
+        $pdoExtension = match ($driver) {
+            'mysql', 'mariadb' => 'pdo_mysql',
+            'pgsql' => 'pdo_pgsql',
+            'sqlite' => 'pdo_sqlite',
+            'sqlsrv' => 'pdo_sqlsrv',
+            default => null,
+        };
+        $extensions = array_filter(['mbstring', 'openssl', 'tokenizer', 'ctype', 'json', $pdoExtension]);
         $missing = array_values(array_filter($extensions, fn ($extension) => ! extension_loaded($extension)));
         $appUrl = (string) config('app.url');
         $appHost = parse_url($appUrl, PHP_URL_HOST);
         $free = @disk_free_space(storage_path());
-        $logLevel = config('logging.channels.daily.level', 'debug');
-        $check = fn (string $group, string $label, bool $ok, string $severity, string $hint, ?string $value = null, ?string $fix = null) => compact('group', 'label', 'ok', 'severity', 'hint', 'value', 'fix');
+        $logLevel = $this->effectiveLogLevel();
+        $lockValidation = $this->actionRunner->validateLockStore();
+        $cacheDriver = (string) config('cache.default');
+        $sessionDriver = (string) config('session.driver');
+        $ephemeralDrivers = ['array', 'null'];
+        $ephemeralInProd = $production && (in_array($cacheDriver, $ephemeralDrivers, true) || in_array($sessionDriver, $ephemeralDrivers, true));
+
+        $check = fn (
+            string $id,
+            string $group,
+            string $label,
+            bool $ok,
+            string $severity,
+            string $hint,
+            ?string $value = null,
+            ?string $fix = null,
+            ?string $status = null,
+        ) => $this->normalizeCheck([
+            'id' => $id,
+            'group' => $group,
+            'label' => $label,
+            'ok' => $ok,
+            'severity' => $severity,
+            'hint' => $hint,
+            'value' => $value,
+            'fix' => $fix,
+            'status' => $status,
+        ]);
+
+        if ($free === false) {
+            $diskCheck = $check(
+                'files.disk_space',
+                'Files and folders',
+                'Sufficient disk space',
+                true,
+                'info',
+                'Disk free space could not be queried in this PHP environment.',
+                'Unavailable',
+                null,
+                'unknown',
+            );
+        } elseif ($free < 256 * 1024 ** 2) {
+            $diskCheck = $check(
+                'files.disk_space',
+                'Files and folders',
+                'Sufficient disk space',
+                false,
+                'danger',
+                'Critically low free disk space (< 256 MB); logging and caching may fail.',
+                Number::fileSize($free, 1).' free',
+                'Rotate or archive old logs and temporary files',
+                'critical',
+            );
+        } else {
+            $diskCheck = $check(
+                'files.disk_space',
+                'Files and folders',
+                'Sufficient disk space',
+                $free >= 1024 ** 3,
+                'warning',
+                'Warns when less than 1 GB is available.',
+                Number::fileSize($free, 1).' free',
+                $free < 1024 ** 3 ? 'Free at least 1 GB on the storage volume' : null,
+            );
+        }
+
+        $opcacheEnabled = extension_loaded('Zend OPcache') && (bool) ini_get('opcache.enable');
 
         $checks = [
             // Files and folders
-            $check('Files and folders', 'Storage directory is writable', is_writable(storage_path()), 'danger', 'Stores logs, cache, and compiled views.', 'storage/', 'chmod -R ug+rw storage'),
-            $check('Files and folders', 'Bootstrap cache is writable', is_writable(base_path('bootstrap/cache')), 'danger', 'Required to optimize performance.', 'bootstrap/cache/', 'chmod -R ug+rw bootstrap/cache'),
-            $check('Files and folders', 'Sufficient disk space', $free === false || $free > 1024 ** 3, 'warning', 'Warns when less than 1 GB is available.', $free === false ? null : Number::fileSize($free, 1).' free'),
+            $check('files.storage_writable', 'Files and folders', 'Storage directory is writable', is_writable(storage_path()), 'danger', 'Stores logs, cache, and compiled views.', 'storage/', 'chmod -R ug+rw storage'),
+            $check('files.bootstrap_cache_writable', 'Files and folders', 'Bootstrap cache is writable', is_writable(base_path('bootstrap/cache')), 'danger', 'Required to optimize performance.', 'bootstrap/cache/', 'chmod -R ug+rw bootstrap/cache'),
+            $diskCheck,
 
             // PHP
-            $check('PHP settings', 'Supported PHP version', version_compare(PHP_VERSION, '8.3.0', '>='), 'danger', 'This application requires PHP 8.3 or later.', 'PHP '.PHP_VERSION),
-            $check('PHP settings', 'Required extensions installed', ! $missing, 'danger', $missing ? 'Missing required extensions.' : 'Framework and database driver extensions.', implode(', ', $missing ?: $extensions), $missing ? 'apt install php-'.implode(' php-', $missing) : null),
-            $check('PHP settings', 'Sufficient memory', $memory === -1 || $memory >= 128 * 1024 ** 2, 'warning', 'Most applications need at least 128 MB.', 'memory_limit='.ini_get('memory_limit'), 'php.ini: memory_limit=256M'),
-            $check('PHP settings', 'OPcache enabled in production', ! $production || (bool) ini_get('opcache.enable'), 'info', 'Improves PHP page performance on the server.', 'opcache.enable='.(ini_get('opcache.enable') ?: '0'), 'php.ini: opcache.enable=1'),
+            $check('php.version', 'PHP settings', 'Supported PHP version', version_compare(PHP_VERSION, '8.3.0', '>='), 'danger', 'This application requires PHP 8.3 or later.', 'PHP '.PHP_VERSION),
+            $check('php.extensions', 'PHP settings', 'Required extensions installed', ! $missing, 'danger', $missing ? 'Missing required extensions.' : 'Framework and database driver extensions.', implode(', ', $missing ?: $extensions), $missing ? 'Install PHP extensions: '.implode(', ', $missing) : null),
+            $check('php.memory_limit', 'PHP settings', 'Sufficient memory', $memory === -1 || $memory >= 128 * 1024 ** 2, 'warning', 'Most applications need at least 128 MB.', 'memory_limit='.ini_get('memory_limit'), 'php.ini: memory_limit=256M'),
+            $check('php.opcache', 'PHP settings', 'OPcache enabled in production', ! $production || $opcacheEnabled, 'info', 'Improves PHP bytecode execution performance on web servers.', 'opcache.enable='.(ini_get('opcache.enable') ?: '0'), 'php.ini: opcache.enable=1'),
 
             // Security
-            $check('Security', 'Application key configured', filled(config('app.key')), 'danger', 'Required for sessions and sign-in.', null, 'php artisan key:generate'),
-            $check('Security', 'Debug mode disabled in production', ! ($production && config('app.debug')), 'danger', 'Debug mode exposes error and configuration details to visitors.', 'APP_DEBUG='.(config('app.debug') ? 'true' : 'false'), '.env: APP_DEBUG=false'),
-            $check('Security', 'HTTPS in production', ! $production || str_starts_with($appUrl, 'https://'), 'warning', 'Sensitive requests should use a secure connection.', 'APP_URL='.$appUrl, '.env: APP_URL=https://…'),
-            $check('Security', 'Secure session cookies', ! $production || ! str_starts_with($appUrl, 'https://') || (bool) config('session.secure'), 'warning', 'HTTPS sessions should not be sent over an unencrypted connection.', 'SESSION_SECURE_COOKIE='.(config('session.secure') ? 'true' : 'false'), '.env: SESSION_SECURE_COOKIE=true'),
-            $check('Security', 'Production log level', ! $production || $logLevel !== 'debug', 'info', 'Debug logging adds unnecessary detail in production.', 'LOG_LEVEL='.$logLevel, '.env: LOG_LEVEL=warning'),
+            $check('security.app_key', 'Security', 'Application key configured', filled(config('app.key')), 'danger', 'Required for encryption, signed URLs, and sessions.', null, 'php artisan key:generate'),
+            $check('security.debug_mode', 'Security', 'Debug mode disabled in production', ! ($production && config('app.debug')), 'danger', 'Debug mode exposes stack traces and configuration details to visitors.', 'APP_DEBUG='.(config('app.debug') ? 'true' : 'false'), '.env: APP_DEBUG=false'),
+            $check('security.https', 'Security', 'HTTPS in production', ! $production || str_starts_with($appUrl, 'https://'), 'warning', 'Sensitive requests should use an encrypted HTTPS URL.', 'APP_URL='.$appUrl, '.env: APP_URL=https://…'),
+            $check('security.session_secure', 'Security', 'Secure session cookies', ! $production || ! str_starts_with($appUrl, 'https://') || (bool) config('session.secure'), 'warning', 'HTTPS session cookies should set the Secure attribute.', 'SESSION_SECURE_COOKIE='.(config('session.secure') ? 'true' : 'false'), '.env: SESSION_SECURE_COOKIE=true'),
+            $check('security.log_level', 'Security', 'Production log level', ! $production || $logLevel !== 'debug', 'info', 'Debug logging increases disk usage and sensitive payload exposure in production.', 'LOG_LEVEL='.$logLevel, '.env: LOG_LEVEL=warning'),
+            $check(
+                'security.lock_store',
+                'Security',
+                'Action lock store isolation',
+                $lockValidation['ok'],
+                'danger',
+                $lockValidation['ok']
+                    ? ($lockValidation['distributed'] ? 'Isolated distributed atomic lock store.' : 'Isolated atomic lock store (single-server filesystem scope).')
+                    : ($lockValidation['reason'] ?? 'Action lock store is unsafe.'),
+                'store='.$lockValidation['store'].($lockValidation['driver'] ? ' ('.$lockValidation['driver'].')' : ''),
+                $lockValidation['ok'] ? null : '.env: OPCONSOLE_LOCK_STORE=opconsole',
+            ),
+            $check(
+                'security.cache_session_persistence',
+                'Security',
+                'Persistent cache and session drivers',
+                ! $ephemeralInProd,
+                'danger',
+                $ephemeralInProd ? 'Array and null drivers discard cache or session state at the end of every request.' : 'Configured cache and session drivers match environment requirements.',
+                'cache='.$cacheDriver.', session='.$sessionDriver,
+                $ephemeralInProd ? '.env: CACHE_STORE=database SESSION_DRIVER=database' : null,
+            ),
 
             // Database & queues
-            ...$this->databaseChecks($database),
+            ...$this->databaseChecks($database, $production, $check),
 
             // URL & email
-            $check('URL and email', 'Email delivery enabled in production', ! $production || ! in_array(config('mail.default'), ['log', 'array'], true), 'warning', 'Log and array mail drivers do not deliver email.', 'MAIL_MAILER='.config('mail.default'), '.env: MAIL_MAILER=smtp'),
-            $check('URL and email', 'Timezone is explicitly configured', config('app.timezone') !== 'UTC', 'info', 'UTC is the Laravel default; set a local timezone if this application has one.', 'APP_TIMEZONE='.config('app.timezone'), 'config/app.php: timezone=...'),
+            $check('mail.delivery', 'URL and email', 'Email delivery enabled in production', ! $production || ! in_array(config('mail.default'), ['log', 'array'], true), 'warning', 'Log and array mailers do not deliver external email (SMTP transport is not probed).', 'MAIL_MAILER='.config('mail.default'), '.env: MAIL_MAILER=smtp'),
+            $check('app.timezone', 'URL and email', 'Application timezone is valid', in_array((string) config('app.timezone'), timezone_identifiers_list(), true), 'warning', 'Valid IANA timezone identifier for timestamps and scheduled tasks.', 'APP_TIMEZONE='.config('app.timezone'), 'config/app.php: timezone=UTC'),
         ];
 
         if ($host !== null && $appHost) {
             $same = strcasecmp($host, $appHost) === 0 || (in_array(strtolower($host), self::LOOPBACK, true) && in_array(strtolower($appHost), self::LOOPBACK, true));
-            $checks[] = $check('URL and email', 'Application URL matches current host', $same, 'warning', 'A host mismatch can produce links with an incorrect address.', 'APP_URL='.$appHost.'  ←  '.$host, '.env: APP_URL=https://'.$host);
+            $checks[] = $check('app.url_host', 'URL and email', 'Application URL matches current host', $same, 'warning', 'A host mismatch can generate signed URLs and links with the wrong domain.', 'APP_URL='.$appHost.'  ←  '.$host, '.env: APP_URL=https://'.$host);
         }
 
         return $checks;
     }
 
-    /** Session/cache/queue tables the configured drivers need, plus stuck or failed background jobs. */
-    private function databaseChecks(array $database): array
+    /**
+     * Session/cache/queue tables the configured drivers need, plus stuck or failed background jobs.
+     *
+     * @param  \Closure(string, string, string, bool, string, string, ?string=, ?string=, ?string=): array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}  $check
+     * @return list<array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}>
+     */
+    private function databaseChecks(array $database, bool $production, \Closure $check): array
     {
         if (! $database['ok']) {
-            return [['group' => 'Database and queues', 'label' => 'Database connection', 'ok' => false, 'severity' => 'danger', 'hint' => 'Connection failed; the application cannot operate.', 'value' => $database['driver'], 'fix' => '.env: DB_HOST / DB_DATABASE / DB_USERNAME / DB_PASSWORD']];
+            return [$check('database.connection', 'Database and queues', 'Database connection', false, 'danger', 'Connection failed; database-backed features cannot operate.', (string) $database['driver'], '.env: DB_HOST / DB_DATABASE / DB_USERNAME / DB_PASSWORD')];
         }
 
         $schema = DB::connection()->getSchemaBuilder();
-        $failedTable = config('queue.failed.table', 'failed_jobs');
-        $needs = array_filter([
-            'sessions' => config('session.driver') === 'database',
-            'cache' => config('cache.default') === 'database',
-            'jobs' => config('queue.default') === 'database',
-            $failedTable => true,
-        ]);
-        $missingTables = array_values(array_filter(array_keys($needs), fn ($table) => ! $schema->hasTable($table)));
-        $stuck = $schema->hasTable('jobs') ? DB::table('jobs')->where('created_at', '<', now()->subHour()->getTimestamp())->count() : 0;
-        $failed = $schema->hasTable($failedTable) ? DB::table($failedTable)->count() : 0;
+        $tableCache = [];
+        $hasTable = function (string $table) use ($schema, &$tableCache): bool {
+            return $tableCache[$table] ??= $schema->hasTable($table);
+        };
 
-        return [
-            ['group' => 'Database and queues', 'label' => 'Session, cache, and queue tables', 'ok' => ! $missingTables, 'severity' => 'danger', 'hint' => $missingTables ? 'Tables required by the current configuration are missing.' : 'All required tables exist.', 'value' => $missingTables ? implode(', ', $missingTables) : implode(', ', array_keys($needs)), 'fix' => $missingTables ? 'php artisan migrate' : null],
-            ['group' => 'Database and queues', 'label' => 'No stuck queue jobs', 'ok' => $stuck === 0, 'severity' => 'warning', 'hint' => 'Jobs waiting over an hour may indicate the queue worker is stopped.', 'value' => $stuck.' stuck', 'fix' => 'php artisan queue:work'],
-            ['group' => 'Database and queues', 'label' => 'No failed jobs', 'ok' => $failed === 0, 'severity' => 'warning', 'hint' => 'Background jobs that failed to complete.', 'value' => $failed.' failed', 'fix' => 'php artisan queue:retry all'],
-        ];
+        $sessionTable = (string) config('session.table', 'sessions');
+        $cacheTable = (string) config('cache.stores.database.table', 'cache');
+        $cacheLockTable = (string) (config('cache.stores.database.lock_table') ?: 'cache_locks');
+        $jobsTable = (string) config('queue.connections.database.table', 'jobs');
+        $failedDriver = config('queue.failed.driver');
+        $failedTable = (string) config('queue.failed.table', 'failed_jobs');
+        $usesDbFailedJobs = in_array($failedDriver, ['database', 'database-uuids'], true);
+        $queueDriver = (string) config('queue.default');
+
+        $needs = array_filter([
+            $sessionTable => config('session.driver') === 'database',
+            $cacheTable => config('cache.default') === 'database',
+            $cacheLockTable => config('cache.default') === 'database' || config('opconsole.concurrency.lock_store') === 'database',
+            $jobsTable => $queueDriver === 'database',
+            $failedTable => $usesDbFailedJobs,
+        ]);
+
+        $requiredTables = array_keys($needs);
+        $missingTables = array_values(array_filter($requiredTables, fn (string $table) => ! $hasTable($table)));
+
+        $tablesCheck = $check(
+            'database.required_tables',
+            'Database and queues',
+            'Session, cache, and queue tables',
+            ! $missingTables,
+            'danger',
+            $missingTables
+                ? 'Tables required by the active database drivers are missing.'
+                : ($requiredTables ? 'All tables required by active drivers exist.' : 'Current drivers do not require extra framework tables.'),
+            $missingTables ? implode(', ', $missingTables) : ($requiredTables ? implode(', ', $requiredTables) : 'none required'),
+            $missingTables ? 'php artisan migrate' : null,
+        );
+
+        // Stuck queue jobs: never report external brokers (Redis/SQS) as "0 stuck" when uninspected.
+        if ($queueDriver === 'database') {
+            if ($hasTable($jobsTable)) {
+                $stuck = DB::table($jobsTable)->where('created_at', '<', now()->subHour()->getTimestamp())->count();
+                $stuckCheck = $check(
+                    'queue.stuck_jobs',
+                    'Database and queues',
+                    'No stuck queue jobs',
+                    $stuck === 0,
+                    'warning',
+                    'Jobs waiting over an hour usually indicate the queue worker is stopped.',
+                    $stuck.' stuck',
+                    $stuck > 0 ? 'php artisan queue:work' : null,
+                );
+            } else {
+                $stuckCheck = $check(
+                    'queue.stuck_jobs',
+                    'Database and queues',
+                    'No stuck queue jobs',
+                    true,
+                    'info',
+                    'Queue backlog cannot be inspected until the jobs table is migrated.',
+                    $jobsTable.' missing',
+                    'php artisan migrate',
+                    'unknown',
+                );
+            }
+        } elseif ($queueDriver === 'null' && $production) {
+            $stuckCheck = $check(
+                'queue.stuck_jobs',
+                'Database and queues',
+                'No stuck queue jobs',
+                false,
+                'warning',
+                'The null queue driver discards dispatched background jobs.',
+                'QUEUE_CONNECTION=null',
+                '.env: QUEUE_CONNECTION=database',
+            );
+        } elseif ($queueDriver === 'sync' || $queueDriver === 'null') {
+            $stuckCheck = $check(
+                'queue.stuck_jobs',
+                'Database and queues',
+                'No stuck queue jobs',
+                true,
+                'info',
+                'Jobs run synchronously inside requests; no background queue backlog applies.',
+                'QUEUE_CONNECTION='.$queueDriver,
+            );
+        } else {
+            $stuckCheck = $check(
+                'queue.stuck_jobs',
+                'Database and queues',
+                'No stuck queue jobs',
+                true,
+                'info',
+                'External queue broker backlog is not probed during web requests.',
+                'QUEUE_CONNECTION='.$queueDriver.' (unverified)',
+                null,
+                'unknown',
+            );
+        }
+
+        // Failed jobs: distinguish verified 0 from unmigrated/non-database failed-job storage.
+        if ($usesDbFailedJobs && $hasTable($failedTable)) {
+            $failed = DB::table($failedTable)->count();
+            $failedCheck = $check(
+                'queue.failed_jobs',
+                'Database and queues',
+                'No failed jobs',
+                $failed === 0,
+                'warning',
+                'Background jobs that failed permanently.',
+                $failed.' failed',
+                $failed > 0 ? 'php artisan queue:retry all' : null,
+            );
+        } elseif ($usesDbFailedJobs) {
+            $failedCheck = $check(
+                'queue.failed_jobs',
+                'Database and queues',
+                'No failed jobs',
+                true,
+                'info',
+                'Failed-jobs table is not migrated yet; count cannot be verified.',
+                $failedTable.' missing',
+                'php artisan migrate',
+                'unknown',
+            );
+        } else {
+            $failedCheck = $check(
+                'queue.failed_jobs',
+                'Database and queues',
+                'No failed jobs',
+                true,
+                'info',
+                'Failed-job tracking is disabled or uses a non-database driver.',
+                'driver='.($failedDriver ?: 'none'),
+                null,
+                'unknown',
+            );
+        }
+
+        return [$tablesCheck, $stuckCheck, $failedCheck];
     }
 
-    /** Host-registered checks from config('opconsole.checks'); malformed results are logged and skipped. */
-    private function custom(): array
+    /**
+     * Host-registered checks from config('opconsole.checks'); malformed, duplicate,
+     * or core-colliding results are logged and skipped without breaking the dashboard.
+     *
+     * @param  list<array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}>  $builtIn
+     * @return list<array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}>
+     */
+    private function custom(array $builtIn): array
     {
         $results = [];
+        $seenClasses = [];
+        $usedIds = [];
+        $usedGroupLabels = [];
 
-        foreach (config('opconsole.checks', []) as $class) {
+        foreach ($builtIn as $core) {
+            $usedIds[$core['id']] = true;
+            $usedGroupLabels[$this->groupLabelKey($core['group'], $core['label'])] = true;
+        }
+
+        $configured = config('opconsole.checks', []);
+        if (! is_array($configured)) {
+            return [];
+        }
+
+        foreach ($configured as $class) {
+            if (! is_string($class) || trim($class) === '') {
+                Log::warning('OpConsole: custom health check entry must be a class-string');
+
+                continue;
+            }
+
+            if (isset($seenClasses[$class])) {
+                Log::warning('OpConsole: duplicate custom health check skipped', ['class' => $class]);
+
+                continue;
+            }
+            $seenClasses[$class] = true;
+
             try {
                 $check = app($class);
                 if (! $check instanceof HealthCheck) {
@@ -113,9 +383,26 @@ class HealthChecks
 
                 $result = $check->run();
                 $this->assertShape($result);
-                $results[] = $result;
+
+                $slug = isset($result['id']) ? Str::slug($result['id']) : '';
+                $customId = $slug !== ''
+                    ? 'custom.'.$slug
+                    : 'custom.'.Str::slug(class_basename($class).'-'.$result['label']);
+
+                $groupLabel = $this->groupLabelKey($result['group'], $result['label']);
+                if (isset($usedIds[$customId]) || isset($usedGroupLabels[$groupLabel])) {
+                    throw new \InvalidArgumentException("Health check [{$result['label']}] in group [{$result['group']}] collides with an existing check.");
+                }
+
+                $normalized = $this->normalizeCheck(['id' => $customId] + $result);
+                $usedIds[$normalized['id']] = true;
+                $usedGroupLabels[$groupLabel] = true;
+                $results[] = $normalized;
             } catch (\Throwable $e) {
-                Log::warning('OpConsole: custom health check failed', ['class' => $class, 'error' => $e->getMessage()]);
+                Log::warning('OpConsole: custom health check failed', [
+                    'class' => $class,
+                    'error' => ActionRunner::sanitizeText($e->getMessage()),
+                ]);
             }
         }
 
@@ -131,15 +418,98 @@ class HealthChecks
             }
         }
 
+        foreach (['group', 'label', 'hint'] as $stringKey) {
+            if (! is_string($result[$stringKey]) || trim($result[$stringKey]) === '') {
+                throw new \InvalidArgumentException("Health check key [$stringKey] must be a non-empty string.");
+            }
+        }
+
+        if (! is_bool($result['ok'])) {
+            throw new \InvalidArgumentException('Health check key [ok] must be a boolean.');
+        }
+
         if (! in_array($result['severity'], ['danger', 'warning', 'info'], true)) {
             throw new \InvalidArgumentException('Health check result has an invalid severity.');
         }
+
+        foreach (['value', 'fix'] as $nullableStringKey) {
+            if ($result[$nullableStringKey] !== null && ! is_string($result[$nullableStringKey])) {
+                throw new \InvalidArgumentException("Health check key [$nullableStringKey] must be a string or null.");
+            }
+        }
+
+        if (isset($result['status']) && ! in_array($result['status'], self::STATUSES, true)) {
+            throw new \InvalidArgumentException('Health check result has an invalid status.');
+        }
+
+        if (isset($result['id']) && (! is_string($result['id']) || trim($result['id']) === '')) {
+            throw new \InvalidArgumentException('Health check key [id] must be a non-empty string when provided.');
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $raw
+     * @return array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}
+     */
+    private function normalizeCheck(array $raw): array
+    {
+        $ok = (bool) $raw['ok'];
+        /** @var 'danger'|'warning'|'info' $severity */
+        $severity = $raw['severity'];
+        /** @var 'healthy'|'warning'|'critical'|'unknown' $status */
+        $status = isset($raw['status']) && in_array($raw['status'], self::STATUSES, true)
+            ? $raw['status']
+            : ($ok ? 'healthy' : ($severity === 'danger' ? 'critical' : 'warning'));
+
+        if ($status === 'critical' || $status === 'warning') {
+            $ok = false;
+        }
+
+        return [
+            'id' => (string) $raw['id'],
+            'group' => trim((string) $raw['group']),
+            'label' => trim((string) $raw['label']),
+            'ok' => $ok,
+            'status' => $status,
+            'severity' => $severity,
+            'hint' => trim((string) $raw['hint']),
+            'value' => $raw['value'] !== null ? (string) $raw['value'] : null,
+            'fix' => $raw['fix'] !== null ? (string) $raw['fix'] : null,
+        ];
+    }
+
+    private function groupLabelKey(string $group, string $label): string
+    {
+        return strtolower(trim($group).'|'.trim($label));
+    }
+
+    private function effectiveLogLevel(): string
+    {
+        $defaultChannel = (string) config('logging.default', 'stack');
+        $channelConfig = config("logging.channels.{$defaultChannel}");
+
+        if (is_array($channelConfig) && ($channelConfig['driver'] ?? null) === 'stack') {
+            $firstSubChannel = $channelConfig['channels'][0] ?? null;
+            if (is_string($firstSubChannel) && $firstSubChannel !== '') {
+                return strtolower((string) config("logging.channels.{$firstSubChannel}.level", 'debug'));
+            }
+        }
+
+        if (is_array($channelConfig) && isset($channelConfig['level'])) {
+            return strtolower((string) $channelConfig['level']);
+        }
+
+        return strtolower((string) config('logging.channels.daily.level', 'debug'));
     }
 
     /** php.ini sizes like "2M" / "1G" in bytes. */
     private function iniBytes(string $key): int
     {
         $value = trim((string) ini_get($key));
+        if ($value === '' || $value === '-1') {
+            return -1;
+        }
+
         $number = (int) $value;
 
         return match (strtolower(substr($value, -1))) {

@@ -2,7 +2,9 @@
 
 namespace AshrafTalha\OpConsole\Tests\Feature;
 
+use AshrafTalha\OpConsole\OpConsoleServiceProvider;
 use AshrafTalha\OpConsole\Tests\TestCase;
+use Illuminate\Support\ServiceProvider;
 
 class ConfigTest extends TestCase
 {
@@ -41,5 +43,14 @@ class ConfigTest extends TestCase
         $names = collect($this->app['router']->getRoutes())->map(fn ($route) => $route->getName())->filter()->values();
 
         $this->assertTrue($names->contains('ops.index'));
+    }
+
+    public function test_config_and_assets_are_registered_for_vendor_publish(): void
+    {
+        $configPaths = ServiceProvider::pathsToPublish(OpConsoleServiceProvider::class, 'opconsole-config');
+        $assetPaths = ServiceProvider::pathsToPublish(OpConsoleServiceProvider::class, 'opconsole-assets');
+
+        $this->assertNotEmpty($configPaths);
+        $this->assertNotEmpty($assetPaths);
     }
 }

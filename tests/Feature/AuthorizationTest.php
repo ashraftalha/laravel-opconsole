@@ -3,9 +3,12 @@
 namespace AshrafTalha\OpConsole\Tests\Feature;
 
 use AshrafTalha\OpConsole\Tests\TestCase;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
 
 class AuthorizationTest extends TestCase
 {
@@ -121,5 +124,177 @@ class AuthorizationTest extends TestCase
     public function test_guest_is_still_redirected_when_a_login_route_exists(): void
     {
         $this->get('/admin/opconsole')->assertRedirect('/login');
+    }
+
+    /** Regression for F-01: custom authentication.guard must drive both Gate evaluation and audit attribution. */
+    public function test_custom_authentication_guard_evaluates_gate_and_audits_the_configured_guard_user(): void
+    {
+        $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
+        $this->app['config']->set('auth.guards.admin', ['driver' => 'session', 'provider' => 'users']);
+        $this->app['config']->set('opconsole.authentication.guard', 'admin');
+
+        Gate::define('viewOpConsole', fn (Authenticatable $user) => $user->email === 'ops-admin@example.com');
+        Gate::define('runOpConsoleActions', fn (Authenticatable $user) => $user->email === 'ops-admin@example.com');
+
+        $webUser = $this->makeTestUser(10, 'Regular Web User', 'regular@example.com');
+        $adminUser = $this->makeTestUser(99, 'Ops Admin', 'ops-admin@example.com');
+
+        // Signed in only on default 'web' guard: must NOT satisfy the 'admin' guard check.
+        $this->actingAs($webUser, 'web');
+        $this->get('/admin/opconsole')->assertRedirect('/login');
+
+        // Signed in on both guards simultaneously: Gate and audit row must resolve the 'admin' user.
+        $this->actingAs($adminUser, 'admin');
+        $this->get('/admin/opconsole')->assertOk();
+
+        $this->post('/admin/opconsole/clear')->assertRedirect();
+        $this->assertDatabaseHas('opconsole_runs', [
+            'action' => 'clear',
+            'user_id' => '99',
+            'user_label' => 'Ops Admin',
+        ]);
+    }
+
+    public function test_invalid_authentication_guard_configuration_fails_closed(): void
+    {
+        $this->allowOpConsole();
+        $this->actingAsUser();
+
+        $this->app['config']->set('opconsole.authentication.guard', 'undefined_guard');
+        $this->get('/admin/opconsole')->assertForbidden();
+
+        $this->app['config']->set('opconsole.authentication.guard', '   ');
+        $this->get('/admin/opconsole')->assertForbidden();
+
+        $this->app['config']->set('opconsole.authentication.guard', ['bad']);
+        $this->get('/admin/opconsole')->assertForbidden();
+    }
+
+    /** Regression for F-04: parameterized login routes must return 401 rather than throwing UrlGenerationException (500). */
+    public function test_parameterized_login_route_returns_401_instead_of_500(): void
+    {
+        Route::get('/{locale}/signin', fn () => 'signin')->name('localized.login');
+        $this->app['config']->set('opconsole.authentication.login_route', 'localized.login');
+
+        $this->get('/admin/opconsole')->assertStatus(401);
+    }
+
+    /** Regression for F-04: custom undefined gate names or non-string gate values must deny access even in local. */
+    public function test_undefined_custom_gate_and_non_string_gate_config_fail_closed(): void
+    {
+        $this->app['env'] = 'local';
+        $this->actingAsUser();
+
+        $this->app['config']->set('opconsole.authorization.view_gate', 'customUndefinedOpConsoleGate');
+        $this->get('/admin/opconsole')->assertForbidden();
+
+        $this->app['config']->set('opconsole.authorization.view_gate', ['invalid']);
+        $this->get('/admin/opconsole')->assertForbidden();
+    }
+
+    /** Regression for F-05: viewing, running actions, downloading logs, and deleting logs enforce distinct Gates. */
+    public function test_distinct_permissions_for_viewing_running_downloading_and_deleting(): void
+    {
+        $logDir = sys_get_temp_dir().'/opconsole-auth-logs-'.uniqid();
+        File::makeDirectory($logDir);
+        $this->app['config']->set('opconsole.logs.path', $logDir);
+
+        try {
+            File::put($logDir.'/old.log', "[2026-01-01 00:00:00] testing.INFO: old\n");
+            touch($logDir.'/old.log', time() - 3600);
+            File::put($logDir.'/laravel.log', "[2026-01-01 00:00:00] testing.INFO: current\n");
+
+            $allowDownload = false;
+            $allowDelete = false;
+
+            Gate::define('viewOpConsole', fn () => true);
+            Gate::define('runOpConsoleActions', fn () => false);
+            Gate::define('downloadOpConsoleLogs', function () use (&$allowDownload): bool {
+                return $allowDownload;
+            });
+            Gate::define('deleteOpConsoleLogs', function () use (&$allowDelete): bool {
+                return $allowDelete;
+            });
+
+            $this->actingAsUser();
+
+            // View-only user: dashboard loads, but download, delete, and actions are all 403.
+            $this->get('/admin/opconsole')
+                ->assertOk()
+                ->assertDontSee('/admin/opconsole/logs/laravel.log', false);
+            $this->get('/admin/opconsole/logs/laravel.log')->assertForbidden();
+            $this->delete('/admin/opconsole/logs/old.log')->assertForbidden();
+            $this->post('/admin/opconsole/clear')->assertForbidden();
+
+            // Grant download only: download succeeds while delete and actions stay 403.
+            $allowDownload = true;
+            $this->get('/admin/opconsole/logs/laravel.log')->assertOk();
+            $this->delete('/admin/opconsole/logs/old.log')->assertForbidden();
+
+            // Grant delete only: delete succeeds while download and actions stay 403.
+            $allowDownload = false;
+            $allowDelete = true;
+            $this->get('/admin/opconsole/logs/laravel.log')->assertForbidden();
+            $this->delete('/admin/opconsole/logs/old.log')->assertRedirect();
+            $this->assertFileDoesNotExist($logDir.'/old.log');
+        } finally {
+            File::deleteDirectory($logDir);
+        }
+    }
+
+    public function test_legacy_two_gate_configuration_without_download_or_delete_keys_remains_compatible(): void
+    {
+        $logDir = sys_get_temp_dir().'/opconsole-legacy-gates-'.uniqid();
+        File::makeDirectory($logDir);
+
+        try {
+            File::put($logDir.'/old.log', 'old');
+            touch($logDir.'/old.log', time() - 3600);
+            File::put($logDir.'/laravel.log', 'current');
+
+            $this->app['config']->set('opconsole.logs.path', $logDir);
+            // Simulate a published v0.1.0 config file missing download_gate and delete_gate keys.
+            $this->app['config']->set('opconsole.authorization', [
+                'view_gate' => 'viewOpConsole',
+                'run_gate' => 'runOpConsoleActions',
+            ]);
+
+            Gate::define('viewOpConsole', fn () => true);
+            Gate::define('runOpConsoleActions', fn () => false);
+            $this->actingAsUser();
+
+            $this->get('/admin/opconsole')->assertOk();
+            $this->get('/admin/opconsole/logs/laravel.log')->assertOk();
+            $this->delete('/admin/opconsole/logs/old.log')->assertForbidden();
+        } finally {
+            File::deleteDirectory($logDir);
+        }
+    }
+
+    /** Regression for F-02: route.middleware overrides cannot strip the mandatory 'web' (session + CSRF) protection. */
+    public function test_overriding_route_middleware_preserves_web_session_and_csrf_protection(): void
+    {
+        static::$configOverrides = ['opconsole.route.middleware' => []];
+        $this->refreshApplication();
+        $this->allowOpConsole();
+        $this->app['env'] = 'production';
+        $this->actingAsUser();
+
+        $this->get('/admin/opconsole')->assertOk();
+        $this->post('/admin/opconsole/clear')->assertStatus(419);
+    }
+
+    private function makeTestUser(int $id, string $name, string $email): Authenticatable
+    {
+        $user = new class extends Authenticatable
+        {
+            protected $guarded = [];
+        };
+        $user->id = $id;
+        $user->name = $name;
+        $user->email = $email;
+        $user->exists = true;
+
+        return $user;
     }
 }

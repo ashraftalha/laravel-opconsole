@@ -34,4 +34,15 @@ class MigrationTest extends TestCase
         // No loadMigrationsFrom call: the table genuinely does not exist.
         $this->get('/admin/opconsole')->assertOk();
     }
+
+    public function test_migration_rollback_drops_the_configured_runs_table(): void
+    {
+        $migration = require __DIR__.'/../../database/migrations/2026_11_01_000000_create_opconsole_runs_table.php';
+
+        $migration->up();
+        $this->assertTrue(Schema::hasTable('opconsole_runs'));
+
+        $migration->down();
+        $this->assertFalse(Schema::hasTable('opconsole_runs'));
+    }
 }
