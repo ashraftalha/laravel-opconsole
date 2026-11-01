@@ -37,6 +37,13 @@ jobs:
 
   static-analysis:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        laravel: ['12.*', '13.*']
+
+    name: Static Analysis - Laravel ${{ matrix.laravel }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -46,8 +53,13 @@ jobs:
           php-version: '8.3'
           coverage: none
 
+      - name: Validate composer.json
+        run: composer validate --strict --no-check-lock
+
       - name: Install dependencies
-        run: composer update --prefer-dist --no-interaction
+        run: |
+          composer require "laravel/framework:${{ matrix.laravel }}" --no-interaction --no-update
+          composer update --prefer-dist --no-interaction
 
       - name: Larastan
         run: composer stan
@@ -57,6 +69,13 @@ jobs:
 
   clean-install:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        laravel: ['^12.0', '^13.0']
+
+    name: Clean Install - Laravel ${{ matrix.laravel }}
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,7 +88,7 @@ jobs:
           coverage: none
 
       - name: Create a fresh Laravel application
-        run: composer create-project laravel/laravel smoke-app --prefer-dist --no-interaction
+        run: composer create-project laravel/laravel smoke-app "${{ matrix.laravel }}" --prefer-dist --no-interaction
 
       - name: Install OpConsole via a path repository
         working-directory: smoke-app
@@ -84,11 +103,12 @@ jobs:
           php artisan vendor:publish --tag=opconsole-assets
           php artisan migrate --force
 
-      - name: Config and route caching succeed
+      - name: Config, route, and view caching succeed
         working-directory: smoke-app
         run: |
           php artisan config:cache
           php artisan route:cache
+          php artisan view:cache
 
       - name: Routes are registered
         working-directory: smoke-app

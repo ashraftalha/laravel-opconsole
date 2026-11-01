@@ -4,18 +4,28 @@
     "type": "library",
     "license": "MIT",
     "keywords": ["laravel", "admin", "operations", "health-check", "logs", "maintenance"],
+    "homepage": "https://github.com/ashraftalha/laravel-opconsole",
     "authors": [
         {
             "name": "Ashraf Talha",
             "email": "ashraf.talha90@gmail.com"
         }
     ],
+    "support": {
+        "issues": "https://github.com/ashraftalha/laravel-opconsole/issues",
+        "source": "https://github.com/ashraftalha/laravel-opconsole"
+    },
     "require": {
         "php": "^8.3",
+        "illuminate/auth": "^12.0|^13.0",
+        "illuminate/cache": "^12.0|^13.0",
         "illuminate/console": "^12.0|^13.0",
         "illuminate/contracts": "^12.0|^13.0",
         "illuminate/database": "^12.0|^13.0",
-        "illuminate/support": "^12.0|^13.0"
+        "illuminate/http": "^12.0|^13.0",
+        "illuminate/routing": "^12.0|^13.0",
+        "illuminate/support": "^12.0|^13.0",
+        "illuminate/view": "^12.0|^13.0"
     },
     "require-dev": {
         "larastan/larastan": "^3.0",

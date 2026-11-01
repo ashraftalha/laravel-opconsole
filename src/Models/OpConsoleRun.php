@@ -19,6 +19,8 @@ use Illuminate\Support\Carbon;
  * @property ?string $error
  * @property ?Carbon $started_at
  * @property ?Carbon $finished_at
+ * @property ?Carbon $created_at
+ * @property ?Carbon $updated_at
  */
 class OpConsoleRun extends Model
 {

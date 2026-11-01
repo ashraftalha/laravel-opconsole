@@ -2,10 +2,17 @@
 
 namespace AshrafTalha\OpConsole\Tests\Feature;
 
+use AshrafTalha\OpConsole\Models\OpConsoleRun;
 use AshrafTalha\OpConsole\Support\ActionRunner;
 use AshrafTalha\OpConsole\Tests\TestCase;
+use Illuminate\Cache\ArrayStore;
+use Illuminate\Cache\Lock;
+use Illuminate\Cache\Repository as CacheRepository;
 use Illuminate\Contracts\Console\Kernel as KernelContract;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 
 class ActionsTest extends TestCase
@@ -28,11 +35,13 @@ class ActionsTest extends TestCase
      * test that might run `optimize` for real (including via a lock bug letting it slip through)
      * must fake Artisan instead. `optimize:clear` has no such effect and is run for real elsewhere.
      */
-    private function fakeArtisan(int $exitCode = 0, string $output = ''): FakeArtisanKernel
+    private function fakeArtisan(int $exitCode = 0, string $output = '', ?\Throwable $throwOnCall = null): FakeArtisanKernel
     {
-        $fake = new FakeArtisanKernel($exitCode, $output);
+        $fake = new FakeArtisanKernel($exitCode, $output, $throwOnCall);
         $this->app->instance(KernelContract::class, $fake);
         $this->app->instance('artisan', $fake);
+        Artisan::clearResolvedInstance(KernelContract::class);
+        Artisan::swap($fake);
 
         return $fake;
     }
@@ -111,10 +120,10 @@ class ActionsTest extends TestCase
         $this->fakeArtisan(0, 'all good');
         $this->actingAsUser();
 
-        $response = $this->post('/admin/opconsole/clear');
-
-        $response->assertSessionHas('opconsole_success');
-        $response->assertSessionMissing('opconsole_error');
+        $this->post('/admin/opconsole/clear')
+            ->assertSessionHas('opconsole_success')
+            ->assertSessionHas('opconsole_warning')
+            ->assertSessionMissing('opconsole_error');
     }
 
     public function test_concurrent_actions_are_rejected_while_a_lock_is_held(): void
@@ -188,6 +197,259 @@ class ActionsTest extends TestCase
 
         $lock->release();
     }
+
+    /**
+     * When cache.default is "file" (standard single-server Laravel config where locks share
+     * the cache data directory), running `optimize:clear` (`cache:clear`) flushes `cache.default`.
+     * OpConsole's default isolated file lock store (`opconsole`) must survive that flush untouched.
+     */
+    public function test_optimize_clear_with_file_default_cache_does_not_invalidate_isolated_opconsole_file_lock(): void
+    {
+        $defaultCacheDir = sys_get_temp_dir().'/opconsole-cache-default-'.uniqid();
+        $isolatedLockDir = sys_get_temp_dir().'/opconsole-cache-lock-'.uniqid();
+        File::makeDirectory($defaultCacheDir, 0755, true);
+        File::makeDirectory($isolatedLockDir, 0755, true);
+
+        try {
+            $this->app['config']->set('cache.default', 'file');
+            $this->app['config']->set('cache.stores.file', [
+                'driver' => 'file',
+                'path' => $defaultCacheDir,
+                'lock_path' => $defaultCacheDir,
+            ]);
+            $this->app['config']->set('cache.stores.opconsole', [
+                'driver' => 'file',
+                'path' => $isolatedLockDir,
+                'lock_path' => $isolatedLockDir,
+            ]);
+            $this->app['config']->set('opconsole.concurrency.lock_store', 'opconsole');
+            Cache::forgetDriver(['file', 'opconsole']);
+
+            Cache::store('file')->put('canary_key', 'present', 60);
+            $this->assertSame('present', Cache::store('file')->get('canary_key'));
+
+            $heldLock = Cache::store('opconsole')->lock('opconsole:action-lock', 30);
+            $this->assertTrue($heldLock->get());
+
+            // Real cache:clear flushes the default file cache directory.
+            Artisan::call('cache:clear');
+            $this->assertNull(Cache::store('file')->get('canary_key'));
+
+            // Contender must still be blocked because the isolated opconsole lock directory survived.
+            $contender = Cache::store('opconsole')->lock('opconsole:action-lock', 30);
+            $this->assertFalse($contender->get());
+
+            $fake = $this->fakeArtisan();
+            $this->actingAsUser();
+            $this->post('/admin/opconsole/optimize')->assertSessionHas('opconsole_error');
+            $this->assertSame([], $fake->calls);
+
+            $heldLock->release();
+        } finally {
+            Cache::forgetDriver(['file', 'opconsole']);
+            File::deleteDirectory($defaultCacheDir);
+            File::deleteDirectory($isolatedLockDir);
+        }
+    }
+
+    /**
+     * Unsafe cache/lock-store configurations must fail closed without silently falling back
+     * to Cache::lock() or executing any Artisan command.
+     */
+    public function test_unsafe_lock_store_configurations_fail_closed_without_executing_artisan(): void
+    {
+        $fake = $this->fakeArtisan();
+        $this->actingAsUser();
+
+        // 1. NullStore / NoLock (cannot enforce mutual exclusion)
+        $this->app['config']->set('cache.stores.null_lock', ['driver' => 'null']);
+        $this->app['config']->set('opconsole.concurrency.lock_store', 'null_lock');
+        $this->post('/admin/opconsole/clear')->assertSessionHas('opconsole_error');
+
+        // 2. Non-existent cache store name
+        $this->app['config']->set('opconsole.concurrency.lock_store', 'unconfigured_store_name');
+        $this->post('/admin/opconsole/clear')->assertSessionHas('opconsole_error');
+
+        // 3. Lock store identical to cache.default without separate lock storage
+        $this->app['config']->set('opconsole.concurrency.lock_store', 'array');
+        $this->post('/admin/opconsole/clear')->assertSessionHas('opconsole_error');
+
+        // 4. Separate file lock store whose lock_path overlaps cache.default's file path
+        $sharedDir = sys_get_temp_dir().'/opconsole-shared-file-'.uniqid();
+        File::makeDirectory($sharedDir, 0755, true);
+        try {
+            $this->app['config']->set('cache.default', 'file');
+            $this->app['config']->set('cache.stores.file', [
+                'driver' => 'file',
+                'path' => $sharedDir,
+                'lock_path' => $sharedDir,
+            ]);
+            $this->app['config']->set('cache.stores.overlapping_lock', [
+                'driver' => 'file',
+                'path' => $sharedDir.'/sub',
+                'lock_path' => $sharedDir.'/sub',
+            ]);
+            $this->app['config']->set('opconsole.concurrency.lock_store', 'overlapping_lock');
+            Cache::forgetDriver(['file', 'overlapping_lock']);
+
+            $this->post('/admin/opconsole/clear')->assertSessionHas('opconsole_error');
+        } finally {
+            Cache::forgetDriver(['file', 'overlapping_lock']);
+            File::deleteDirectory($sharedDir);
+            $this->app['config']->set('cache.default', 'array');
+        }
+
+        // 5. Ephemeral ArrayStore outside unit tests (e.g. production)
+        $this->withoutCsrfMiddleware();
+        $this->app['env'] = 'production';
+        $this->app['config']->set('opconsole.concurrency.lock_store', 'opconsole_lock');
+        $this->post('/admin/opconsole/clear')->assertSessionHas('opconsole_error');
+
+        $this->assertSame([], $fake->calls, 'Artisan must never execute under any unsafe lock configuration.');
+    }
+
+    /**
+     * Runtime lock acquisition exceptions (e.g. Redis outage or unwritable lock storage)
+     * must fail closed, never invoke Artisan, and record a sanitized failed audit row.
+     */
+    public function test_lock_acquisition_exception_fails_closed_without_executing_artisan(): void
+    {
+        Cache::extend('throwing_lock', function () {
+            $store = new class extends ArrayStore
+            {
+                public function lock($name, $seconds = 0, $owner = null): Lock
+                {
+                    return new class($name, $seconds, $owner) extends Lock
+                    {
+                        public function acquire(): bool
+                        {
+                            throw new \RuntimeException('Redis auth failed: password=topsecretvalue');
+                        }
+
+                        public function release(): bool
+                        {
+                            return true;
+                        }
+
+                        protected function getCurrentOwner(): string
+                        {
+                            return '';
+                        }
+
+                        public function forceRelease(): void {}
+                    };
+                }
+            };
+
+            return new CacheRepository($store);
+        });
+
+        $this->app['config']->set('cache.stores.broken_lock_store', ['driver' => 'throwing_lock']);
+        $this->app['config']->set('opconsole.concurrency.lock_store', 'broken_lock_store');
+
+        $fake = $this->fakeArtisan();
+        $this->actingAsUser();
+
+        $response = $this->post('/admin/opconsole/clear');
+
+        $response->assertRedirect();
+        $response->assertSessionHas('opconsole_error');
+        $this->assertSame([], $fake->calls);
+
+        $run = OpConsoleRun::query()->latest('id')->first();
+        $this->assertNotNull($run);
+        $this->assertSame('failed', $run->status);
+        $this->assertStringNotContainsString('topsecretvalue', (string) $run->error);
+    }
+
+    /**
+     * Expired locks allow subsequent operations safely, and abandoned "started" audit rows
+     * past the lock window are classified as Interrupted / Unknown (never Succeeded).
+     */
+    public function test_expired_lock_allows_subsequent_operation_and_stale_started_audit_row_is_classified_as_unknown(): void
+    {
+        $baseTime = Carbon::parse('2026-06-01 12:00:00');
+        Carbon::setTestNow($baseTime);
+
+        try {
+            $this->app['config']->set('opconsole.concurrency.lock_seconds', 10);
+            $lock = Cache::store('opconsole_lock')->lock('opconsole:action-lock', 10);
+            $this->assertTrue($lock->get());
+
+            OpConsoleRun::query()->create([
+                'action' => 'migrate',
+                'status' => 'started',
+                'user_id' => '1',
+                'user_label' => 'Test Admin',
+                'started_at' => $baseTime,
+                'finished_at' => null,
+            ]);
+
+            // Advance past the 10-second lock TTL and stale threshold (max(30, 10*2) = 30s).
+            Carbon::setTestNow($baseTime->copy()->addSeconds(45));
+
+            $this->actingAsUser();
+            $this->get('/admin/opconsole')
+                ->assertOk()
+                ->assertSee('data-run-status="unknown"', false)
+                ->assertSee('Interrupted / Unknown');
+
+            $fake = $this->fakeArtisan(0, 'Recovered cleanly');
+            $this->post('/admin/opconsole/clear')->assertSessionHas('opconsole_success');
+            $this->assertCount(1, $fake->calls);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    /**
+     * An exception thrown inside Artisan::call() must be caught, update the existing audit row
+     * to "failed" with sanitized error text, release the lock, and redirect cleanly instead of
+     * returning HTTP 500 or leaving an orphaned "started" row.
+     */
+    public function test_thrown_artisan_exception_updates_audit_row_to_failed_releases_lock_and_sanitizes_secrets(): void
+    {
+        $exception = new \RuntimeException(
+            'SQLSTATE[HY000]: connection failed for mysql://dbadmin:MySuperSecret99@127.0.0.1/prod at '.base_path('config/database.php')
+        );
+        $this->fakeArtisan(0, '', $exception);
+
+        $this->actingAsUser();
+        $response = $this->post('/admin/opconsole/migrate');
+
+        $response->assertRedirect();
+        $response->assertSessionHas('opconsole_error');
+
+        $output = session('opconsole_output')['text'] ?? '';
+        $this->assertStringNotContainsString('MySuperSecret99', $output);
+        $this->assertStringNotContainsString(base_path(), $output);
+        $this->assertStringContainsString('[REDACTED]', $output);
+
+        $this->assertSame(1, OpConsoleRun::query()->count());
+        $run = OpConsoleRun::query()->firstOrFail();
+        $this->assertSame('failed', $run->status);
+        $this->assertSame(1, $run->exit_code);
+        $this->assertNotNull($run->finished_at);
+        $this->assertStringNotContainsString('MySuperSecret99', (string) $run->error);
+
+        // Lock must have been released in finally so the next action succeeds immediately.
+        $this->fakeArtisan(0, 'ok');
+        $this->post('/admin/opconsole/clear')->assertSessionHas('opconsole_success');
+    }
+
+    public function test_overlong_actor_and_error_fields_are_truncated_safely_for_audit_persistence(): void
+    {
+        $this->fakeArtisan(1, str_repeat('E', 1200));
+        $this->actingAsUser(name: str_repeat('A', 400));
+
+        $this->post('/admin/opconsole/clear')->assertSessionHas('opconsole_error');
+
+        $run = OpConsoleRun::query()->latest('id')->first();
+        $this->assertNotNull($run);
+        $this->assertSame('failed', $run->status);
+        $this->assertLessThanOrEqual(255, mb_strlen((string) $run->user_label));
+        $this->assertLessThanOrEqual(255, mb_strlen((string) $run->error));
+    }
 }
 
 /** Records call()/output() without touching the framework's real (final) console kernel. */
@@ -195,7 +457,11 @@ class FakeArtisanKernel implements KernelContract
 {
     public array $calls = [];
 
-    public function __construct(private int $exitCode = 0, private string $fakeOutput = '') {}
+    public function __construct(
+        private int $exitCode = 0,
+        private string $fakeOutput = '',
+        private ?\Throwable $throwOnCall = null,
+    ) {}
 
     public function handle($input, $output = null)
     {
@@ -205,6 +471,10 @@ class FakeArtisanKernel implements KernelContract
     public function call($command, array $parameters = [], $outputBuffer = null)
     {
         $this->calls[] = [$command, $parameters];
+
+        if ($this->throwOnCall !== null) {
+            throw $this->throwOnCall;
+        }
 
         return $this->exitCode;
     }

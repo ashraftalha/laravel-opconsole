@@ -5,6 +5,8 @@ namespace AshrafTalha\OpConsole\Tests\Unit;
 use AshrafTalha\OpConsole\Contracts\HealthCheck;
 use AshrafTalha\OpConsole\Support\HealthChecks;
 use AshrafTalha\OpConsole\Tests\TestCase;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
 class HealthChecksTest extends TestCase
 {
@@ -48,6 +50,110 @@ class HealthChecksTest extends TestCase
 
         $this->assertFalse($checks->contains('label', 'Malformed'));
     }
+
+    /** Laravel's mariadb driver uses PHP's pdo_mysql extension, never pdo_mariadb. */
+    public function test_mariadb_driver_checks_pdo_mysql_extension_without_false_pdo_mariadb_failure(): void
+    {
+        $mariaDatabase = ['ok' => true, 'driver' => 'mariadb', 'name' => 'app_db', 'ran' => 5, 'pending' => [], 'error' => null];
+        config(['database.connections.mariadb.driver' => 'mariadb']);
+
+        $checks = collect($this->app->make(HealthChecks::class)->run($mariaDatabase, 'localhost'));
+        $extCheck = $checks->firstWhere('id', 'php.extensions');
+
+        $this->assertNotNull($extCheck);
+        $this->assertStringNotContainsString('pdo_mariadb', (string) ($extCheck['value'] ?? ''));
+    }
+
+    public function test_checks_include_consistent_four_state_status_and_stable_ids(): void
+    {
+        $checks = $this->app->make(HealthChecks::class)->run($this->database, 'localhost');
+        $allowedStatuses = ['healthy', 'warning', 'critical', 'unknown'];
+        $ids = [];
+
+        foreach ($checks as $check) {
+            $this->assertArrayHasKey('id', $check);
+            $this->assertArrayHasKey('status', $check);
+            $this->assertContains($check['status'], $allowedStatuses);
+            $this->assertArrayNotHasKey($check['id'], $ids, "Duplicate check id [{$check['id']}]");
+            $ids[$check['id']] = true;
+        }
+    }
+
+    /** Uninspected external queues or absent failed_jobs tables must report unknown, not healthy. */
+    public function test_external_queue_and_missing_failed_jobs_table_report_unknown_rather_than_healthy(): void
+    {
+        config(['queue.default' => 'redis']);
+
+        $checks = collect($this->app->make(HealthChecks::class)->run($this->database, 'localhost'));
+        $stuckCheck = $checks->firstWhere('id', 'queue.stuck_jobs');
+        $failedCheck = $checks->firstWhere('id', 'queue.failed_jobs');
+
+        $this->assertNotNull($stuckCheck);
+        $this->assertSame('unknown', $stuckCheck['status']);
+
+        $this->assertNotNull($failedCheck);
+        $this->assertSame('unknown', $failedCheck['status']);
+    }
+
+    public function test_configured_session_and_queue_table_names_are_respected(): void
+    {
+        Schema::create('custom_sessions_tbl', function (Blueprint $table): void {
+            $table->string('id')->primary();
+        });
+        Schema::create('custom_jobs_tbl', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedInteger('created_at')->default(0);
+        });
+
+        config([
+            'session.driver' => 'database',
+            'session.table' => 'custom_sessions_tbl',
+            'queue.default' => 'database',
+            'queue.connections.database.table' => 'custom_jobs_tbl',
+            'queue.failed.driver' => null,
+        ]);
+
+        $checks = collect($this->app->make(HealthChecks::class)->run($this->database, 'localhost'));
+
+        $this->assertSame('healthy', $checks->firstWhere('id', 'database.required_tables')['status']);
+        $this->assertSame('healthy', $checks->firstWhere('id', 'queue.stuck_jobs')['status']);
+    }
+
+    public function test_unsafe_lock_store_is_flagged_as_critical_health_check(): void
+    {
+        config([
+            'cache.stores.null_lock' => ['driver' => 'null'],
+            'opconsole.concurrency.lock_store' => 'null_lock',
+        ]);
+
+        $checks = collect($this->app->make(HealthChecks::class)->run($this->database, 'localhost'));
+        $lockCheck = $checks->firstWhere('id', 'security.lock_store');
+
+        $this->assertNotNull($lockCheck);
+        $this->assertFalse($lockCheck['ok']);
+        $this->assertSame('critical', $lockCheck['status']);
+    }
+
+    public function test_type_invalid_duplicate_and_core_colliding_custom_checks_are_handled_safely(): void
+    {
+        CountingCustomCheck::$runs = 0;
+
+        config([
+            'opconsole.checks' => [
+                TypeInvalidCheck::class,
+                CollidingCoreCheck::class,
+                CountingCustomCheck::class,
+                CountingCustomCheck::class, // duplicate entry must only execute once
+            ],
+        ]);
+
+        $checks = collect($this->app->make(HealthChecks::class)->run($this->database, 'localhost'));
+
+        $this->assertSame(1, CountingCustomCheck::$runs);
+        $this->assertSame(1, $checks->where('label', 'Application key configured')->count());
+        $this->assertTrue($checks->firstWhere('label', 'Application key configured')['ok']);
+        $this->assertFalse($checks->contains('label', 'Type invalid'));
+    }
 }
 
 class PassingCheck implements HealthCheck
@@ -63,5 +169,34 @@ class MalformedCheck implements HealthCheck
     public function run(): array
     {
         return ['label' => 'Malformed']; // missing required keys
+    }
+}
+
+class TypeInvalidCheck implements HealthCheck
+{
+    public function run(): array
+    {
+        /** @phpstan-ignore-next-line intentional invalid runtime types */
+        return ['group' => 'Custom', 'label' => 'Type invalid', 'ok' => 'yes', 'severity' => 'info', 'hint' => ['bad'], 'value' => null, 'fix' => null];
+    }
+}
+
+class CollidingCoreCheck implements HealthCheck
+{
+    public function run(): array
+    {
+        return ['group' => 'Security', 'label' => 'Application key configured', 'ok' => false, 'severity' => 'danger', 'hint' => 'spoofed', 'value' => null, 'fix' => null];
+    }
+}
+
+class CountingCustomCheck implements HealthCheck
+{
+    public static int $runs = 0;
+
+    public function run(): array
+    {
+        self::$runs++;
+
+        return ['id' => 'counting-check', 'group' => 'Custom', 'label' => 'Counting check', 'ok' => true, 'status' => 'healthy', 'severity' => 'info', 'hint' => 'ok', 'value' => '1', 'fix' => null];
     }
 }

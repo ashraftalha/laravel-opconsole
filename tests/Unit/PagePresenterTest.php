@@ -2,8 +2,10 @@
 
 namespace AshrafTalha\OpConsole\Tests\Unit;
 
+use AshrafTalha\OpConsole\Support\ConsoleStatus;
 use AshrafTalha\OpConsole\Support\PagePresenter;
 use AshrafTalha\OpConsole\Tests\TestCase;
+use Illuminate\Support\Carbon;
 
 class PagePresenterTest extends TestCase
 {
@@ -26,7 +28,7 @@ class PagePresenterTest extends TestCase
         $this->assertSame('a <mark>b</mark> c', $this->highlight('a b c', 'b'));
     }
 
-    /** Regression for S-L1: searching for entity-looking text must not wedge a <mark> inside an emitted entity. */
+    /** Regression: searching for entity-looking text must not wedge a <mark> inside an emitted entity. */
     public function test_searching_for_entity_text_does_not_corrupt_escaped_output(): void
     {
         $result = $this->highlight('<div>', 'div');
@@ -38,5 +40,38 @@ class PagePresenterTest extends TestCase
     public function test_search_is_case_insensitive(): void
     {
         $this->assertSame('<mark>Hello</mark> world', $this->highlight('Hello world', 'hello'));
+    }
+
+    /** Regression: searching for literal "0" must highlight "0" and preserve q=0 across filter URLs. */
+    public function test_searching_for_literal_zero_is_preserved_in_filter_urls_and_highlighted(): void
+    {
+        $this->assertSame('exit code <mark>0</mark>', $this->highlight('exit code 0', '0'));
+
+        $presenter = new PagePresenter;
+        $status = $this->app->make(ConsoleStatus::class)->status(null);
+        $view = $presenter->page(
+            $status,
+            [['name' => 'laravel.log', 'size' => 100, 'modified' => Carbon::now()]],
+            [
+                'name' => 'laravel.log',
+                'env' => null,
+                'level' => null,
+                'search' => '0',
+                'limit' => 50,
+                'entries' => [['time' => '2026-01-01 00:00:00', 'env' => 'testing', 'level' => 'error', 'message' => 'exit 0', 'details' => '']],
+                'counts' => ['error' => 1],
+                'envs' => ['testing' => 1],
+                'groups' => [],
+                'total' => 1,
+                'allTotal' => 1,
+                'shown' => 1,
+                'truncated' => false,
+                'more' => false,
+            ],
+            null,
+        );
+
+        $this->assertNotNull($view['log']['resetFiltersUrl']);
+        $this->assertStringContainsString('q=0', $view['log']['levelChips'][0]['url']);
     }
 }

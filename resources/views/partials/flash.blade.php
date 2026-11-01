@@ -1,13 +1,15 @@
-@if (session('opconsole_success'))
-    <div class="alert alert-success alert-dismissible fade show mt-0 mb-3" role="alert">
-        <i class="uil uil-check-circle fs-5 align-middle me-1"></i> {{ session('opconsole_success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-@endif
-
-@if (session('opconsole_error'))
-    <div class="alert alert-danger alert-dismissible fade show mt-0 mb-3" role="alert">
-        <i class="uil uil-exclamation-triangle fs-5 align-middle me-1"></i> {{ session('opconsole_error') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-@endif
+@foreach ([
+    ['opconsole_success', 'oc-flash-success', 'status', 'check-circle'],
+    ['opconsole_warning', 'oc-flash-warning', 'alert', 'alert-triangle'],
+    ['opconsole_error', 'oc-flash-danger', 'alert', 'alert-octagon'],
+] as [$ocKey, $ocClass, $ocRole, $ocIcon])
+    @if (session($ocKey))
+        <div class="oc-flash {{ $ocClass }}" role="{{ $ocRole }}" data-oc-alert>
+            @include('opconsole::partials.icon', ['name' => $ocIcon])
+            <span>{{ session($ocKey) }}</span>
+            <button type="button" class="oc-flash-close" data-oc-dismiss aria-label="Dismiss notification">
+                @include('opconsole::partials.icon', ['name' => 'x'])
+            </button>
+        </div>
+    @endif
+@endforeach

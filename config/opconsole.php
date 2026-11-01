@@ -43,30 +43,38 @@ return [
     |--------------------------------------------------------------------------
     | Authorization
     |--------------------------------------------------------------------------
-    | Two separate abilities: one to view the dashboard/logs, one to run
-    | Artisan actions and delete logs. Define these Gates in your own
-    | AppServiceProvider. If you do not, OpConsole registers a fail-closed
-    | default: allowed only in the "local" environment.
+    | Four distinct abilities:
+    | - view_gate:     view the dashboard, health checks, audit history, and log tail
+    | - run_gate:      execute allow-listed Artisan maintenance operations
+    | - download_gate: download full raw log files (defaults to view_gate if not explicitly defined)
+    | - delete_gate:   permanently delete rotated log files (defaults to run_gate if not explicitly defined)
+    |
+    | Define these Gates in your AppServiceProvider. If you do not define
+    | view_gate or run_gate, OpConsole registers a fail-closed default that
+    | denies access everywhere outside the "local" environment.
     */
     'authorization' => [
         'view_gate' => 'viewOpConsole',
         'run_gate' => 'runOpConsoleActions',
+        'download_gate' => 'downloadOpConsoleLogs',
+        'delete_gate' => 'deleteOpConsoleLogs',
     ],
 
     /*
     |--------------------------------------------------------------------------
     | Concurrency
     |--------------------------------------------------------------------------
-    | The lock guarding the three Artisan actions deliberately uses its own
-    | cache store, independent of cache.default: `optimize:clear` runs
-    | `cache:clear`, which flushes the *default* store outright. If the lock
-    | lived there too, clearing caches would delete its own lock mid-run and
-    | let a second action start concurrently. "file" ships in every Laravel
-    | app's cache stores by default and supports atomic locks.
+    | The lock guarding the three Artisan actions uses an isolated cache store,
+    | independent of cache.default: `optimize:clear` runs `cache:clear`, which
+    | flushes the *default* store outright. OpConsole registers a dedicated
+    | "opconsole" file lock store (storage/framework/cache/opconsole) so locks
+    | survive `optimize:clear` even when CACHE_STORE=file. For multi-server
+    | deployments, point this at an isolated Redis or database lock store.
+    | Unsafe or unavailable lock stores fail closed and block execution.
     */
     'concurrency' => [
-        'lock_store' => env('OPCONSOLE_LOCK_STORE', 'file'),
-        'lock_seconds' => 30,
+        'lock_store' => env('OPCONSOLE_LOCK_STORE', 'opconsole'),
+        'lock_seconds' => (int) env('OPCONSOLE_LOCK_SECONDS', 30),
     ],
 
     /*
@@ -111,22 +119,6 @@ return [
     | provide @stack('styles') / @stack('scripts')).
     */
     'layout' => null,
-
-    /*
-    |--------------------------------------------------------------------------
-    | Assets
-    |--------------------------------------------------------------------------
-    | The package ships its own CSS/JS (publish with --tag=opconsole-assets).
-    | The standalone layout also needs Bootstrap 5 + Unicons for styling;
-    | by default these are loaded from a CDN. Set use_cdn to false and point
-    | these at self-hosted copies for a restrictive CSP / offline use.
-    */
-    'assets' => [
-        'use_cdn' => true,
-        'bootstrap_css' => 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
-        'bootstrap_js' => 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js',
-        'icons_css' => 'https://cdn.jsdelivr.net/npm/@iconscout/unicons@4.0.8/css/line.css',
-    ],
 
     /*
     |--------------------------------------------------------------------------

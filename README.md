@@ -2,26 +2,32 @@
 
 **Monitor. Diagnose. Maintain.**
 
-Laravel OpConsole is an administrative operations console that lets authorized developers and administrators monitor, diagnose, and maintain a Laravel application through a secure web interface: health checks, three safe Artisan operations (`optimize:clear`, `optimize`, `migrate --force --isolated`), and a log viewer.
+Laravel OpConsole is a self-contained administrative operations console that lets authorized developers and administrators monitor, diagnose, and maintain a Laravel application through a secure web interface: application health checks, three allow-listed Artisan maintenance operations (`optimize:clear`, `optimize`, `migrate --force --isolated`), an audited operation history, and a bounded log viewer.
 
-> **This is an independent, third-party Composer package.** It is not an official Laravel framework product and is not affiliated with Laravel LLC.
+> **Independent package notice:** Laravel OpConsole is an independent, third-party open-source Composer package. It is not an official Laravel product and is not affiliated with or endorsed by Laravel LLC.
 
-## Requirements
+---
 
-| | |
-|---|---|
-| PHP | ^8.3 |
-| Laravel | ^12.0 \| ^13.0 |
+## Supported Versions
 
-Both are verified against the real framework (not inferred from version ranges): the full test suite, Larastan, and Pint pass against Laravel 12 + Orchestra Testbench 10, and separately against Laravel 13 + Testbench 11. The CI matrix (`.github/workflows/tests.yml`) runs both, on PHP 8.3–8.5, with `prefer-stable` and `prefer-lowest`.
+| Dependency | Supported Constraint | Verified Matrix |
+|---|---|---|
+| PHP | `^8.3` | PHP 8.3, 8.4, 8.5 |
+| Laravel Framework | `^12.0 \| ^13.0` | Laravel 12 (Orchestra Testbench 10) & Laravel 13 (Orchestra Testbench 11) |
 
-## Installation
+---
+
+## Quick Start
+
+### 1. Install via Composer
 
 ```bash
 composer require ashraftalha/laravel-opconsole
 ```
 
-The service provider is auto-discovered. Publish and run the migration:
+`AshrafTalha\OpConsole\OpConsoleServiceProvider` is registered automatically via Laravel package auto-discovery.
+
+### 2. Publish Configuration & Assets, Then Migrate
 
 ```bash
 php artisan vendor:publish --tag=opconsole-config
@@ -29,89 +35,75 @@ php artisan vendor:publish --tag=opconsole-assets
 php artisan migrate
 ```
 
-Optional publish tags: `opconsole-views`, `opconsole-lang`, `opconsole-migrations` (if you'd rather own the migration file than let the package auto-load it).
+> **Self-contained assets:** OpConsole ships dependency-free local CSS (`public/opconsole.css`), vanilla JS (`public/opconsole.js`), and inline SVG icons with zero third-party CDN requests. If `public/vendor/opconsole/` has not been published yet, OpConsole serves its CSS and JS automatically through an authenticated fallback route (`GET /admin/opconsole/assets/{asset}`).
 
-## Authorization — read this before deploying
+### 3. Define Authorization Gates (Required Outside `local`)
 
-By default OpConsole is **deny-by-default everywhere except the `local` environment**. Anyone running the package in staging or production without defining Gates gets a 403.
+OpConsole is **fail-closed (deny-by-default) everywhere outside the `local` environment**. Visiting `/admin/opconsole` in `production`, `staging`, or `testing` without explicit Gates returns HTTP `403`.
 
-Define two Gates in your own `AppServiceProvider` (or anywhere Gates are registered):
+Define your authorization policy in `App\Providers\AppServiceProvider::boot()`:
 
 ```php
+use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 
-Gate::define('viewOpConsole', fn ($user) => $user->isAdmin());
-Gate::define('runOpConsoleActions', fn ($user) => $user->isAdmin() && $user->canDeploy());
-```
-
-The names are configurable via `config('opconsole.authorization')`. `view_gate` controls the dashboard and log reading/downloading; `run_gate` controls the three Artisan actions and log deletion — treat it as the more sensitive one.
-
-OpConsole does **not** assume an authenticated user is an administrator, and does **not** grant access just because the app is running locally in a way that bypasses your own Gate — if you define the Gate, your Gate is authoritative in every environment.
-
-### Guests and the `login` route
-
-OpConsole checks authentication itself (`config('opconsole.authentication')`) rather than relying on Laravel's `auth` middleware alias. That alias calls `route('login')` unconditionally and throws an uncaught `RouteNotFoundException` — an HTTP 500 — on any host with no route named `login`. A guest hitting OpConsole instead gets:
-
-- redirected to `route('login')`, if `authentication.login_route` is set and that route exists;
-- a plain `401`, if it's set to `null` or points at a route that doesn't exist.
-
-Don't add Laravel's `auth` middleware alias to `route.middleware` expecting it to help here — it reintroduces the exact crash this is designed to avoid. The default `route.middleware` is just `['web']` for that reason.
-
-## Configuration
-
-See `config/opconsole.php` for the full set of options (route prefix/middleware, which of the three actions are enabled, log directory and download/delete flags, the `checks` extension point, layout override, asset URLs, back link, audit table name). The file has no closures, so `php artisan config:cache` and `route:cache` both work.
-
-## Health checks
-
-The package ships generic, host-agnostic checks (filesystem permissions, PHP version/extensions/memory, security basics, database/queue tables, mail/URL sanity). Add your own:
-
-```php
-// config/opconsole.php
-'checks' => [
-    App\Health\CustomCheck::class,
-],
-```
-
-```php
-use AshrafTalha\OpConsole\Contracts\HealthCheck;
-
-class CustomCheck implements HealthCheck
+public function boot(): void
 {
-    public function run(): array
-    {
-        return [
-            'group' => 'Custom', 'label' => 'Something specific to this app',
-            'ok' => true, 'severity' => 'info', 'hint' => '...', 'value' => null, 'fix' => null,
-        ];
-    }
+    Gate::define('viewOpConsole', fn (User $user): bool => $user->isAdmin());
+    Gate::define('runOpConsoleActions', fn (User $user): bool => $user->isAdmin() && $user->canDeploy());
+
+    // Optional granular log Gates (default to view_gate and run_gate when omitted):
+    Gate::define('downloadOpConsoleLogs', fn (User $user): bool => $user->isAdmin());
+    Gate::define('deleteOpConsoleLogs', fn (User $user): bool => $user->isAdmin() && $user->canDeploy());
 }
 ```
 
-Malformed results from custom checks are logged and skipped — they never break the dashboard.
+Open `/admin/opconsole` while signed in as an authorized user.
 
-## Artisan actions
+---
 
-A closed allow-list of exactly three commands: `optimize:clear`, `optimize`, `migrate --force --isolated`. You can disable any of them (`config('opconsole.actions.migrate', false)`), but you cannot add new ones through configuration — this is deliberate, so the package can never become a path to arbitrary command execution from an HTTP request.
+## Capabilities Overview
 
-Concurrent runs are serialized with a cache lock, held in its own store (`config('opconsole.concurrency.lock_store')`, default `file`) — deliberately **not** `cache.default`. `optimize:clear` runs `cache:clear`, which flushes the default store outright; a lock living there would delete its own lock mid-run and let a second action start concurrently. Don't point `lock_store` at the same value as `cache.default`.
+1. **Summary Tiles & Recommendations:** At-a-glance status for database connectivity/migrations, grouped health checks, and 24-hour error counts, paired with prioritized operational advice.
+2. **Controlled Artisan Operations:** Closed allow-list of `optimize:clear`, `optimize`, and `migrate --force --isolated` (`ActionRunner::ACTIONS`). Protected by risk-graded native `<dialog>` confirmations, an isolated fail-closed atomic lock store (`cache.stores.opconsole`), and credential/path-redacted console output.
+3. **4-State Health Checks (`#checks`):** Built-in diagnostics (`Security`, `Files and folders`, `PHP settings`, `Database and queues`, `URL and email`) plus custom `AshrafTalha\OpConsole\Contracts\HealthCheck` classes, distinguishing `Healthy`, `Warning`, `Critical`, and `Unknown` (unverified) states.
+4. **Operation History (`#history`):** Bounded table of the 15 most recent audited runs (`Succeeded`, `Failed`, `Started`, `Interrupted / Unknown`) with actor attribution, UTC timestamps, and execution duration.
+5. **System Information:** Collapsible runtime and driver summary with one-click clipboard copy and zero raw secrets.
+6. **Bounded Log Viewer (`#logs`):** Reads the latest `2 MB` tail of `storage/logs/*.log` (multiline Monolog text and NDJSON `JsonFormatter`), supporting environment/level chips, XSS-safe `<mark>` search highlighting, repeated-error grouping, raw download, and rotated-file deletion (active newest file protected).
 
-## Audit trail
+---
 
-Every action (and every log delete/download) writes a row to `opconsole_runs` (table name configurable). Rows move through `started` → `succeeded`/`failed`. If the table isn't migrated yet, the dashboard and the actions still work — the audit write is best-effort and never turns a successful command into a reported failure.
+## Security & Operational Guardrails
 
-## Logs
+- **Four distinct authorization Gates:** `viewOpConsole`, `runOpConsoleActions`, `downloadOpConsoleLogs`, and `deleteOpConsoleLogs`, evaluated against `config('opconsole.authentication.guard')`. Undefined custom Gate names, empty Gate names, or invalid guard names fail closed (`403`).
+- **Safe guest handling:** `AuthorizeOpConsole` handles guest checks directly rather than relying on Laravel's `auth` middleware alias, returning a clean `401` whenever a named `login` route is absent, disabled (`null`), parameterized, or requested as JSON.
+- **Mandatory CSRF & session preservation:** `'web'` middleware remains active even when `config('opconsole.route.middleware')` is customized.
+- **Fail-closed lock isolation:** `ActionRunner::validateLockStore()` blocks Artisan execution if the lock store is missing, non-locking, ephemeral outside unit tests, or shares flushable storage with `cache.default`. Multi-server deployments should set `OPCONSOLE_LOCK_STORE` to an isolated `redis` or `database` lock store.
+- **Log sensitivity & request timeouts:** Raw log lines are not redacted; grant `viewOpConsole` and `downloadOpConsoleLogs` only to trusted administrators. Artisan commands run synchronously within the HTTP request (disable `actions.migrate` if your application runs long schema migrations over slow web timeouts). OpConsole does not toggle `php artisan down` / `up`.
 
-Reads `storage/logs/*.log` (or a configured directory) with level/environment/text filtering, repeated-error grouping, download, and delete (the newest file can never be deleted — it's still being written). Filenames are validated against `^[\w.-]+\.log$` and resolved with `realpath` so a `.log` symlink cannot escape the configured directory.
+---
 
-## Integrating into an existing app alongside another console
+## Troubleshooting
 
-`docs/examples/sel-lab-dev/` has a worked example of mounting OpConsole at a separate URL (`/admin/opconsole`) in a host that already has its own admin console at a different path, so both can run side by side during evaluation without touching the existing implementation. See `docs/SEL-LAB-INTEGRATION.md` for the full plan, including the eventual switch-over.
+| Symptom | Cause | Resolution |
+|---|---|---|
+| `403 Forbidden` on `/admin/opconsole` | Running outside `local` without `viewOpConsole` Gate defined, or user failed Gate check | Define `viewOpConsole` (and `runOpConsoleActions`) in `AppServiceProvider::boot()` |
+| `401 Unauthorized` as a guest instead of redirect | Host has no parameterless named `login` route, `login_route` is `null`, or request expects JSON | Set `opconsole.authentication.login_route` to a parameterless named route, or sign in first |
+| `"Operation blocked: action lock store [...] is unsafe or unavailable"` | `OPCONSOLE_LOCK_STORE` points to `null`, `array`, a missing store, or overlaps `cache.default` | Set `OPCONSOLE_LOCK_STORE=opconsole` (single server) or an isolated `redis`/`database` store |
+| `"Audit table not migrated"` in Operation history | `php artisan migrate` has not been run yet | Run `php artisan migrate` to create `opconsole_runs` |
+| Queue / disk check shows `Unknown` | External broker (`redis`/`sqs`) is not probed during web requests, `failed_jobs` table is absent, or `disk_free_space()` is unavailable | Expected fail-honest status; verify external queue workers via CLI monitoring |
 
-## Known limitations
+---
 
-- No queue-based execution: all three actions run synchronously in the web request. Very large migrations can exceed your web server's timeout.
-- No built-in localization beyond English; a `lang/en` file is provided for the few user-facing strings that go through `__()`.
-- No real "maintenance mode" toggle (`artisan down`/`up`) — this package is unrelated to Laravel's maintenance mode despite the similar subject matter.
+## Documentation
+
+- [`docs/INSTALLATION.md`](docs/INSTALLATION.md) — Step-by-step installation, publishing, routes, caching, and uninstallation
+- [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — Complete `config/opconsole.php` reference, read-only preset, and custom `HealthCheck` guide
+- [`docs/SECURITY.md`](docs/SECURITY.md) — Threat model, fail-closed locking, and authorization design
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Component boundaries and HTTP request flows
+- [`docs/UPGRADE.md`](docs/UPGRADE.md) — Upgrade guide from `v0.1.0`
+- [`docs/RELEASE-CHECKLIST.md`](docs/RELEASE-CHECKLIST.md) — Pre-release verification checklist
+- [`docs/CODEBASE-CLEANUP-REPORT.md`](docs/CODEBASE-CLEANUP-REPORT.md) — Repository cleanup and optimization report
 
 ## License
 

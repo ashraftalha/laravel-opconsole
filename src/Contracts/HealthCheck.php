@@ -10,7 +10,7 @@ namespace AshrafTalha\OpConsole\Contracts;
 interface HealthCheck
 {
     /**
-     * @return array{group: string, label: string, ok: bool, severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}
+     * @return array{group: string, label: string, ok: bool, severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string, id?: string, status?: 'healthy'|'warning'|'critical'|'unknown'}
      */
     public function run(): array;
 }

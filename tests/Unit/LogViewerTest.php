@@ -13,15 +13,7 @@ class LogViewerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->dir = sys_get_temp_dir().'/opconsole-unit-'.uniqid();
-        File::makeDirectory($this->dir);
-        $this->app['config']->set('opconsole.logs.path', $this->dir);
-    }
-
-    protected function tearDown(): void
-    {
-        File::deleteDirectory($this->dir);
-        parent::tearDown();
+        $this->dir = $this->useTemporaryLogDirectory();
     }
 
     private function viewer(): LogViewer
@@ -118,5 +110,88 @@ class LogViewerTest extends TestCase
         $this->assertNull($this->viewer()->path('../secret.log'));
         $this->assertNull($this->viewer()->path('not-a-log.txt'));
         $this->assertNull($this->viewer()->path(null));
+    }
+
+    public function test_files_excludes_symlinks_escaping_directory_and_invalid_filenames(): void
+    {
+        File::put($this->dir.'/laravel.log', "[2026-01-01 00:00:00] testing.INFO: valid\n");
+        File::put($this->dir.'/space in name.log', 'invalid');
+
+        $outside = sys_get_temp_dir().'/opconsole-unit-escape-'.uniqid().'.log';
+        File::put($outside, 'secret');
+
+        try {
+            symlink($outside, $this->dir.'/escape.log');
+
+            $names = array_column($this->viewer()->files(), 'name');
+
+            $this->assertSame(['laravel.log'], $names);
+        } finally {
+            @unlink($outside);
+        }
+    }
+
+    public function test_split_multibyte_utf8_at_tail_boundary_and_unicode_entries_parse_cleanly(): void
+    {
+        $path = $this->dir.'/unicode.log';
+        $unicodeLine = "[2026-01-01 00:00:05] testing.ERROR: فشل الاتصال بقاعدة البيانات — naïve café 🚀\n";
+
+        // Position a 4-byte UTF-8 emoji ("🚀" = \xF0\x9F\x9A\x80) right across the -2 MB seek boundary.
+        $tailPayload = str_repeat('a', (2 * 1024 * 1024) - strlen($unicodeLine) - 10)."\n".$unicodeLine;
+        File::put($path, 'prefix-🚀'.$tailPayload);
+
+        $result = $this->viewer()->read('unicode.log');
+
+        $this->assertTrue($result['truncated']);
+        $this->assertCount(1, $result['entries']);
+        $this->assertStringContainsString('فشل الاتصال بقاعدة البيانات', $result['entries'][0]['message']);
+        $this->assertStringContainsString('🚀', $result['entries'][0]['message']);
+    }
+
+    public function test_json_formatted_monolog_lines_are_parsed_filtered_and_grouped(): void
+    {
+        $lines = [
+            json_encode([
+                'datetime' => '2026-02-10T14:20:00+00:00',
+                'channel' => 'production',
+                'level_name' => 'ERROR',
+                'message' => 'Payment gateway timeout for order 41',
+                'context' => ['order_id' => 41, 'gateway' => 'stripe'],
+            ]),
+            json_encode([
+                'datetime' => '2026-02-10T14:21:00+00:00',
+                'channel' => 'production',
+                'level_name' => 'ERROR',
+                'message' => 'Payment gateway timeout for order 42',
+                'context' => ['order_id' => 42, 'gateway' => 'stripe'],
+            ]),
+            json_encode([
+                'datetime' => '2026-02-10T14:22:00+00:00',
+                'channel' => 'staging',
+                'level_name' => 'INFO',
+                'message' => 'Health ping ok',
+                'context' => [],
+            ]),
+        ];
+        File::put($this->dir.'/json.log', implode("\n", $lines)."\n");
+
+        $prodErrors = $this->viewer()->read('json.log', level: 'error', env: 'production');
+
+        $this->assertSame(2, $prodErrors['total']);
+        $this->assertCount(1, $prodErrors['groups']);
+        $this->assertSame(2, $prodErrors['groups'][0]['count']);
+        $this->assertStringContainsString('stripe', $prodErrors['entries'][0]['details']);
+    }
+
+    public function test_fallback_to_all_environments_returns_entries_in_single_pass(): void
+    {
+        File::put($this->dir.'/laravel.log', "[2026-01-01 00:00:00] production.WARNING: disk at 85%\n");
+
+        $withoutFallback = $this->viewer()->read('laravel.log', env: 'local', fallbackToAllEnvs: false);
+        $this->assertSame(0, $withoutFallback['total']);
+
+        $withFallback = $this->viewer()->read('laravel.log', env: 'local', fallbackToAllEnvs: true);
+        $this->assertSame(1, $withFallback['total']);
+        $this->assertNull($withFallback['resolvedEnv']);
     }
 }
