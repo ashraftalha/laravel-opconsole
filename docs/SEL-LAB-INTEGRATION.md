@@ -5,7 +5,19 @@ This document describes how `sel-lab` would adopt this package to replace its ow
 ## 0. Prerequisites
 
 - This package has passed its own test suite, Larastan, Pint, and the clean-install smoke test (see the main `README.md` and CI workflow) on Laravel 13 / PHP 8.3+, matching `sel-lab`'s stack.
-- `sel-lab`'s staging cache store supports atomic locks (required both for `migrate --isolated` and for OpConsole's own `Cache::lock` around actions). Verify `CACHE_STORE` in staging — the source analysis flagged this as unverified (`database` cache driver does support locks via a table; confirm the `cache_locks` table exists or will be created).
+- `sel-lab`'s staging cache store supports atomic locks (required both for `migrate --isolated` and for OpConsole's own action lock). Verify this concretely rather than assuming it — the `database` cache driver does support locks via a `cache_locks` table, but confirm that table exists or will be created on first use. Also note: OpConsole's own action lock deliberately lives in `config('opconsole.concurrency.lock_store')` (default `file`), **not** `cache.default` — `optimize:clear` flushes the default store outright, and a lock living there would delete itself mid-run (see `docs/SECURITY.md`). Don't override `lock_store` to match `cache.default` when configuring this for `sel-lab`.
+- Do the side-by-side dev/staging pass in step 0.5 before anything in steps 1–12 touches `sel-lab` for real.
+
+## 0.5. Side-by-side dev/staging verification (do this first)
+
+Before committing to the switch-over below, run OpConsole alongside the existing `/admin/maintenance` at a different URL, so both can be compared without deleting or risking anything. A ready-to-copy config and a dev-only Gate provider are prepared in this package at `docs/examples/sel-lab-dev/` (config, with `route.prefix = 'admin/opconsole'`, and a `README.md` with the exact steps). This phase:
+
+- installs the package the same way step 1 below does (path repo locally, or a VCS tag),
+- mounts it at `/admin/opconsole`, never at `/admin/maintenance`,
+- uses a separate, environment-guarded service provider for the "any authenticated user" Gates — not `AppServiceProvider` — so it can be removed by deleting one file,
+- registers no `sel-lab`-specific health checks yet (that's step 4 below).
+
+Confirm on staging: both consoles load, route names don't collide (`opconsole.*` vs `admin.maintenance*`), the three Artisan actions run and are audited in `opconsole_runs`, and a guest hitting `/admin/opconsole` is redirected to `/login` (not a 500 — `sel-lab` has a real `login` route, so this exercises the normal redirect path, not the no-login-route fallback). Only once this is satisfactory does step 1 below become a real decision rather than a trial.
 
 ## 1. Private distribution
 
@@ -146,6 +158,9 @@ Walk `docs/FEATURE-PARITY.md` in this package and confirm each row still holds a
 - [ ] Log viewer shows existing `storage/logs/*.log`, filters work, download works, delete refuses the newest file
 - [ ] `php artisan config:cache` and `php artisan route:cache` both succeed
 - [ ] `vendor:publish --tag=opconsole-assets --force` runs as part of deploy (add to `composer.json`'s `post-update-cmd`, alongside the existing `vendor:publish --tag=laravel-assets`)
+- [ ] Production/staging environment with no Gate defined denies access (403) — confirm this *before* adding the Gate::define calls from step 3, to prove the fail-closed default actually holds on this exact host
+- [ ] While one request runs `optimize:clear`, a second concurrent request to any of the three actions is told "Another operation is already running" rather than executing
+- [ ] `lock_store` (`config('opconsole.concurrency.lock_store')`) is not the same value as `cache.default` on this host
 
 ## 11. Production deployment checklist
 

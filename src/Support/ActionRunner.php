@@ -4,6 +4,8 @@ namespace AshrafTalha\OpConsole\Support;
 
 use AshrafTalha\OpConsole\Models\OpConsoleRun;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -32,7 +34,7 @@ class ActionRunner
             throw new \InvalidArgumentException("Action [$action] is not enabled.");
         }
 
-        $lock = Cache::lock(self::LOCK_KEY, 30);
+        $lock = $this->lock();
         if (! $lock->get()) {
             return ['ok' => false, 'output' => 'Another operation is already running. Try again shortly.', 'busy' => true];
         }
@@ -53,6 +55,38 @@ class ActionRunner
             return ['ok' => $ok, 'output' => $output, 'busy' => false];
         } finally {
             $lock->release();
+        }
+    }
+
+    /**
+     * A lock on its own cache store, independent of cache.default: `optimize:clear`
+     * runs `cache:clear`, which flushes the *default* store. If the lock lived there
+     * too, that flush would delete its own lock mid-run, letting a second action
+     * start concurrently. Falls back to the default store if the configured one
+     * cannot be resolved (e.g. a misconfigured custom store name), rather than
+     * failing the action outright.
+     */
+    private function lock(): Lock
+    {
+        $store = config('opconsole.concurrency.lock_store', 'file');
+        $seconds = config('opconsole.concurrency.lock_seconds', 30);
+
+        try {
+            // instanceof must be checked against the underlying store, not the Repository
+            // wrapper Cache::store() returns: Repository doesn't implement LockProvider itself,
+            // it only forwards lock() to the store via __call. Checking the wrapper is always
+            // false, silently defeating the store isolation this method exists for.
+            $underlyingStore = Cache::store($store)->getStore();
+
+            if (! $underlyingStore instanceof LockProvider) {
+                throw new \RuntimeException("Cache store [{$store}] does not support atomic locks.");
+            }
+
+            return $underlyingStore->lock(self::LOCK_KEY, $seconds);
+        } catch (Throwable $e) {
+            Log::warning('OpConsole: lock store is unavailable, falling back to the default cache store', ['store' => $store, 'error' => $e->getMessage()]);
+
+            return Cache::lock(self::LOCK_KEY, $seconds);
         }
     }
 

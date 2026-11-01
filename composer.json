@@ -46,7 +46,11 @@
     "minimum-stability": "stable",
     "prefer-stable": true,
     "scripts": {
-        "test": "testbench package:test",
+        "clear-testbench-cache": "php -r \"array_map('unlink', glob('vendor/orchestra/testbench-core/laravel/bootstrap/cache/*.php') ?: []);\"",
+        "test": [
+            "@clear-testbench-cache",
+            "testbench package:test"
+        ],
         "pint": "pint",
         "stan": "phpstan analyse --memory-limit=1G"
     }

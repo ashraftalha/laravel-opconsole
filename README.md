@@ -48,6 +48,15 @@ The names are configurable via `config('opconsole.authorization')`. `view_gate` 
 
 OpConsole does **not** assume an authenticated user is an administrator, and does **not** grant access just because the app is running locally in a way that bypasses your own Gate — if you define the Gate, your Gate is authoritative in every environment.
 
+### Guests and the `login` route
+
+OpConsole checks authentication itself (`config('opconsole.authentication')`) rather than relying on Laravel's `auth` middleware alias. That alias calls `route('login')` unconditionally and throws an uncaught `RouteNotFoundException` — an HTTP 500 — on any host with no route named `login`. A guest hitting OpConsole instead gets:
+
+- redirected to `route('login')`, if `authentication.login_route` is set and that route exists;
+- a plain `401`, if it's set to `null` or points at a route that doesn't exist.
+
+Don't add Laravel's `auth` middleware alias to `route.middleware` expecting it to help here — it reintroduces the exact crash this is designed to avoid. The default `route.middleware` is just `['web']` for that reason.
+
 ## Configuration
 
 See `config/opconsole.php` for the full set of options (route prefix/middleware, which of the three actions are enabled, log directory and download/delete flags, the `checks` extension point, layout override, asset URLs, back link, audit table name). The file has no closures, so `php artisan config:cache` and `route:cache` both work.
@@ -82,7 +91,9 @@ Malformed results from custom checks are logged and skipped — they never break
 
 ## Artisan actions
 
-A closed allow-list of exactly three commands: `optimize:clear`, `optimize`, `migrate --force --isolated`. You can disable any of them (`config('opconsole.actions.migrate', false)`), but you cannot add new ones through configuration — this is deliberate, so the package can never become a path to arbitrary command execution from an HTTP request. Concurrent runs are serialized with a cache lock.
+A closed allow-list of exactly three commands: `optimize:clear`, `optimize`, `migrate --force --isolated`. You can disable any of them (`config('opconsole.actions.migrate', false)`), but you cannot add new ones through configuration — this is deliberate, so the package can never become a path to arbitrary command execution from an HTTP request.
+
+Concurrent runs are serialized with a cache lock, held in its own store (`config('opconsole.concurrency.lock_store')`, default `file`) — deliberately **not** `cache.default`. `optimize:clear` runs `cache:clear`, which flushes the default store outright; a lock living there would delete its own lock mid-run and let a second action start concurrently. Don't point `lock_store` at the same value as `cache.default`.
 
 ## Audit trail
 
@@ -91,6 +102,10 @@ Every action (and every log delete/download) writes a row to `opconsole_runs` (t
 ## Logs
 
 Reads `storage/logs/*.log` (or a configured directory) with level/environment/text filtering, repeated-error grouping, download, and delete (the newest file can never be deleted — it's still being written). Filenames are validated against `^[\w.-]+\.log$` and resolved with `realpath` so a `.log` symlink cannot escape the configured directory.
+
+## Integrating into an existing app alongside another console
+
+`docs/examples/sel-lab-dev/` has a worked example of mounting OpConsole at a separate URL (`/admin/opconsole`) in a host that already has its own admin console at a different path, so both can run side by side during evaluation without touching the existing implementation. See `docs/SEL-LAB-INTEGRATION.md` for the full plan, including the eventual switch-over.
 
 ## Known limitations
 

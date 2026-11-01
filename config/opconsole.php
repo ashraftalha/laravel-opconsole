@@ -18,8 +18,25 @@ return [
     'route' => [
         'prefix' => env('OPCONSOLE_ROUTE_PREFIX', 'admin/opconsole'),
         'name_prefix' => 'opconsole.',
-        'middleware' => ['web', 'auth'],
+        // Deliberately omits Laravel's 'auth' alias: that middleware calls route('login')
+        // unconditionally and throws (-> HTTP 500) on a host with no route named "login".
+        // OpConsole's own middleware performs the guest check instead; see "authentication" below.
+        'middleware' => ['web'],
         'domain' => null,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Authentication
+    |--------------------------------------------------------------------------
+    | OpConsole checks this guard itself rather than relying on Laravel's
+    | 'auth' middleware alias, so a host with no named "login" route gets a
+    | controlled 401 instead of an uncaught RouteNotFoundException (HTTP 500).
+    | Set login_route to null to always return 401 to guests (no redirect).
+    */
+    'authentication' => [
+        'guard' => null,
+        'login_route' => 'login',
     ],
 
     /*
@@ -34,6 +51,22 @@ return [
     'authorization' => [
         'view_gate' => 'viewOpConsole',
         'run_gate' => 'runOpConsoleActions',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Concurrency
+    |--------------------------------------------------------------------------
+    | The lock guarding the three Artisan actions deliberately uses its own
+    | cache store, independent of cache.default: `optimize:clear` runs
+    | `cache:clear`, which flushes the *default* store outright. If the lock
+    | lived there too, clearing caches would delete its own lock mid-run and
+    | let a second action start concurrently. "file" ships in every Laravel
+    | app's cache stores by default and supports atomic locks.
+    */
+    'concurrency' => [
+        'lock_store' => env('OPCONSOLE_LOCK_STORE', 'file'),
+        'lock_seconds' => 30,
     ],
 
     /*

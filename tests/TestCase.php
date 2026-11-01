@@ -35,6 +35,12 @@ class TestCase extends BaseTestCase
         $app['config']->set('session.driver', 'array');
         $app['config']->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
 
+        // A second, distinctly-named in-memory store for the action lock: proves real store
+        // isolation from cache.default without depending on the real "file" driver, whose lock
+        // files live on disk and persist across separate test-process invocations (flaky in CI).
+        $app['config']->set('cache.stores.opconsole_lock', ['driver' => 'array']);
+        $app['config']->set('opconsole.concurrency.lock_store', 'opconsole_lock');
+
         foreach (static::$configOverrides as $key => $value) {
             $app['config']->set($key, $value);
         }

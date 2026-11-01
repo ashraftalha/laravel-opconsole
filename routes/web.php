@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Route;
 $prefix = config('opconsole.route.name_prefix', 'opconsole.');
 
 Route::prefix(config('opconsole.route.prefix', 'admin/opconsole'))
-    ->middleware(config('opconsole.route.middleware', ['web', 'auth']))
+    ->middleware(config('opconsole.route.middleware', ['web']))
     ->domain(config('opconsole.route.domain'))
     ->group(function () use ($prefix) {
         Route::get('/', [OpConsoleController::class, 'index'])

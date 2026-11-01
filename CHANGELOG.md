@@ -15,3 +15,9 @@ Initial release.
 - `opconsole_runs` audit table recording started/succeeded/failed status for every action and log delete/download.
 - Self-contained, publishable CSS/JS; no required host theme or build step.
 - Full Testbench test suite, Larastan level 5, Pint.
+- `docs/examples/sel-lab-dev/`: a side-by-side dev/staging config for mounting at `/admin/opconsole` without touching an existing admin console.
+
+### Fixed (pre-release hardening pass)
+- Guests on a host with no named `login` route no longer get an uncaught `RouteNotFoundException` (HTTP 500). OpConsole now checks the configured guard itself instead of delegating to Laravel's `auth` middleware alias, and returns a controlled `401` when no login destination is configured or reachable. `route.middleware` no longer includes `auth` by default.
+- Fixed a self-invalidating action lock: `Cache::store($store) instanceof LockProvider` is always false (`Cache::store()` returns a `Repository` wrapper, not the underlying store), so the lock silently fell back to `cache.default` on every call — exactly the bug the store isolation was meant to prevent. Now checks `Cache::store($store)->getStore() instanceof LockProvider` and locks on the underlying store directly. See `docs/SECURITY.md` for the full post-mortem.
+- Verified production/staging deny-by-default authorization against a real clean Laravel 13 install, not only the test suite.
