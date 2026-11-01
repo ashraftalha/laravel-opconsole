@@ -24,6 +24,7 @@ class RoutesTest extends TestCase
         $names = collect($this->app['router']->getRoutes())->map(fn ($route) => $route->getName())->filter()->values();
 
         $this->assertTrue($names->contains('opconsole.index'));
+        $this->assertTrue($names->contains('opconsole.asset'));
         $this->assertTrue($names->contains('opconsole.log'));
         $this->assertTrue($names->contains('opconsole.log.delete'));
         $this->assertTrue($names->contains('opconsole.run'));

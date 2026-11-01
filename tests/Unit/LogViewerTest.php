@@ -13,15 +13,7 @@ class LogViewerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->dir = sys_get_temp_dir().'/opconsole-unit-'.uniqid();
-        File::makeDirectory($this->dir);
-        $this->app['config']->set('opconsole.logs.path', $this->dir);
-    }
-
-    protected function tearDown(): void
-    {
-        File::deleteDirectory($this->dir);
-        parent::tearDown();
+        $this->dir = $this->useTemporaryLogDirectory();
     }
 
     private function viewer(): LogViewer

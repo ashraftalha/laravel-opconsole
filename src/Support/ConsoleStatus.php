@@ -45,12 +45,6 @@ class ConsoleStatus
         ];
     }
 
-    /** @return list<string> migration names not run yet */
-    public function pendingMigrations(): array
-    {
-        return $this->migrationState()['pending'];
-    }
-
     /**
      * Queries the migration repository at most once per call instead of duplicating
      * repositoryExists() and getRan() queries.

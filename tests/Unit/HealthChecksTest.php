@@ -51,7 +51,7 @@ class HealthChecksTest extends TestCase
         $this->assertFalse($checks->contains('label', 'Malformed'));
     }
 
-    /** Regression for F-09: Laravel's mariadb driver uses PHP's pdo_mysql extension, never pdo_mariadb. */
+    /** Laravel's mariadb driver uses PHP's pdo_mysql extension, never pdo_mariadb. */
     public function test_mariadb_driver_checks_pdo_mysql_extension_without_false_pdo_mariadb_failure(): void
     {
         $mariaDatabase = ['ok' => true, 'driver' => 'mariadb', 'name' => 'app_db', 'ran' => 5, 'pending' => [], 'error' => null];
@@ -79,7 +79,7 @@ class HealthChecksTest extends TestCase
         }
     }
 
-    /** Regression for F-09: uninspected external queues or absent failed_jobs tables must report unknown, not healthy. */
+    /** Uninspected external queues or absent failed_jobs tables must report unknown, not healthy. */
     public function test_external_queue_and_missing_failed_jobs_table_report_unknown_rather_than_healthy(): void
     {
         config(['queue.default' => 'redis']);

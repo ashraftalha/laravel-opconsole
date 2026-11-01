@@ -4,7 +4,6 @@ namespace AshrafTalha\OpConsole\Support;
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Viewer for the configured log directory. Large files are read from the end,
@@ -187,17 +186,6 @@ class LogViewer
             'count' => $count,
             'last' => $latestTime ? $latestTime->locale('en')->diffForHumans() : null,
         ];
-    }
-
-    public function download(string $name): BinaryFileResponse
-    {
-        return response()->download($this->path($name) ?? abort(404), $name, ['Content-Type' => 'text/plain; charset=UTF-8']);
-    }
-
-    /** Delete an old log file. The newest file is still being written to, so it stays. */
-    public function delete(string $name): bool
-    {
-        return $this->deleteOutcome($name) === 'deleted';
     }
 
     /** @return 'deleted'|'latest_blocked'|'not_found'|'failed' */

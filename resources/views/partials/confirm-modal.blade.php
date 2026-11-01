@@ -15,8 +15,8 @@
             <code class="oc-command-pill" id="opconsole-confirm-command" dir="ltr" hidden></code>
         </div>
         <div class="oc-dialog-foot">
-            <button type="button" class="btn btn-soft-secondary" id="opconsole-confirm-dismiss">Cancel</button>
-            <button type="button" class="btn btn-danger" id="opconsole-confirm-accept">Confirm</button>
+            <button type="button" class="oc-btn oc-btn-soft-secondary" id="opconsole-confirm-dismiss">Cancel</button>
+            <button type="button" class="oc-btn oc-btn-danger" id="opconsole-confirm-accept">Confirm</button>
         </div>
     </div>
 </dialog>

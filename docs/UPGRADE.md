@@ -36,13 +36,13 @@ Update `'lock_store'` in your published `config/opconsole.php` (or `.env`):
 
 *(Multi-server applications using Redis or database locks should point `OPCONSOLE_LOCK_STORE` to an isolated Redis or database store where `hasSeparateLockStore()` is true.)*
 
-### 2. Self-Contained Assets by Default (`assets.use_cdn = false`)
+### 2. Self-Contained Assets (Legacy `assets.*` CDN Keys Removed)
 
-Previously, `config('opconsole.assets.use_cdn')` defaulted to `true` and loaded Bootstrap 5 CSS/JS and Iconscout Unicons from `cdn.jsdelivr.net`.
+Previously, `config/opconsole.php` included an `'assets'` array (`use_cdn`, `bootstrap_css`, `bootstrap_js`, `icons_css`) that loaded Bootstrap 5 CSS/JS and Iconscout Unicons from `cdn.jsdelivr.net`.
 
 **What changed:**
-- `public/opconsole.css`, `public/opconsole.js`, and inline SVG icons (`opconsole::partials.icon`) are now completely self-contained, dependency-free, and strict-CSP compatible (zero inline `<script>` tags or inline `style=` attributes).
-- `assets.use_cdn` now defaults to `false`.
+- `public/opconsole.css`, `public/opconsole.js`, and inline SVG icons (`opconsole::partials.icon`) are completely self-contained, dependency-free, scoped under `oc-*` classes, and strict-CSP compatible (zero inline `<script>` tags or inline `style=` attributes).
+- The obsolete `assets.*` CDN configuration keys and CDN `<link>`/`<script>` loaders have been removed. If an older published `config/opconsole.php` still contains `'assets'`, those unused keys are harmlessly ignored and can be deleted.
 - An authenticated fallback asset route (`GET /admin/opconsole/assets/opconsole.{css,js}`, named `opconsole.asset`) serves the package CSS/JS automatically if `public/vendor/opconsole/` has not been published yet.
 
 **Action required:**

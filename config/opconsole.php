@@ -122,23 +122,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Assets
-    |--------------------------------------------------------------------------
-    | OpConsole ships completely self-contained CSS, JS, and inline SVG icons
-    | (publish with --tag=opconsole-assets; served via an authenticated package
-    | fallback route if not published yet). No third-party CDN assets are
-    | required or loaded by default. Set use_cdn to true only if a custom view
-    | override explicitly expects Bootstrap 5 / Unicons from external URLs.
-    */
-    'assets' => [
-        'use_cdn' => (bool) env('OPCONSOLE_USE_CDN', false),
-        'bootstrap_css' => 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
-        'bootstrap_js' => 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js',
-        'icons_css' => 'https://cdn.jsdelivr.net/npm/@iconscout/unicons@4.0.8/css/line.css',
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
     | Back link
     |--------------------------------------------------------------------------
     | Optional link back to your own admin dashboard. Hidden when null.

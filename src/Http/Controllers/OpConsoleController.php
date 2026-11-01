@@ -66,12 +66,12 @@ class OpConsoleController extends Controller
     {
         abort_unless(config('opconsole.logs.allow_download', true), 403);
 
-        // Validate the log file exists inside the configured directory before recording a succeeded download audit row.
-        abort_if($this->logs->path($file) === null, 404);
+        $path = $this->logs->path($file);
+        abort_if($path === null, 404);
 
         $this->actions->record('log.download', $request->user(), true, $file);
 
-        return $this->logs->download($file);
+        return response()->download($path, $file, ['Content-Type' => 'text/plain; charset=UTF-8']);
     }
 
     public function deleteLog(Request $request, string $file): RedirectResponse
@@ -91,14 +91,14 @@ class OpConsoleController extends Controller
         };
         $audited = $this->actions->record('log.delete', $request->user(), $ok, $file, $reason);
 
-        $redirect = $ok
-            ? redirect()->to(route($this->routeName('index')).'#logs')->with('opconsole_success', __('opconsole::opconsole.log_deleted', ['file' => $file]))
-            : redirect()->to(route($this->routeName('index')).'#logs')->with(
-                'opconsole_error',
-                $outcome === 'latest_blocked'
-                    ? __('opconsole::opconsole.log_delete_latest_blocked')
-                    : __('opconsole::opconsole.log_delete_failed', ['file' => $file]),
-            );
+        $flashKey = $ok ? 'opconsole_success' : 'opconsole_error';
+        $flashMessage = match ($outcome) {
+            'deleted' => __('opconsole::opconsole.log_deleted', ['file' => $file]),
+            'latest_blocked' => __('opconsole::opconsole.log_delete_latest_blocked'),
+            default => __('opconsole::opconsole.log_delete_failed', ['file' => $file]),
+        };
+
+        $redirect = redirect()->to(route($this->routeName('index')).'#logs')->with($flashKey, $flashMessage);
 
         if (! $audited) {
             $redirect->with('opconsole_warning', __('opconsole::opconsole.audit_unavailable'));

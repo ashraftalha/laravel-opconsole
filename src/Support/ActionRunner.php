@@ -246,8 +246,7 @@ class ActionRunner
             OpConsoleRun::query()->create([
                 'action' => Str::limit($action, 32, ''),
                 'status' => $ok ? 'succeeded' : 'failed',
-                'user_id' => $this->limitNullable($user?->getAuthIdentifier() !== null ? (string) $user->getAuthIdentifier() : null),
-                'user_label' => $this->limitNullable($this->label($user)),
+                ...$this->actorAttributes($user),
                 'subject' => $this->limitNullable($subject),
                 'error' => $this->limitNullable($error !== null ? self::sanitizeText($error) : null),
                 'started_at' => now(),
@@ -283,8 +282,7 @@ class ActionRunner
             return OpConsoleRun::query()->create([
                 'action' => Str::limit($action, 32, ''),
                 'status' => 'started',
-                'user_id' => $this->limitNullable($user?->getAuthIdentifier() !== null ? (string) $user->getAuthIdentifier() : null),
-                'user_label' => $this->limitNullable($this->label($user)),
+                ...$this->actorAttributes($user),
                 'started_at' => now(),
             ]);
         } catch (Throwable $e) {
@@ -292,6 +290,15 @@ class ActionRunner
 
             return null;
         }
+    }
+
+    /** @return array{user_id: ?string, user_label: ?string} */
+    private function actorAttributes(?Authenticatable $user): array
+    {
+        return [
+            'user_id' => $this->limitNullable($user?->getAuthIdentifier() !== null ? (string) $user->getAuthIdentifier() : null),
+            'user_label' => $this->limitNullable($this->label($user)),
+        ];
     }
 
     private function recordFinish(?OpConsoleRun $run, bool $ok, int $exitCode, ?string $error = null): bool
@@ -327,9 +334,7 @@ class ActionRunner
 
     private function cleanOutput(string $raw): string
     {
-        $stripped = trim(preg_replace('/\e\[[\d;]*[A-Za-z]/', '', $raw) ?? $raw);
-
-        return Str::limit(self::sanitizeText($stripped), self::MAX_OUTPUT_CHARS, "\n… [output truncated]");
+        return Str::limit(self::sanitizeText($raw), self::MAX_OUTPUT_CHARS, "\n… [output truncated]");
     }
 
     private function limitNullable(?string $value, int $limit = 250): ?string

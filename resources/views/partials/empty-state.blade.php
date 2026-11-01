@@ -4,6 +4,6 @@
     <span class="oc-empty-icon">@include('opconsole::partials.icon', ['name' => 'info'])</span>
     <p>{{ $message }}</p>
     @if (! empty($actionUrl) && ! empty($actionLabel))
-        <a href="{{ $actionUrl }}" class="btn btn-sm btn-soft-primary">{{ $actionLabel }}</a>
+        <a href="{{ $actionUrl }}" class="oc-btn oc-btn-sm oc-btn-soft-primary">{{ $actionLabel }}</a>
     @endif
 </div>

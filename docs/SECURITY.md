@@ -47,7 +47,7 @@ Gate::define($runGate, fn ($user = null) => app()->environment('local'));
 
 - OpConsole **does not redact raw log lines** rendered in `#logs` or downloaded via `GET {prefix}/logs/{file}`, because redacting arbitrary stack traces and payloads destructively hides diagnostic evidence.
 - Treat `viewOpConsole` and `downloadOpConsoleLogs` as high-trust administrative permissions.
-- In high-compliance environments or initial rollouts (see [`docs/ASHRAFTALHA-INTEGRATION.md`](ASHRAFTALHA-INTEGRATION.md)), set `'allow_download' => false` and `'allow_delete' => false` in `config/opconsole.php` and ensure `APP_DEBUG=false` and `LOG_LEVEL=warning` (or higher) in production.
+- In high-compliance environments or conservative initial rollouts (see the Read-Only Diagnostic Preset in [`docs/CONFIGURATION.md`](CONFIGURATION.md)), set `'allow_download' => false` and `'allow_delete' => false` in `config/opconsole.php` and ensure `APP_DEBUG=false` and `LOG_LEVEL=warning` (or higher) in production.
 
 ---
 
@@ -56,4 +56,4 @@ Gate::define($runGate, fn ($user = null) => app()->environment('local'));
 - Does **not** read, display, or edit `.env`.
 - Does **not** accept arbitrary Artisan command names, flags, or shell arguments from HTTP requests.
 - Does **not** grant access via IP allow-lists, query tokens, or debug backdoors.
-- Does **not** load mandatory third-party CDN scripts or stylesheets by default (`assets.use_cdn = false`).
+- Does **not** load third-party CDN scripts, stylesheets, or external icon fonts.

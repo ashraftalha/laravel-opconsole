@@ -58,6 +58,8 @@ class PagePresenter
         $checks = $this->checks($status['checks']);
 
         return [
+            'assets' => $this->assets(),
+            'indexUrl' => route($this->routeName('index')),
             'environment' => [
                 'name' => $status['app']['environment'],
                 'production' => $status['app']['production'],
@@ -86,7 +88,20 @@ class PagePresenter
             'logFiles' => $this->files($logFiles, $log, $canDelete),
             'log' => $log ? $this->log($log, $status['app']['environment'], $canDownload) : null,
             'backUrl' => config('opconsole.back_url'),
-            'backLabel' => config('opconsole.back_label', 'Back'),
+            'backLabel' => config('opconsole.back_label', 'Dashboard'),
+        ];
+    }
+
+    /** @return array{css: string, js: string} */
+    private function assets(): array
+    {
+        return [
+            'css' => is_file(public_path('vendor/opconsole/opconsole.css'))
+                ? asset('vendor/opconsole/opconsole.css')
+                : route($this->routeName('asset'), 'opconsole.css'),
+            'js' => is_file(public_path('vendor/opconsole/opconsole.js'))
+                ? asset('vendor/opconsole/opconsole.js')
+                : route($this->routeName('asset'), 'opconsole.js'),
         ];
     }
 
@@ -95,14 +110,22 @@ class PagePresenter
         return config('opconsole.route.name_prefix', 'opconsole.').$suffix;
     }
 
+    private function checkStatus(array $check): string
+    {
+        return $check['status'] ?? ($check['ok'] ? 'healthy' : (($check['severity'] ?? 'warning') === 'danger' ? 'critical' : 'warning'));
+    }
+
     private function tiles(array $status, array $actions): array
     {
         ['database' => $db, 'checks' => $checks, 'errors' => $errors] = $status;
         $pending = count($db['pending']);
         $allChecks = collect($checks);
-        $failed = $allChecks->filter(fn ($c) => ($c['status'] ?? ($c['ok'] ? 'healthy' : 'warning')) === 'critical'
-            || (($c['status'] ?? ($c['ok'] ? 'healthy' : 'warning')) === 'warning' && ($c['severity'] ?? 'warning') !== 'info'));
-        $unknown = $allChecks->filter(fn ($c) => ($c['status'] ?? 'healthy') === 'unknown')->count();
+        $failed = $allChecks->filter(function (array $check): bool {
+            $checkStatus = $this->checkStatus($check);
+
+            return $checkStatus === 'critical' || ($checkStatus === 'warning' && ($check['severity'] ?? 'warning') !== 'info');
+        });
+        $unknown = $allChecks->filter(fn (array $c) => $this->checkStatus($c) === 'unknown')->count();
 
         $checksSub = count($checks).' checks'.($unknown ? ' · '.$unknown.' unverified' : '');
 
@@ -120,7 +143,7 @@ class PagePresenter
                 'value' => $failed->isEmpty() ? 'Healthy' : $failed->count().' '.($failed->count() === 1 ? 'alert' : 'alerts'),
                 'sub' => $checksSub,
                 'icon' => 'heart-rate',
-                'tone' => $failed->contains(fn ($c) => ($c['status'] ?? '') === 'critical' || ($c['severity'] ?? '') === 'danger')
+                'tone' => $failed->contains(fn (array $c) => $this->checkStatus($c) === 'critical')
                     ? 'is-bad'
                     : ($failed->isEmpty() ? 'is-ok' : 'is-warning'),
                 'link' => '#checks',
@@ -139,16 +162,14 @@ class PagePresenter
     /** Checks grouped by area, critical problems first across both groups and items, with explicit status distinction. */
     private function checks(array $checks): array
     {
-        $statusOf = fn (array $check): string => $check['status'] ?? ($check['ok'] ? 'healthy' : ($check['severity'] === 'danger' ? 'critical' : 'warning'));
-
-        $order = fn (array $check): int => match ($statusOf($check)) {
+        $order = fn (array $check): int => match ($this->checkStatus($check)) {
             'critical' => 0,
             'warning' => $check['severity'] === 'info' ? 2 : 1,
             'unknown' => 3,
             default => 4,
         };
 
-        $style = fn (array $check): array => match ($statusOf($check)) {
+        $style = fn (array $check): array => match ($this->checkStatus($check)) {
             'critical' => ['is-bad', 'x-circle', 'Critical'],
             'warning' => $check['severity'] === 'info'
                 ? ['is-info', 'info', 'Advisory']
@@ -158,11 +179,11 @@ class PagePresenter
         };
 
         $all = collect($checks);
-        $healthyCount = $all->filter(fn ($c) => $statusOf($c) === 'healthy')->count();
-        $criticalCount = $all->filter(fn ($c) => $statusOf($c) === 'critical')->count();
-        $warningCount = $all->filter(fn ($c) => $statusOf($c) === 'warning' && $c['severity'] !== 'info')->count();
-        $advisoryCount = $all->filter(fn ($c) => $statusOf($c) === 'warning' && $c['severity'] === 'info')->count();
-        $unknownCount = $all->filter(fn ($c) => $statusOf($c) === 'unknown')->count();
+        $healthyCount = $all->filter(fn (array $c) => $this->checkStatus($c) === 'healthy')->count();
+        $criticalCount = $all->filter(fn (array $c) => $this->checkStatus($c) === 'critical')->count();
+        $warningCount = $all->filter(fn (array $c) => $this->checkStatus($c) === 'warning' && $c['severity'] !== 'info')->count();
+        $advisoryCount = $all->filter(fn (array $c) => $this->checkStatus($c) === 'warning' && $c['severity'] === 'info')->count();
+        $unknownCount = $all->filter(fn (array $c) => $this->checkStatus($c) === 'unknown')->count();
         $problems = $criticalCount + $warningCount;
 
         $summaryParts = [$healthyCount.' of '.$all->count().' verified healthy'];
@@ -179,11 +200,11 @@ class PagePresenter
             $summaryParts[] = $unknownCount.' unknown';
         }
 
-        $groups = $all->groupBy('group')->map(function ($group, $name) use ($order, $style, $statusOf) {
-            $groupCritical = $group->filter(fn ($c) => $statusOf($c) === 'critical')->count();
-            $groupWarning = $group->filter(fn ($c) => $statusOf($c) === 'warning' && $c['severity'] !== 'info')->count();
-            $groupHealthy = $group->filter(fn ($c) => $statusOf($c) === 'healthy')->count();
-            $groupUnknown = $group->filter(fn ($c) => $statusOf($c) === 'unknown')->count();
+        $groups = $all->groupBy('group')->map(function ($group, $name) use ($order, $style) {
+            $groupCritical = $group->filter(fn (array $c) => $this->checkStatus($c) === 'critical')->count();
+            $groupWarning = $group->filter(fn (array $c) => $this->checkStatus($c) === 'warning' && $c['severity'] !== 'info')->count();
+            $groupHealthy = $group->filter(fn (array $c) => $this->checkStatus($c) === 'healthy')->count();
+            $groupUnknown = $group->filter(fn (array $c) => $this->checkStatus($c) === 'unknown')->count();
 
             return [
                 'name' => $name,
@@ -191,11 +212,11 @@ class PagePresenter
                 'unknown' => $groupUnknown,
                 'total' => $group->count(),
                 'priority' => $groupCritical > 0 ? 0 : ($groupWarning > 0 ? 1 : 2),
-                'items' => $group->sortBy($order)->map(function ($check) use ($style, $statusOf) {
+                'items' => $group->sortBy($order)->map(function (array $check) use ($style) {
                     [$cls, $icon, $badge] = $style($check);
 
                     return $check + [
-                        'statusKey' => $statusOf($check),
+                        'statusKey' => $this->checkStatus($check),
                         'class' => $cls,
                         'icon' => $icon,
                         'badge' => $badge,
@@ -255,7 +276,8 @@ class PagePresenter
                 'risk' => 'low',
                 'riskLabel' => 'Low risk · Cache flush',
                 'button' => 'Clear now',
-                'style' => 'btn-soft-primary',
+                'style' => 'oc-btn-soft-primary',
+                'url' => route($this->routeName('run'), 'clear'),
                 'text' => 'Clears cached configuration, routes, views, events, and default application cache. Active sessions and action locks are preserved.',
                 'confirmTitle' => 'Clear application caches',
                 'confirm' => 'Clear all compiled and application caches? Initial requests afterward may be slightly slower while caches warm up.',
@@ -272,7 +294,8 @@ class PagePresenter
                 'risk' => 'low',
                 'riskLabel' => 'Low risk · Compile caches',
                 'button' => 'Optimize',
-                'style' => 'btn-soft-success',
+                'style' => 'oc-btn-soft-success',
+                'url' => route($this->routeName('run'), 'optimize'),
                 'text' => 'Compiles configuration, routes, events, and Blade views for faster request handling. Clear caches after changing .env.',
                 'confirmTitle' => 'Compile framework caches',
                 'confirm' => $production
@@ -291,7 +314,8 @@ class PagePresenter
                 'risk' => 'high',
                 'riskLabel' => 'High risk · Schema change',
                 'button' => $pending ? 'Run '.count($pending).' '.(count($pending) === 1 ? 'migration' : 'migrations') : 'Nothing pending',
-                'style' => $pending ? 'btn-danger' : 'btn-soft-secondary',
+                'style' => $pending ? 'oc-btn-danger' : 'oc-btn-soft-secondary',
+                'url' => route($this->routeName('run'), 'migrate'),
                 'text' => 'Applies pending database schema migrations forward-only under an isolated lock. Never runs destructive resets or rollbacks.',
                 'confirmTitle' => 'Run database migrations',
                 'confirm' => 'Apply '.count($pending).' pending database '.(count($pending) === 1 ? 'migration' : 'migrations').' in ['.$status['app']['environment'].']? Ensure a recent database backup exists before modifying schema.',
@@ -359,13 +383,18 @@ class PagePresenter
     /** File cards; every file except the newest (still being written) can be deleted by authorized operators. */
     private function files(array $files, ?array $log, bool $canDelete): array
     {
-        return array_map(fn ($file, $i) => [
-            'name' => $file['name'],
-            'meta' => Number::fileSize($file['size']).' · '.$file['modified']->locale('en')->diffForHumans(),
-            'url' => route($this->routeName('index'), ['log' => $file['name']]).'#logs',
-            'active' => $file['name'] === ($log['name'] ?? null),
-            'deletable' => $i > 0 && config('opconsole.logs.allow_delete', true) && $canDelete,
-        ], $files, array_keys($files));
+        return array_map(function (array $file, int $i) use ($log, $canDelete): array {
+            $deletable = $i > 0 && config('opconsole.logs.allow_delete', true) && $canDelete;
+
+            return [
+                'name' => $file['name'],
+                'meta' => Number::fileSize($file['size']).' · '.$file['modified']->locale('en')->diffForHumans(),
+                'url' => route($this->routeName('index'), ['log' => $file['name']]).'#logs',
+                'deleteUrl' => $deletable ? route($this->routeName('log.delete'), $file['name']) : null,
+                'active' => $file['name'] === ($log['name'] ?? null),
+                'deletable' => $deletable,
+            ];
+        }, $files, array_keys($files));
     }
 
     private function log(array $log, string $currentEnv, bool $canDownload): array

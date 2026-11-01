@@ -10,7 +10,7 @@ Based on the scope of changes beyond the `v0.1.0` baseline:
 
 - Added two new configurable authorization Gates (`download_gate`, `delete_gate`) with backward-compatible defaults.
 - Added automatic isolated lock store (`opconsole` under `storage/framework/cache/opconsole`) and fail-closed lock-store validation.
-- Added authenticated fallback asset route (`opconsole.asset`) and switched standalone UI away from mandatory third-party CDNs (`assets.use_cdn = false` by default).
+- Added authenticated fallback asset route (`opconsole.asset`) and replaced legacy Bootstrap/Unicons CDN assets with a self-contained stylesheet, inline SVG icons, and native `<dialog>` confirmations.
 - Added 4-state health check model (`healthy`, `warning`, `critical`, `unknown`), stable check IDs, MariaDB `pdo_mysql` support, NDJSON log support, and bounded operation history (`#history`).
 - Expanded `composer.json` `require` with all directly imported `illuminate/*` packages (`^12.0|^13.0`).
 
@@ -61,8 +61,9 @@ Verify in disposable fresh **Laravel 12** and **Laravel 13** applications (outsi
 
 - [ ] Push branch and verify `.github/workflows/tests.yml` passes on GitHub Actions across PHP `8.3`, `8.4`, `8.5` × Laravel `12.*`, `13.*` × `prefer-stable`, `prefer-lowest`, plus `static-analysis` and `clean-install`.
 - [ ] Confirm no untracked temporary caches, `.env` files, SQLite files, or test artifacts are staged (`git status` clean).
-- [ ] Confirm `CHANGELOG.md`, `README.md`, `docs/INSTALLATION.md`, `docs/CONFIGURATION.md`, `docs/UPGRADE.md`, `docs/SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/INDEPENDENCE-AUDIT.md`, and `docs/ASHRAFTALHA-INTEGRATION.md` match the exact shipped configuration and behavior.
+- [ ] Confirm `CHANGELOG.md`, `README.md`, `docs/INSTALLATION.md`, `docs/CONFIGURATION.md`, `docs/UPGRADE.md`, `docs/SECURITY.md`, and `docs/ARCHITECTURE.md` match the exact shipped configuration and behavior.
 - [ ] Confirm `LICENSE` (MIT) and `composer.json` metadata are accurate and contain no claim of official Laravel affiliation.
+- [ ] Run a repository-wide case-insensitive scan confirming zero project-specific domain, path, or legacy integration references remain.
 
 ---
 
@@ -72,4 +73,4 @@ Verify in disposable fresh **Laravel 12** and **Laravel 13** applications (outsi
 2. Stamp the release date and version heading in `CHANGELOG.md`.
 3. Create an annotated Git tag (`git tag -a v0.2.0 -m "Release v0.2.0"`).
 4. Push `main` and the annotated tag (`git push origin main --tags`).
-5. Verify Packagist webhook / VCS tag resolution in a disposable project before testing in `ashraftalha.com`.
+5. Verify Packagist webhook / VCS tag resolution in a clean disposable Laravel project.

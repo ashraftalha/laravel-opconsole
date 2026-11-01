@@ -1,4 +1,4 @@
-/* Laravel OpConsole — completely self-contained styles (zero mandatory CDN dependency). */
+/* Laravel OpConsole — self-contained stylesheet. */
 :root {
     --oc-bg: #f6f8fb;
     --oc-surface: #ffffff;
@@ -70,8 +70,8 @@ body.oc-standalone {
 .oc-env-badge.is-prod { background: #eff6ff; color: var(--oc-primary-ink); border-color: #bfdbfe; }
 .oc-env-badge.is-debug { background: #fef2f2; color: var(--oc-danger-ink); border-color: #fecaca; }
 
-/* ---- Buttons & Controls (self-contained, compatible with or without Bootstrap) ---- */
-.oc-embedded-shell .btn, .oc-dialog .btn {
+/* ---- Buttons & Controls ---- */
+.oc-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -87,31 +87,33 @@ body.oc-standalone {
     cursor: pointer;
     transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
-.oc-embedded-shell .btn-sm { padding: 0.35rem 0.7rem; font-size: 0.78rem; border-radius: 0.5rem; }
-.oc-embedded-shell .btn:disabled, .oc-dialog .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.oc-embedded-shell .btn:focus-visible, .oc-dialog .btn:focus-visible,
-.oc-embedded-shell a:focus-visible, .oc-embedded-shell button:focus-visible,
-.oc-embedded-shell input:focus-visible, .oc-embedded-shell summary:focus-visible {
+.oc-btn-sm { padding: 0.35rem 0.7rem; font-size: 0.78rem; border-radius: 0.5rem; }
+.oc-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.oc-btn:focus-visible,
+.oc-embedded-shell a:focus-visible,
+.oc-embedded-shell button:focus-visible,
+.oc-embedded-shell input:focus-visible,
+.oc-embedded-shell summary:focus-visible {
     outline: 2px solid var(--oc-primary);
     outline-offset: 2px;
 }
 
-.oc-embedded-shell .btn-primary, .oc-dialog .btn-primary { background: var(--oc-primary); border-color: var(--oc-primary); color: #ffffff; }
-.oc-embedded-shell .btn-primary:hover:not(:disabled), .oc-dialog .btn-primary:hover:not(:disabled) { background: var(--oc-primary-ink); border-color: var(--oc-primary-ink); }
+.oc-btn-primary { background: var(--oc-primary); border-color: var(--oc-primary); color: #ffffff; }
+.oc-btn-primary:hover:not(:disabled) { background: var(--oc-primary-ink); border-color: var(--oc-primary-ink); }
 
-.oc-embedded-shell .btn-danger, .oc-dialog .btn-danger { background: var(--oc-danger); border-color: var(--oc-danger); color: #ffffff; }
-.oc-embedded-shell .btn-danger:hover:not(:disabled), .oc-dialog .btn-danger:hover:not(:disabled) { background: var(--oc-danger-ink); border-color: var(--oc-danger-ink); }
+.oc-btn-danger { background: var(--oc-danger); border-color: var(--oc-danger); color: #ffffff; }
+.oc-btn-danger:hover:not(:disabled) { background: var(--oc-danger-ink); border-color: var(--oc-danger-ink); }
 
-.oc-embedded-shell .btn-soft-primary { background: #eff6ff; border-color: #bfdbfe; color: var(--oc-primary-ink); }
-.oc-embedded-shell .btn-soft-primary:hover:not(:disabled) { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
+.oc-btn-soft-primary { background: #eff6ff; border-color: #bfdbfe; color: var(--oc-primary-ink); }
+.oc-btn-soft-primary:hover:not(:disabled) { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
 
-.oc-embedded-shell .btn-soft-success { background: #f0fdf4; border-color: #bbf7d0; color: var(--oc-approved); }
-.oc-embedded-shell .btn-soft-success:hover:not(:disabled) { background: #dcfce7; border-color: #86efac; color: #166534; }
+.oc-btn-soft-success { background: #f0fdf4; border-color: #bbf7d0; color: var(--oc-approved); }
+.oc-btn-soft-success:hover:not(:disabled) { background: #dcfce7; border-color: #86efac; color: #166534; }
 
-.oc-embedded-shell .btn-soft-secondary, .oc-dialog .btn-soft-secondary { background: #f1f5f9; border-color: #cbd5e1; color: #334155; }
-.oc-embedded-shell .btn-soft-secondary:hover:not(:disabled), .oc-dialog .btn-soft-secondary:hover:not(:disabled) { background: #e2e8f0; border-color: #94a3b8; color: #0f172a; }
+.oc-btn-soft-secondary { background: #f1f5f9; border-color: #cbd5e1; color: #334155; }
+.oc-btn-soft-secondary:hover:not(:disabled) { background: #e2e8f0; border-color: #94a3b8; color: #0f172a; }
 
-.oc-embedded-shell .form-control {
+.oc-input {
     display: block;
     width: 100%;
     padding: 0.5rem 0.75rem;
@@ -150,7 +152,6 @@ body.oc-standalone {
     height: 100%;
     min-width: 0;
 }
-.oc-tile.is-ok { --c: var(--oc-approved); }
 .oc-tile.is-warning { --c: #b45309; }
 .oc-tile.is-bad { --c: var(--oc-danger); }
 .oc-tile::after { content: ""; position: absolute; inset-inline: 0; bottom: 0; height: 3px; background: var(--c); }
@@ -193,9 +194,8 @@ body.oc-standalone {
 .oc-action-top { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.85rem; }
 .oc-action-icon { display: grid; place-items: center; width: 2.55rem; height: 2.55rem; border-radius: 0.75rem; background: #eff6ff; color: var(--oc-primary); }
 .oc-action.is-high-risk .oc-action-icon { background: #fee2e2; color: var(--oc-danger); }
-.oc-risk-badge { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 99px; font-size: 0.72rem; font-weight: 700; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
+.oc-risk-badge { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 99px; font-size: 0.72rem; font-weight: 700; background: #f8fafc; color: #334155; border: 1px solid #cbd5e1; }
 .oc-risk-badge.is-high { background: #fef2f2; color: var(--oc-danger-ink); border-color: #fecaca; }
-.oc-risk-badge.is-low { background: #f8fafc; color: #334155; border-color: #cbd5e1; }
 .oc-action h2 { margin: 0 0 0.35rem; font-size: 1.02rem; font-weight: 800; color: var(--oc-text); }
 .oc-command-pill { display: inline-block; align-self: flex-start; margin-bottom: 0.65rem; padding: 0.18rem 0.5rem; border-radius: 0.4rem; background: #f1f5f9; border: 1px solid #e2e8f0; color: #1e293b; font-family: var(--oc-mono); font-size: 0.73rem; overflow-wrap: anywhere; }
 .oc-action p { flex: 1; margin: 0 0 0.75rem; color: var(--oc-muted); font-size: 0.84rem; line-height: 1.6; }
@@ -381,7 +381,7 @@ details[open] > summary .oc-check-chevron { transform: rotate(180deg); }
     .oc-advice { flex-wrap: wrap; }
     .oc-advice-link { white-space: normal; }
     .oc-log-search { min-width: 0; width: 100%; }
-    .oc-log-search .form-control { min-width: 0; }
+    .oc-log-search .oc-input { min-width: 0; }
     .oc-log-group { flex-wrap: wrap; }
     .oc-log-entry summary { flex-wrap: wrap; }
     .oc-log-meta { width: 100%; }

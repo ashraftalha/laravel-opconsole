@@ -81,9 +81,8 @@
             lastTrigger = document.activeElement;
             titleEl.textContent = form.dataset.confirmTitle || 'Confirm action';
             messageEl.textContent = form.dataset.confirm;
-            if (dismiss) dismiss.textContent = form.dataset.confirmDismiss || 'Cancel';
             accept.textContent = form.dataset.confirmAccept || 'Confirm';
-            accept.className = form.dataset.confirmRisk === 'high' ? 'btn btn-danger' : 'btn btn-primary';
+            accept.className = form.dataset.confirmRisk === 'high' ? 'oc-btn oc-btn-danger' : 'oc-btn oc-btn-primary';
             accept.disabled = false;
 
             if (commandEl) {
@@ -99,7 +98,7 @@
             if (riskEl) {
                 if (form.dataset.confirmRiskLabel) {
                     riskEl.textContent = form.dataset.confirmRiskLabel;
-                    riskEl.className = 'oc-risk-badge ' + (form.dataset.confirmRisk === 'high' ? 'is-high' : 'is-low');
+                    riskEl.className = 'oc-risk-badge' + (form.dataset.confirmRisk === 'high' ? ' is-high' : '');
                     riskEl.hidden = false;
                 } else {
                     riskEl.textContent = '';
@@ -166,8 +165,7 @@
                     var input = document.createElement('textarea');
                     input.value = text;
                     input.setAttribute('readonly', 'readonly');
-                    input.style.position = 'fixed';
-                    input.style.opacity = '0';
+                    input.className = 'oc-sr-only';
                     document.body.appendChild(input);
                     input.select();
                     document.execCommand('copy');

@@ -4,20 +4,11 @@
 @section('title', 'OpConsole')
 
 @if ($layout)
-    @php
-        $ocRoutePrefix = config('opconsole.route.name_prefix', 'opconsole.');
-        $ocCssUrl = is_file(public_path('vendor/opconsole/opconsole.css'))
-            ? asset('vendor/opconsole/opconsole.css')
-            : route($ocRoutePrefix.'asset', 'opconsole.css');
-        $ocJsUrl = is_file(public_path('vendor/opconsole/opconsole.js'))
-            ? asset('vendor/opconsole/opconsole.js')
-            : route($ocRoutePrefix.'asset', 'opconsole.js');
-    @endphp
     @push('styles')
-        <link href="{{ $ocCssUrl }}" rel="stylesheet">
+        <link href="{{ $assets['css'] }}" rel="stylesheet">
     @endpush
     @push('scripts')
-        <script src="{{ $ocJsUrl }}" defer></script>
+        <script src="{{ $assets['js'] }}" defer></script>
     @endpush
 @endif
 
@@ -45,7 +36,7 @@
                 </div>
                 <p class="oc-subtitle">Monitor. Diagnose. Maintain.</p>
             </div>
-            <a href="{{ route(config('opconsole.route.name_prefix').'index') }}" class="btn btn-soft-primary">
+            <a href="{{ $indexUrl }}" class="oc-btn oc-btn-soft-primary">
                 @include('opconsole::partials.icon', ['name' => 'refresh'])
                 <span>Refresh status</span>
             </a>
@@ -99,7 +90,7 @@
                         <article @class(['oc-action', 'is-high-risk' => $action['risk'] === 'high']) id="action-{{ $key }}">
                             <div class="oc-action-top">
                                 <span class="oc-action-icon">@include('opconsole::partials.icon', ['name' => $action['icon']])</span>
-                                <span @class(['oc-risk-badge', 'is-high' => $action['risk'] === 'high', 'is-low' => $action['risk'] !== 'high'])>{{ $action['riskLabel'] }}</span>
+                                <span @class(['oc-risk-badge', 'is-high' => $action['risk'] === 'high'])>{{ $action['riskLabel'] }}</span>
                             </div>
                             <h2>{{ $action['title'] }}</h2>
                             <code class="oc-command-pill" dir="ltr">{{ $action['command'] }}</code>
@@ -129,7 +120,7 @@
 
                             <form
                                 method="POST"
-                                action="{{ route(config('opconsole.route.name_prefix').'run', $key) }}"
+                                action="{{ $action['url'] }}"
                                 data-confirm="{{ $action['confirm'] }}"
                                 data-confirm-title="{{ $action['confirmTitle'] }}"
                                 data-confirm-accept="{{ $action['confirmAccept'] }}"
@@ -138,7 +129,7 @@
                                 data-confirm-risk-label="{{ $action['riskLabel'] }}"
                             >
                                 @csrf
-                                <button type="submit" class="btn {{ $action['style'] }} oc-w-full" @disabled(! $action['enabled'])>
+                                <button type="submit" class="oc-btn {{ $action['style'] }} oc-w-full" @disabled(! $action['enabled'])>
                                     @include('opconsole::partials.icon', ['name' => $action['icon']])
                                     <span data-oc-btn-label>{{ $action['button'] }}</span>
                                 </button>
@@ -160,7 +151,7 @@
                         <span @class(['oc-status-pill', 'is-ok' => $output['ok'], 'is-bad' => ! $output['ok'], 'oc-ms-auto' => true])>
                             {{ $output['ok'] ? 'Succeeded' : 'Failed' }}
                         </span>
-                        <button type="button" class="btn btn-sm btn-soft-secondary" data-copy="{{ $output['text'] }}">
+                        <button type="button" class="oc-btn oc-btn-sm oc-btn-soft-secondary" data-copy="{{ $output['text'] }}">
                             @include('opconsole::partials.icon', ['name' => 'copy'])
                             <span data-oc-copy-label>Copy</span>
                         </button>
@@ -287,7 +278,7 @@
                 <div class="oc-section-head">
                     <b>@include('opconsole::partials.icon', ['name' => 'info'])</b>
                     <div><small>Runtime and service configuration summary (contains no raw secrets)</small></div>
-                    <button type="button" class="btn btn-sm btn-soft-primary oc-ms-auto" data-copy="{{ $infoText }}" title="Copy system summary">
+                    <button type="button" class="oc-btn oc-btn-sm oc-btn-soft-primary oc-ms-auto" data-copy="{{ $infoText }}" title="Copy system summary">
                         @include('opconsole::partials.icon', ['name' => 'copy'])
                         <span data-oc-copy-label>Copy</span>
                     </button>
@@ -334,7 +325,7 @@
                                     @if ($file['deletable'])
                                         <form
                                             method="POST"
-                                            action="{{ route(config('opconsole.route.name_prefix').'log.delete', $file['name']) }}"
+                                            action="{{ $file['deleteUrl'] }}"
                                             class="oc-log-delete"
                                             data-confirm="Permanently delete rotated log file {{ $file['name'] }}? This action cannot be undone."
                                             data-confirm-title="Delete log file"
@@ -372,23 +363,23 @@
                                     </a>
                                 @endforeach
                             </div>
-                            <form method="GET" action="{{ route(config('opconsole.route.name_prefix').'index') }}#logs" class="oc-log-search" role="search">
+                            <form method="GET" action="{{ $indexUrl }}#logs" class="oc-log-search" role="search">
                                 <input type="hidden" name="log" value="{{ $log['name'] }}">
                                 <input type="hidden" name="env" value="{{ $log['env'] }}">
                                 @if ($log['level'])<input type="hidden" name="level" value="{{ $log['level'] }}">@endif
                                 <label for="oc-log-search-input" class="oc-sr-only">Search logs</label>
-                                <input id="oc-log-search-input" type="search" aria-label="Search logs" name="q" value="{{ $log['search'] }}" class="form-control" placeholder="Search messages and stack traces…" maxlength="200" dir="auto">
-                                <button type="submit" class="btn btn-soft-primary" aria-label="Search" title="Search">
+                                <input id="oc-log-search-input" type="search" aria-label="Search logs" name="q" value="{{ $log['search'] }}" class="oc-input" placeholder="Search messages and stack traces…" maxlength="200" dir="auto">
+                                <button type="submit" class="oc-btn oc-btn-soft-primary" aria-label="Search" title="Search">
                                     @include('opconsole::partials.icon', ['name' => 'search'])
                                 </button>
                                 @if ($log['search'] !== '')
-                                    <a href="{{ $log['clearSearchUrl'] }}" class="btn btn-soft-secondary" aria-label="Clear search" title="Clear search">
+                                    <a href="{{ $log['clearSearchUrl'] }}" class="oc-btn oc-btn-soft-secondary" aria-label="Clear search" title="Clear search">
                                         @include('opconsole::partials.icon', ['name' => 'x'])
                                     </a>
                                 @endif
                             </form>
                             @if ($log['downloadUrl'])
-                                <a href="{{ $log['downloadUrl'] }}" class="btn btn-soft-secondary">
+                                <a href="{{ $log['downloadUrl'] }}" class="oc-btn oc-btn-soft-secondary">
                                     @include('opconsole::partials.icon', ['name' => 'download'])
                                     <span>Download file</span>
                                 </a>
@@ -427,7 +418,7 @@
                                     <span class="oc-log-meta" dir="ltr">{{ $entry['meta'] }}</span>
                                 </summary>
                                 <div class="oc-log-body">
-                                    <button type="button" class="btn btn-sm btn-soft-secondary" data-copy="{{ $entry['copy'] }}" title="Copy log entry">
+                                    <button type="button" class="oc-btn oc-btn-sm oc-btn-soft-secondary" data-copy="{{ $entry['copy'] }}" title="Copy log entry">
                                         @include('opconsole::partials.icon', ['name' => 'copy'])
                                         <span data-oc-copy-label>Copy entry</span>
                                     </button>
@@ -445,7 +436,7 @@
                         @endforelse
 
                         @if ($log['moreUrl'])
-                            <a href="{{ $log['moreUrl'] }}" class="btn btn-soft-primary oc-w-full oc-mt-2">
+                            <a href="{{ $log['moreUrl'] }}" class="oc-btn oc-btn-soft-primary oc-w-full oc-mt-2">
                                 @include('opconsole::partials.icon', ['name' => 'chevron-down'])
                                 <span>Show more entries</span>
                             </a>

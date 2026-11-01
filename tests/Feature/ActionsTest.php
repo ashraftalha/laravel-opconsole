@@ -9,8 +9,6 @@ use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Lock;
 use Illuminate\Cache\Repository as CacheRepository;
 use Illuminate\Contracts\Console\Kernel as KernelContract;
-use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
-use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -122,10 +120,10 @@ class ActionsTest extends TestCase
         $this->fakeArtisan(0, 'all good');
         $this->actingAsUser();
 
-        $response = $this->post('/admin/opconsole/clear');
-
-        $response->assertSessionHas('opconsole_success');
-        $response->assertSessionMissing('opconsole_error');
+        $this->post('/admin/opconsole/clear')
+            ->assertSessionHas('opconsole_success')
+            ->assertSessionHas('opconsole_warning')
+            ->assertSessionMissing('opconsole_error');
     }
 
     public function test_concurrent_actions_are_rejected_while_a_lock_is_held(): void
@@ -201,10 +199,9 @@ class ActionsTest extends TestCase
     }
 
     /**
-     * Regression for F-03 (Phase 2.3 #3): when cache.default is "file" (standard shared-hosting /
-     * single-server Laravel config where FileStore::hasSeparateLockStore() is false), running
-     * `optimize:clear` (`cache:clear`) flushes `storage/framework/cache/data`. OpConsole's default
-     * isolated file lock store (`opconsole`) must survive that flush completely untouched.
+     * When cache.default is "file" (standard single-server Laravel config where locks share
+     * the cache data directory), running `optimize:clear` (`cache:clear`) flushes `cache.default`.
+     * OpConsole's default isolated file lock store (`opconsole`) must survive that flush untouched.
      */
     public function test_optimize_clear_with_file_default_cache_does_not_invalidate_isolated_opconsole_file_lock(): void
     {
@@ -256,8 +253,8 @@ class ActionsTest extends TestCase
     }
 
     /**
-     * Regression for F-03 (Phase 2.3 #4): unsafe cache/lock-store configurations must fail closed
-     * without silently falling back to Cache::lock() or executing any Artisan command.
+     * Unsafe cache/lock-store configurations must fail closed without silently falling back
+     * to Cache::lock() or executing any Artisan command.
      */
     public function test_unsafe_lock_store_configurations_fail_closed_without_executing_artisan(): void
     {
@@ -303,10 +300,7 @@ class ActionsTest extends TestCase
         }
 
         // 5. Ephemeral ArrayStore outside unit tests (e.g. production)
-        $this->withoutMiddleware(array_filter([
-            class_exists(PreventRequestForgery::class) ? PreventRequestForgery::class : null,
-            class_exists(ValidateCsrfToken::class) ? ValidateCsrfToken::class : null,
-        ]));
+        $this->withoutCsrfMiddleware();
         $this->app['env'] = 'production';
         $this->app['config']->set('opconsole.concurrency.lock_store', 'opconsole_lock');
         $this->post('/admin/opconsole/clear')->assertSessionHas('opconsole_error');
@@ -315,8 +309,8 @@ class ActionsTest extends TestCase
     }
 
     /**
-     * Regression for F-03 (Phase 2.3 #5): runtime lock acquisition exceptions (e.g. Redis outage
-     * or unwritable lock storage) must fail closed, never invoke Artisan, and record a failed audit row.
+     * Runtime lock acquisition exceptions (e.g. Redis outage or unwritable lock storage)
+     * must fail closed, never invoke Artisan, and record a sanitized failed audit row.
      */
     public function test_lock_acquisition_exception_fails_closed_without_executing_artisan(): void
     {
@@ -369,8 +363,8 @@ class ActionsTest extends TestCase
     }
 
     /**
-     * Phase 2.3 #6 & Phase 3.4: expired locks allow subsequent operations safely, and abandoned
-     * "started" audit rows past the lock window are classified as Interrupted / Unknown (never Succeeded).
+     * Expired locks allow subsequent operations safely, and abandoned "started" audit rows
+     * past the lock window are classified as Interrupted / Unknown (never Succeeded).
      */
     public function test_expired_lock_allows_subsequent_operation_and_stale_started_audit_row_is_classified_as_unknown(): void
     {
@@ -409,9 +403,9 @@ class ActionsTest extends TestCase
     }
 
     /**
-     * Regression for F-06 & F-07: an exception thrown inside Artisan::call() must be caught,
-     * update the existing audit row to "failed" with sanitized error text, release the lock,
-     * and redirect cleanly instead of returning HTTP 500 or leaving an orphaned "started" row.
+     * An exception thrown inside Artisan::call() must be caught, update the existing audit row
+     * to "failed" with sanitized error text, release the lock, and redirect cleanly instead of
+     * returning HTTP 500 or leaving an orphaned "started" row.
      */
     public function test_thrown_artisan_exception_updates_audit_row_to_failed_releases_lock_and_sanitizes_secrets(): void
     {
@@ -443,24 +437,10 @@ class ActionsTest extends TestCase
         $this->post('/admin/opconsole/clear')->assertSessionHas('opconsole_success');
     }
 
-    public function test_audit_persistence_failure_flashes_distinct_warning_alongside_command_success(): void
-    {
-        Schema::drop('opconsole_runs');
-
-        $this->fakeArtisan(0, 'cleared');
-        $this->actingAsUser();
-
-        $this->post('/admin/opconsole/clear')
-            ->assertSessionHas('opconsole_success')
-            ->assertSessionHas('opconsole_warning')
-            ->assertSessionMissing('opconsole_error');
-    }
-
     public function test_overlong_actor_and_error_fields_are_truncated_safely_for_audit_persistence(): void
     {
         $this->fakeArtisan(1, str_repeat('E', 1200));
-        $user = $this->actingAsUser();
-        $user->name = str_repeat('A', 400);
+        $this->actingAsUser(name: str_repeat('A', 400));
 
         $this->post('/admin/opconsole/clear')->assertSessionHas('opconsole_error');
 

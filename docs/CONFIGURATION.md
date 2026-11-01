@@ -77,7 +77,6 @@ Setting an action to `false` hides its card in the UI and causes `POST /admin/op
 |---|---|---|---|
 | `checks` | — | `[]` | Array of class names implementing `AshrafTalha\OpConsole\Contracts\HealthCheck`. |
 | `layout` | — | `null` | `null` renders OpConsole's standalone layout. Set to a host Blade view name (must provide `@yield('content')`, `@stack('styles')`, and `@stack('scripts')`) to embed inside an existing admin shell. |
-| `assets.use_cdn` | `OPCONSOLE_USE_CDN` | `false` | Keep `false` to use OpConsole's self-contained local CSS, JS, and inline SVG icons with zero external CDN requests. |
 | `back_url` | — | `null` | Optional URL rendered as a back link in the console header (hidden when `null`). |
 | `back_label` | — | `'Dashboard'` | Label text for `back_url`. |
 | `table` | `OPCONSOLE_TABLE` | `'opconsole_runs'` | Database table name for operation audit records. |

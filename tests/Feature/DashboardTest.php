@@ -5,7 +5,9 @@ namespace AshrafTalha\OpConsole\Tests\Feature;
 use AshrafTalha\OpConsole\Models\OpConsoleRun;
 use AshrafTalha\OpConsole\Tests\TestCase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\View;
 
 class DashboardTest extends TestCase
 {
@@ -57,12 +59,13 @@ class DashboardTest extends TestCase
     }
 
     /**
-     * Regression for F-10 & F-11: standalone dashboard must not load mandatory third-party CDN
-     * assets by default, must not emit inline <script> blocks or inline style attributes, and
-     * must serve its self-contained CSS/JS fallback route behind authorization.
+     * Standalone dashboard loads no third-party CDN assets, emits no inline <script> blocks or
+     * inline style attributes, and serves its self-contained CSS/JS fallback route behind auth.
      */
-    public function test_standalone_dashboard_uses_no_third_party_cdn_or_inline_scripts_by_default(): void
+    public function test_standalone_dashboard_uses_self_contained_assets_and_strict_csp_compatible_markup(): void
     {
+        $this->assertNull(config('opconsole.assets'));
+
         // Guest cannot bypass auth on fallback asset route.
         $this->get('/admin/opconsole/assets/opconsole.css')->assertRedirect('/login');
 
@@ -72,6 +75,7 @@ class DashboardTest extends TestCase
         $html = $response->getContent();
 
         $this->assertStringNotContainsString('cdn.jsdelivr.net', $html);
+        $this->assertStringNotContainsString('unicons', $html);
         $this->assertDoesNotMatchRegularExpression('/<script(?![^>]*\bsrc=)[^>]*>/i', $html);
         $this->assertDoesNotMatchRegularExpression('/\sstyle\s*=/i', $html);
         $this->assertStringContainsString('id="opconsole-confirm-modal"', $html);
@@ -86,6 +90,32 @@ class DashboardTest extends TestCase
             ->assertHeader('X-Content-Type-Options', 'nosniff');
 
         $this->get('/admin/opconsole/assets/unknown.js')->assertNotFound();
+    }
+
+    public function test_custom_host_layout_pushes_self_contained_assets_and_renders_embedded_shell(): void
+    {
+        $viewDir = sys_get_temp_dir().'/opconsole-host-views-'.uniqid();
+        File::makeDirectory($viewDir, 0755, true);
+
+        try {
+            File::put(
+                $viewDir.'/host-shell.blade.php',
+                "<!doctype html><html><head>@stack('styles')</head><body data-host-shell>@yield('content')@stack('scripts')</body></html>"
+            );
+            View::addLocation($viewDir);
+            $this->app['config']->set('opconsole.layout', 'host-shell');
+
+            $this->actingAsUser();
+
+            $this->get('/admin/opconsole')
+                ->assertOk()
+                ->assertSee('data-host-shell', false)
+                ->assertSee('/admin/opconsole/assets/opconsole.css', false)
+                ->assertSee('/admin/opconsole/assets/opconsole.js', false)
+                ->assertSee('id="opconsole-confirm-modal"', false);
+        } finally {
+            File::deleteDirectory($viewDir);
+        }
     }
 
     public function test_failing_critical_checks_auto_open_accordion_and_actions_render_risk_and_disabled_states(): void
@@ -106,8 +136,8 @@ class DashboardTest extends TestCase
     }
 
     /**
-     * Regression for F-12 & Phase 3.4: operation history renders bounded recent runs while
-     * keeping dashboard SQL queries constant even when opconsole_runs has many historical rows.
+     * Operation history renders bounded recent runs while keeping dashboard SQL queries
+     * constant even when opconsole_runs contains many historical rows.
      */
     public function test_operation_history_renders_recent_runs_with_bounded_query_count(): void
     {
