@@ -1,0 +1,95 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4', '8.5']
+        laravel: ['13.*']
+        dependency-version: [prefer-stable, prefer-lowest]
+
+    name: PHP ${{ matrix.php }} - Laravel ${{ matrix.laravel }} - ${{ matrix.dependency-version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, sqlite3, pdo_sqlite
+          coverage: none
+
+      - name: Install dependencies
+        run: |
+          composer require "laravel/framework:${{ matrix.laravel }}" --no-interaction --no-update
+          composer update --${{ matrix.dependency-version }} --prefer-dist --no-interaction
+
+      - name: Run tests
+        run: composer test
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction
+
+      - name: Larastan
+        run: composer stan
+
+      - name: Pint (dry run)
+        run: vendor/bin/pint --test
+
+  clean-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: opconsole
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Create a fresh Laravel application
+        run: composer create-project laravel/laravel smoke-app --prefer-dist --no-interaction
+
+      - name: Install OpConsole via a path repository
+        working-directory: smoke-app
+        run: |
+          composer config repositories.opconsole path ../opconsole
+          composer require ashraftalha/laravel-opconsole:@dev --no-interaction
+
+      - name: Publish, migrate
+        working-directory: smoke-app
+        run: |
+          php artisan vendor:publish --tag=opconsole-config
+          php artisan vendor:publish --tag=opconsole-assets
+          php artisan migrate --force
+
+      - name: Config and route caching succeed
+        working-directory: smoke-app
+        run: |
+          php artisan config:cache
+          php artisan route:cache
+
+      - name: Routes are registered
+        working-directory: smoke-app
+        run: php artisan route:list | grep -q opconsole

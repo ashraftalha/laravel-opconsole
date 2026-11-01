@@ -1,0 +1,14 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - src
+    level: 5
+    tmpDir: build/phpstan
+    ignoreErrors:
+        -
+            # Larastan resolves view-string literals against the host app's resources/views;
+            # it cannot see this package's own namespaced views ("opconsole::...") at analysis time.
+            message: '#expects view-string\|null#'
+            path: src/Http/Controllers/OpConsoleController.php

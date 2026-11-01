@@ -1,0 +1,53 @@
+{
+    "name": "ashraftalha/laravel-opconsole",
+    "description": "Monitor. Diagnose. Maintain. An administrative operations console for Laravel applications: health checks, safe Artisan operations, and a log viewer behind explicit authorization.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["laravel", "admin", "operations", "health-check", "logs", "maintenance"],
+    "authors": [
+        {
+            "name": "Ashraf Talha",
+            "email": "ashraf.talha90@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "illuminate/console": "^13.0",
+        "illuminate/contracts": "^13.0",
+        "illuminate/database": "^13.0",
+        "illuminate/support": "^13.0"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.18",
+        "orchestra/testbench": "^11.0",
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "AshrafTalha\\OpConsole\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AshrafTalha\\OpConsole\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "AshrafTalha\\OpConsole\\OpConsoleServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "testbench package:test",
+        "pint": "pint",
+        "stan": "phpstan analyse --memory-limit=1G"
+    }
+}
