@@ -4,6 +4,7 @@ namespace AshrafTalha\OpConsole\Tests\Feature;
 
 use AshrafTalha\OpConsole\Tests\TestCase;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Gate;
 
 class AuthorizationTest extends TestCase
@@ -62,7 +63,12 @@ class AuthorizationTest extends TestCase
         // Setting $this->app['env'] also disables Testbench's test-only CSRF bypass
         // (it keys off app()->runningUnitTests(), which checks 'env' === 'testing').
         // Disable CSRF explicitly so this test isolates authorization, not CSRF.
-        $this->withoutMiddleware(PreventRequestForgery::class);
+        // The middleware class was renamed between supported Laravel versions
+        // (ValidateCsrfToken on 12.x, PreventRequestForgery on 13.x); disable both.
+        $this->withoutMiddleware(array_filter([
+            class_exists(PreventRequestForgery::class) ? PreventRequestForgery::class : null,
+            class_exists(ValidateCsrfToken::class) ? ValidateCsrfToken::class : null,
+        ]));
         $this->app['env'] = 'production';
         $this->actingAsUser();
 

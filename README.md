@@ -11,9 +11,9 @@ Laravel OpConsole is an administrative operations console that lets authorized d
 | | |
 |---|---|
 | PHP | ^8.3 |
-| Laravel | ^13.0 |
+| Laravel | ^12.0 \| ^13.0 |
 
-Laravel 12 support has not been tested and is not claimed.
+Both are verified against the real framework (not inferred from version ranges): the full test suite, Larastan, and Pint pass against Laravel 12 + Orchestra Testbench 10, and separately against Laravel 13 + Testbench 11. The CI matrix (`.github/workflows/tests.yml`) runs both, on PHP 8.3–8.5, with `prefer-stable` and `prefer-lowest`.
 
 ## Installation
 

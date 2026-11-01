@@ -4,7 +4,7 @@ This document describes how `sel-lab` would adopt this package to replace its ow
 
 ## 0. Prerequisites
 
-- This package has passed its own test suite, Larastan, Pint, and the clean-install smoke test (see the main `README.md` and CI workflow) on Laravel 13 / PHP 8.3+, matching `sel-lab`'s stack.
+- This package has passed its own test suite, Larastan, Pint, and the clean-install smoke test (see the main `README.md` and CI workflow) on Laravel 12 and 13 / PHP 8.3+. `sel-lab` runs Laravel 13 specifically — that combination is covered.
 - `sel-lab`'s staging cache store supports atomic locks (required both for `migrate --isolated` and for OpConsole's own action lock). Verify this concretely rather than assuming it — the `database` cache driver does support locks via a `cache_locks` table, but confirm that table exists or will be created on first use. Also note: OpConsole's own action lock deliberately lives in `config('opconsole.concurrency.lock_store')` (default `file`), **not** `cache.default` — `optimize:clear` flushes the default store outright, and a lock living there would delete itself mid-run (see `docs/SECURITY.md`). Don't override `lock_store` to match `cache.default` when configuring this for `sel-lab`.
 - Do the side-by-side dev/staging pass in step 0.5 before anything in steps 1–12 touches `sel-lab` for real.
 
