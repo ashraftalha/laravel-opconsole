@@ -35,7 +35,6 @@ class ConsoleStatus
                 'debug' => (bool) config('app.debug'),
             ],
             'database' => $database,
-            'caches' => $caches,
             'checks' => $checks,
             'errors' => $errors,
             'info' => $this->info($database, $caches),
@@ -158,7 +157,7 @@ class ConsoleStatus
      *
      * @return array{
      *     lastRuns: array<string, ?array{at: ?string, by: string, ok: bool}>,
-     *     history: array{available: bool, items: list<array{id: int, action: string, status: 'succeeded'|'failed'|'started'|'unknown', actor: string, startedAt: ?string, finishedAt: ?string, durationMs: ?int, exitCode: ?int, subject: ?string, error: ?string}>}
+     *     history: array{available: bool, items: list<array{action: string, status: 'succeeded'|'failed'|'started'|'unknown', actor: string, startedAt: ?string, durationMs: ?int, exitCode: ?int, subject: ?string, error: ?string}>}
      * }
      */
     private function audit(): array
@@ -222,12 +221,10 @@ class ConsoleStatus
                 : null;
 
             return [
-                'id' => (int) $row->id,
                 'action' => (string) $row->action,
                 'status' => $status,
                 'actor' => $row->user_label ?: ($row->user_id !== null ? 'User #'.$row->user_id : 'System'),
                 'startedAt' => $startedAt?->toIso8601String(),
-                'finishedAt' => $finishedAt?->toIso8601String(),
                 'durationMs' => $durationMs,
                 'exitCode' => $row->exit_code !== null ? (int) $row->exit_code : null,
                 'subject' => $row->subject,

@@ -19,7 +19,7 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 - **Operation history panel (`#history`):** Added bounded recent operation history table showing operation, status (`Succeeded`, `Failed`, `Started`, `Interrupted / Unknown`), actor, relative + UTC start time, duration, and details.
 - **Monolog NDJSON log parsing:** `LogViewer` parses JSON-formatted Monolog lines (`JsonFormatter`) alongside standard multiline Laravel logs.
 - **Authenticated asset fallback route:** Added `GET {prefix}/assets/{asset}` (`opconsole.asset`) with `X-Content-Type-Options: nosniff` so standalone CSS/JS work immediately even before `vendor:publish --tag=opconsole-assets`.
-- **Standalone documentation:** Added `docs/INSTALLATION.md`, `docs/CONFIGURATION.md`, `docs/UPGRADE.md`, `docs/RELEASE-CHECKLIST.md`, and `docs/CODEBASE-CLEANUP-REPORT.md`.
+- **Standalone documentation:** Added `docs/INSTALLATION.md`, `docs/CONFIGURATION.md`, `docs/UPGRADE.md`, and `docs/RELEASE-CHECKLIST.md`.
 
 ### Changed
 - **Self-contained dependency-free UI:** Removed Bootstrap 5 and Iconscout Unicons CDN dependencies and obsolete `assets.*` CDN configuration keys in favor of a self-contained stylesheet (`public/opconsole.css`), scoped `oc-*` UI controls, inline SVG icons (`opconsole::partials.icon`), native `<dialog>` confirmation modal (`public/opconsole.js`), strict-CSP compatibility (zero inline `<script>` or `style=` attributes), and WCAG AA contrast.

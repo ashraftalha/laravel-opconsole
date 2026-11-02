@@ -103,7 +103,6 @@ Open `/admin/opconsole` while signed in as an authorized user.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Component boundaries and HTTP request flows
 - [`docs/UPGRADE.md`](docs/UPGRADE.md) — Upgrade guide from `v0.1.0`
 - [`docs/RELEASE-CHECKLIST.md`](docs/RELEASE-CHECKLIST.md) — Pre-release verification checklist
-- [`docs/CODEBASE-CLEANUP-REPORT.md`](docs/CODEBASE-CLEANUP-REPORT.md) — Repository cleanup and optimization report
 
 ## License
 
