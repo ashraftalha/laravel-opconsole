@@ -4,6 +4,7 @@ namespace AshrafTalha\OpConsole\Support;
 
 use AshrafTalha\OpConsole\Contracts\HealthCheck;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Number;
@@ -22,6 +23,8 @@ class HealthChecks
     private const STATUSES = ['healthy', 'warning', 'critical', 'unknown'];
 
     private const WORKERS_GROUP = 'Scheduler and workers';
+
+    private const CACHE_GROUP = 'Cache and performance';
 
     private ActionRunner $actionRunner;
 
@@ -177,6 +180,9 @@ class HealthChecks
 
             // Scheduler and workers
             ...$this->workerChecks($production, $check),
+
+            // Cache and performance
+            $this->cacheRoundTripCheck($production, $check),
 
             // URL & email
             $check('mail.delivery', 'URL and email', 'Email delivery enabled in production', ! $production || ! in_array(config('mail.default'), ['log', 'array'], true), 'warning', 'Log and array mailers do not deliver external email (SMTP transport is not probed).', 'MAIL_MAILER='.config('mail.default'), '.env: MAIL_MAILER=smtp'),
@@ -453,6 +459,43 @@ class HealthChecks
             $beat['at'] !== null ? 'last processed '.$this->ago($beat['at']) : 'never processed',
             $fix,
         );
+    }
+
+    /**
+     * Writes, reads back, and forgets a random value on cache.default; never throws.
+     *
+     * @param  \Closure(string, string, string, bool, string, string, ?string=, ?string=, ?string=): array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}  $check
+     * @return array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}
+     */
+    private function cacheRoundTripCheck(bool $production, \Closure $check): array
+    {
+        $label = 'Cache read/write works';
+        $store = (string) config('cache.default');
+        $driver = (string) (config("cache.stores.{$store}.driver") ?? $store);
+
+        if (! $production && in_array($driver, ['array', 'null'], true)) {
+            return $check('cache.round_trip', self::CACHE_GROUP, $label, true, 'info', 'The '.$driver.' cache driver keeps nothing between requests; round trip skipped outside production.', 'store='.$store.' ('.$driver.')');
+        }
+
+        $key = 'opconsole:probe:'.Str::random(16);
+        $value = Str::random(32);
+        $started = hrtime(true);
+
+        try {
+            $repository = Cache::store($store);
+            $repository->put($key, $value, 10);
+            $read = $repository->get($key);
+            $repository->forget($key);
+            $ok = $read === $value;
+            $hint = $ok ? 'A random value was written, read back, and removed.' : 'The value read back did not match what was written.';
+        } catch (\Throwable) {
+            $ok = false;
+            $hint = 'The cache store threw an exception during the write/read test.';
+        }
+
+        $ms = (int) round((hrtime(true) - $started) / 1_000_000);
+
+        return $check('cache.round_trip', self::CACHE_GROUP, $label, $ok, 'danger', $hint, 'store='.$store.' · '.$ms.' ms', $ok ? null : 'Check the cache backend, or .env: CACHE_STORE=database');
     }
 
     private function ago(int $timestamp): string

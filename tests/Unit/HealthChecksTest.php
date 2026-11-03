@@ -7,8 +7,10 @@ use AshrafTalha\OpConsole\Jobs\OpConsoleHeartbeatJob;
 use AshrafTalha\OpConsole\Support\HealthChecks;
 use AshrafTalha\OpConsole\Support\Heartbeat;
 use AshrafTalha\OpConsole\Tests\TestCase;
+use Illuminate\Cache\ArrayStore;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 
@@ -343,6 +345,47 @@ class HealthChecksTest extends TestCase
         $this->assertNotNull(app(Heartbeat::class)->last(Heartbeat::QUEUE)['at']);
     }
 
+    public function test_cache_round_trip_is_skipped_for_array_driver_outside_production(): void
+    {
+        $check = $this->checkById('cache.round_trip');
+
+        $this->assertSame('healthy', $check['status']);
+        $this->assertSame('info', $check['severity']);
+        $this->assertStringContainsString('skipped', $check['hint']);
+    }
+
+    public function test_cache_round_trip_passes_on_a_working_store(): void
+    {
+        config(['cache.default' => 'probe', 'cache.stores.probe' => ['driver' => 'file', 'path' => storage_path('framework/cache/opconsole-probe')]]);
+
+        $check = $this->checkById('cache.round_trip');
+
+        $this->assertSame('healthy', $check['status']);
+        $this->assertMatchesRegularExpression('/^store=probe · \d+ ms$/', (string) $check['value']);
+    }
+
+    public function test_cache_round_trip_is_critical_when_the_value_does_not_match(): void
+    {
+        Cache::extend('lossy', fn () => Cache::repository(new LossyStore));
+        config(['cache.default' => 'probe', 'cache.stores.probe' => ['driver' => 'lossy']]);
+
+        $check = $this->checkById('cache.round_trip');
+
+        $this->assertSame('critical', $check['status']);
+        $this->assertNotNull($check['fix']);
+    }
+
+    public function test_cache_round_trip_is_critical_when_the_store_throws(): void
+    {
+        Cache::extend('broken', fn () => throw new \RuntimeException('connection refused'));
+        config(['cache.default' => 'probe', 'cache.stores.probe' => ['driver' => 'broken']]);
+
+        $check = $this->checkById('cache.round_trip');
+
+        $this->assertSame('critical', $check['status']);
+        $this->assertStringContainsString('exception', $check['hint']);
+    }
+
     public function test_scheduler_heartbeat_is_not_scheduled_when_disabled(): void
     {
         config(['opconsole.heartbeats.scheduler' => false]);
@@ -395,5 +438,14 @@ class CountingCustomCheck implements HealthCheck
         self::$runs++;
 
         return ['id' => 'counting-check', 'group' => 'Custom', 'label' => 'Counting check', 'ok' => true, 'status' => 'healthy', 'severity' => 'info', 'hint' => 'ok', 'value' => '1', 'fix' => null];
+    }
+}
+
+/** Accepts writes but never returns what was stored. */
+class LossyStore extends ArrayStore
+{
+    public function get($key)
+    {
+        return 'something-else';
     }
 }
