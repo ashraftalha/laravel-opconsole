@@ -1,6 +1,34 @@
 # Upgrade Guide
 
-This document covers upgrading existing installations or integration branches from the initial `v0.1.0` baseline to the hardened `v0.2.0` configuration and runtime behavior.
+This document covers upgrades to the current `v1.6.0` release. The later sections retain migration notes for older installations.
+
+## Upgrade from v1.5.x to v1.6.0
+
+Laravel 12 and 13 and PHP `^8.3` remain supported. The release adds per-action authorization, bounded owner-renewed action locks, configurable health status policy, connection-aware database checks, and optional health transition notifications.
+
+1. Update the package and apply its new audit duration migration:
+
+   ```bash
+   composer update ashraftalha/laravel-opconsole
+   php artisan migrate --force
+   ```
+
+2. If you publish `config/opconsole.php`, merge the new keys from the package config: `authorization.action_gates`, `concurrency.max_runtime_seconds`, `health.required_checks`, `health.unknown_policy`, and `notifications`. Keep the default lock store isolated (`opconsole`). Notifications stay disabled until explicitly enabled and scheduled.
+
+3. Review any custom database, session, or queue table connections. Health checks now inspect the connection and table configured by each service.
+
+4. Clear and rebuild optimized caches after updating package routes, views, or config:
+
+   ```bash
+   php artisan optimize:clear
+   php artisan config:cache
+   php artisan route:cache
+   php artisan view:cache
+   ```
+
+5. If package assets were published, refresh them with `php artisan vendor:publish --tag=opconsole-assets --force`.
+
+For action-specific permissions, map action keys to host-defined Gates in `authorization.action_gates`. For alerts, configure `notifications.channels` and a persistent shared `notifications.state_store`, then schedule `php artisan opconsole:health --notify`. See [CONFIGURATION.md](CONFIGURATION.md) for all options and behavior.
 
 ---
 

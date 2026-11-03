@@ -12,9 +12,9 @@
 ## Features
 
 - **Health checks:** files, PHP, security, database and queues, scheduler and queue worker heartbeats, cache round trip, production caches, maintenance mode, storage link. Anything not verified shows as `unknown`, never healthy.
-- **Safe actions:** clear caches, optimize, run migrations, maintenance mode on/off (with a one-time bypass URL), and an optional storage link. All behind Gates, a lock, and a confirmation dialog.
+- **Safe actions:** clear caches, optimize, run migrations, maintenance mode on/off (with a one-time bypass URL), and an optional storage link. Per-action Gates are available, and owner-renewed locks bound long-running commands.
 - **Action-level permissions:** support staff can be granted cache clearing access while migrations and maintenance mode stay administrator-only.
-- **Optional health alerts:** scheduled CLI monitoring can notify on unhealthy transitions, worsening status, and recovery without queue workers.
+- **Optional health alerts:** scheduled CLI monitoring can notify on unhealthy transitions, worsening status, and recovery without queue workers. Required checks and unknown-status policy are configurable.
 - **Audit history:** who ran what, when, and how long it took.
 - **Log viewer:** filter by environment and level, search, download, delete old files.
 - **Monitoring:** `php artisan opconsole:health` for CI and cron, and an optional token-protected `/health` JSON endpoint for uptime monitors.
@@ -155,7 +155,7 @@ OPCONSOLE_HEALTH_TOKEN=change-me-to-a-long-random-string
 
 Heartbeat checks need the scheduler running (`* * * * * php artisan schedule:run`) and, for the queue check, a worker (`php artisan queue:work`).
 
-Use an isolated `redis` or `database` store for `OPCONSOLE_LOCK_STORE` on multi-server deployments. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every option.
+Use an isolated `redis` or `database` store for `OPCONSOLE_LOCK_STORE` on multi-server deployments. Set `OPCONSOLE_MAX_RUNTIME_SECONDS` to bound synchronous maintenance actions. For alerts, enable notifications in the published config, set a persistent shared state store, and schedule `php artisan opconsole:health --notify`. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every option and [docs/UPGRADE.md](docs/UPGRADE.md) for the 1.6.0 migration steps.
 
 ## Testing
 

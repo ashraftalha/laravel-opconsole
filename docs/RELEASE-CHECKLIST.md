@@ -4,17 +4,9 @@ Use this checklist before tagging any release of `ashraftalha/laravel-opconsole`
 
 ---
 
-## Recommended Next Version: `v0.2.0`
+## Release Scope: `v1.6.0`
 
-Based on the scope of changes beyond the `v0.1.0` baseline:
-
-- Added two new configurable authorization Gates (`download_gate`, `delete_gate`) with backward-compatible defaults.
-- Added automatic isolated lock store (`opconsole` under `storage/framework/cache/opconsole`) and fail-closed lock-store validation.
-- Added authenticated fallback asset route (`opconsole.asset`) and replaced legacy Bootstrap/Unicons CDN assets with a self-contained stylesheet, inline SVG icons, and native `<dialog>` confirmations.
-- Added 4-state health check model (`healthy`, `warning`, `critical`, `unknown`), stable check IDs, MariaDB `pdo_mysql` support, NDJSON log support, and bounded operation history (`#history`).
-- Expanded `composer.json` `require` with all directly imported `illuminate/*` packages (`^12.0|^13.0`).
-
-Under Semantic Versioning (`0.y.z`), `v0.2.0` is recommended if `v0.1.0` was already tagged or shared externally; if `v0.1.0` has never been tagged in Git (`CHANGELOG.md` previously listed `[0.1.0] - Unreleased`), confirm `git tag -l` before choosing `v0.1.0` vs `v0.2.0`.
+This release adds per-action Gate overrides, configurable health requirements and unknown policy, connection-aware service table checks, bounded renewable action locks, and optional health transition notifications. Review `CHANGELOG.md`, `CONFIGURATION.md`, and `UPGRADE.md` against the exact release commit.
 
 ---
 
@@ -36,7 +28,7 @@ Under Semantic Versioning (`0.y.z`), `v0.2.0` is recommended if `v0.1.0` was alr
 - [ ] Authenticated users in `production`, `staging`, and `testing` receive HTTP `403` when host Gates are not explicitly defined.
 - [ ] Custom `authentication.guard` governs both Gate evaluation (`Gate::forUser`) and audit attribution (`OpConsoleRun`), failing closed (`403`) on invalid guard names.
 - [ ] Overriding `route.middleware` (even to `[]`) preserves `web` session and CSRF protection (`419` on forged POST/DELETE).
-- [ ] `ActionRunner::ACTIONS` contains only the 3 approved commands (`optimize:clear`, `optimize`, `migrate --force --isolated`) with zero user-supplied arguments.
+- [ ] `ActionRunner` exposes only the six documented actions (`optimize:clear`, `optimize`, `migrate --force --isolated`, `down`, `up`, and optional `storage:link`) with zero user-supplied arguments.
 - [ ] Unsafe lock stores (`null`, `array` outside unit tests, `lock_store === cache.default` without separate lock storage, overlapping `file` lock directories, missing stores) fail closed without executing Artisan.
 - [ ] `LogViewer::files()` and `LogViewer::path()` reject path traversal, invalid filenames, and external symlinks.
 - [ ] Rendered HTML escapes all log messages, stack traces, search highlights, and command outputs; standalone views emit zero inline `<script>` blocks, zero inline `style=` attributes, and zero mandatory CDN requests.
@@ -50,7 +42,7 @@ Verify in disposable fresh **Laravel 12** and **Laravel 13** applications (outsi
 
 - [ ] `composer require ashraftalha/laravel-opconsole` auto-discovers `OpConsoleServiceProvider`.
 - [ ] `php artisan vendor:publish --tag=opconsole-config` and `--tag=opconsole-assets` succeed.
-- [ ] `php artisan migrate --force` and `php artisan migrate:rollback --step=1 --force` succeed cleanly.
+- [ ] Fresh install and upgrade migrations succeed on Laravel 12 and Laravel 13; rollback succeeds cleanly.
 - [ ] `php artisan config:cache`, `php artisan route:cache`, and `php artisan view:cache` all succeed.
 - [ ] `OPCONSOLE_ENABLED=false` registers zero `opconsole.*` routes.
 - [ ] `composer remove ashraftalha/laravel-opconsole` leaves the host application healthy.
