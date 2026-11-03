@@ -139,6 +139,7 @@ class HealthChecks
             $check('files.storage_writable', 'Files and folders', 'Storage directory is writable', is_writable(storage_path()), 'danger', 'Stores logs, cache, and compiled views.', 'storage/', 'chmod -R ug+rw storage'),
             $check('files.bootstrap_cache_writable', 'Files and folders', 'Bootstrap cache is writable', is_writable(base_path('bootstrap/cache')), 'danger', 'Required to optimize performance.', 'bootstrap/cache/', 'chmod -R ug+rw bootstrap/cache'),
             $diskCheck,
+            ...$this->storageLinkCheck($check),
 
             // PHP
             $check('php.version', 'PHP settings', 'Supported PHP version', version_compare(PHP_VERSION, '8.3.0', '>='), 'danger', 'This application requires PHP 8.3 or later.', 'PHP '.PHP_VERSION),
@@ -528,6 +529,49 @@ class HealthChecks
             $missing === [] ? 'config, routes, events cached' : 'not cached: '.implode(', ', $missing),
             $missing === [] ? null : 'php artisan optimize',
         );
+    }
+
+    /**
+     * Only when a "public" disk exists. realpath() comparison covers symlinks and Windows junctions alike.
+     *
+     * @param  \Closure(string, string, string, bool, string, string, ?string=, ?string=, ?string=): array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}  $check
+     * @return list<array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}>
+     */
+    private function storageLinkCheck(\Closure $check): array
+    {
+        if (! is_array(config('filesystems.disks.public'))) {
+            return [];
+        }
+
+        $label = 'Public storage link';
+        $fix = 'php artisan storage:link';
+
+        try {
+            $link = public_path('storage');
+            $links = config('filesystems.links', []);
+            $expected = is_array($links) && isset($links[$link]) && is_string($links[$link]) ? $links[$link] : storage_path('app/public');
+
+            if (! is_link($link) && ! file_exists($link)) {
+                return [$check('files.storage_link', 'Files and folders', $label, false, 'warning', 'public/storage is missing, so files on the public disk are not web-accessible.', 'public/storage missing', $fix)];
+            }
+
+            $resolved = @realpath($link);
+            $target = @realpath($expected);
+            $ok = $resolved !== false && $target !== false && $resolved === $target;
+
+            return [$check(
+                'files.storage_link',
+                'Files and folders',
+                $label,
+                $ok,
+                'warning',
+                $ok ? 'public/storage points to the public disk.' : 'public/storage exists but does not point to storage/app/public.',
+                $ok ? 'public/storage → storage/app/public' : 'public/storage → '.($resolved !== false ? ActionRunner::sanitizeText($resolved) : 'broken link'),
+                $ok ? null : $fix,
+            )];
+        } catch (\Throwable) {
+            return [$check('files.storage_link', 'Files and folders', $label, true, 'info', 'The storage link could not be inspected.', null, null, 'unknown')];
+        }
     }
 
     private function ago(int $timestamp): string

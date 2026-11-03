@@ -78,6 +78,7 @@ php artisan vendor:publish --tag=opconsole-config
 | `actions.migrate` | `true` | `php artisan migrate --force --isolated` |
 | `actions.down` | `true` | `php artisan down --secret=<random>`; the bypass URL is shown once in the output panel and never logged or audited. |
 | `actions.up` | `true` | `php artisan up` |
+| `actions.storage_link` | `false` (`OPCONSOLE_ACTION_STORAGE_LINK`) | `php artisan storage:link` (optional, low risk; disabled while the link is already correct). |
 
 ### Maintenance Mode (`maintenance.*`)
 

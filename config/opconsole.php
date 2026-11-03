@@ -113,6 +113,7 @@ return [
         'migrate' => true,
         'down' => true,
         'up' => true,
+        'storage_link' => (bool) env('OPCONSOLE_ACTION_STORAGE_LINK', false),
     ],
 
     /*

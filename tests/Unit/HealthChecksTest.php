@@ -11,6 +11,7 @@ use Illuminate\Cache\ArrayStore;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 
@@ -420,6 +421,54 @@ class HealthChecksTest extends TestCase
         $this->app->instance('config_loaded_from_cache', $config);
         $this->app->instance('routes.cached', $routes);
         $this->app->instance('events.cached', $events);
+    }
+
+    public function test_storage_link_check_is_omitted_without_a_public_disk(): void
+    {
+        config(['filesystems.disks.public' => null]);
+
+        $this->assertNull($this->checkById('files.storage_link'));
+    }
+
+    public function test_storage_link_check_warns_when_the_link_is_missing(): void
+    {
+        $this->useTemporaryPublicAndStoragePaths();
+
+        $check = $this->checkById('files.storage_link');
+
+        $this->assertSame('warning', $check['status']);
+        $this->assertSame('php artisan storage:link', $check['fix']);
+    }
+
+    public function test_storage_link_check_is_healthy_when_the_link_points_to_the_public_disk(): void
+    {
+        [$public, $storage] = $this->useTemporaryPublicAndStoragePaths();
+        symlink($storage.'/app/public', $public.'/storage');
+
+        $this->assertSame('healthy', $this->checkById('files.storage_link')['status']);
+    }
+
+    public function test_storage_link_check_warns_when_the_link_points_elsewhere(): void
+    {
+        [$public, $storage] = $this->useTemporaryPublicAndStoragePaths();
+        symlink($storage, $public.'/storage');
+
+        $this->assertSame('warning', $this->checkById('files.storage_link')['status']);
+    }
+
+    /** @return array{string, string} */
+    private function useTemporaryPublicAndStoragePaths(): array
+    {
+        $root = sys_get_temp_dir().'/opconsole-link-'.uniqid();
+        mkdir($root.'/public', 0755, true);
+        mkdir($root.'/storage/app/public', 0755, true);
+        $this->beforeApplicationDestroyed(fn () => File::deleteDirectory($root));
+
+        $this->app->usePublicPath($root.'/public');
+        $this->app->useStoragePath($root.'/storage');
+        config(['filesystems.disks.public' => ['driver' => 'local', 'root' => $root.'/storage/app/public'], 'filesystems.links' => []]);
+
+        return [$root.'/public', $root.'/storage'];
     }
 
     public function test_scheduler_heartbeat_is_not_scheduled_when_disabled(): void

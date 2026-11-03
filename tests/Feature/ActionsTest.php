@@ -76,6 +76,27 @@ class ActionsTest extends TestCase
         $this->assertSame(['migrate', ['--force' => true, '--isolated' => true]], $fake->calls[0]);
     }
 
+    public function test_storage_link_action_is_disabled_by_default(): void
+    {
+        $fake = $this->fakeArtisan();
+        $this->actingAsUser();
+
+        $this->post('/admin/opconsole/storage_link')->assertNotFound();
+        $this->assertSame([], $fake->calls);
+    }
+
+    public function test_storage_link_action_runs_storage_link_when_enabled(): void
+    {
+        config(['opconsole.actions.storage_link' => true]);
+        $fake = $this->fakeArtisan();
+        $this->actingAsUser();
+
+        $this->post('/admin/opconsole/storage_link')->assertRedirect()->assertSessionHas('opconsole_success');
+
+        $this->assertSame(['storage:link', []], $fake->calls[0]);
+        $this->assertSame('storage_link', OpConsoleRun::query()->latest('id')->first()?->action);
+    }
+
     public function test_ansi_colour_codes_are_stripped_from_output(): void
     {
         $this->fakeArtisan(0, "\e[32mDone\e[0m");

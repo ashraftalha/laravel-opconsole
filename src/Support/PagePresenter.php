@@ -47,6 +47,7 @@ class PagePresenter
         'migrate' => ['Run migrations', 'migrate --force --isolated'],
         'down' => ['Enable maintenance mode', 'down --secret=…'],
         'up' => ['Bring application online', 'up'],
+        'storage_link' => ['Create storage link', 'storage:link'],
         'log.download' => ['Download log', 'log.download'],
         'log.delete' => ['Delete log', 'log.delete'],
     ];
@@ -244,6 +245,8 @@ class PagePresenter
         $dbOk = (bool) $status['database']['ok'];
         $production = $status['app']['production'];
         $down = (bool) ($status['app']['down'] ?? false);
+        $storageLink = collect($status['checks'])->firstWhere('id', 'files.storage_link');
+        $storageLinkOk = $storageLink !== null && $storageLink['status'] === 'healthy';
         $enabledActions = config('opconsole.actions', []);
         $last = function (string $action) use ($status) {
             $run = $status['lastRuns'][$action] ?? null;
@@ -349,6 +352,24 @@ class PagePresenter
                 'disabledReason' => $readOnlyNote ?? (! $down ? 'The application is online.' : null),
                 'pending' => [],
                 'last' => $last('up'),
+            ],
+            'storage_link' => [
+                'icon' => 'link',
+                'title' => 'Storage link',
+                'command' => 'php artisan storage:link',
+                'risk' => 'low',
+                'riskLabel' => 'Low risk · Symlink',
+                'button' => $storageLinkOk ? 'Link exists' : 'Create link',
+                'style' => $storageLinkOk ? 'oc-btn-soft-secondary' : 'oc-btn-soft-primary',
+                'url' => route($this->routeName('run'), 'storage_link'),
+                'text' => 'Links public/storage to storage/app/public so files on the public disk are web-accessible.',
+                'confirmTitle' => 'Create the public storage link',
+                'confirm' => 'Create the public/storage symbolic link?',
+                'confirmAccept' => 'Create link',
+                'enabled' => (bool) ($enabledActions['storage_link'] ?? false) && $canRun && ! $storageLinkOk,
+                'disabledReason' => $readOnlyNote ?? ($storageLinkOk ? 'public/storage already points to the public disk.' : null),
+                'pending' => [],
+                'last' => $last('storage_link'),
             ],
         ];
 

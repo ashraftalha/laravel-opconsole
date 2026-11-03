@@ -11,6 +11,8 @@ return [
     'down_error' => 'Could not enable maintenance mode. Review the output.',
     'up_ok' => 'The application is back online.',
     'up_error' => 'Could not disable maintenance mode. Review the output.',
+    'storage_link_ok' => 'Public storage link created.',
+    'storage_link_error' => 'Could not create the public storage link. Review the output.',
     'log_deleted' => 'Deleted log file :file.',
     'log_delete_latest_blocked' => 'Cannot delete the latest log file because it is still being written.',
     'log_delete_failed' => 'Could not delete log file :file. Check filesystem permissions.',

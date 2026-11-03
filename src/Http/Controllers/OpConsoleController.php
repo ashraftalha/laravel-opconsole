@@ -23,6 +23,7 @@ class OpConsoleController extends Controller
         'migrate' => ['migrate_ok', 'migrate_error'],
         'down' => ['down_ok', 'down_error'],
         'up' => ['up_ok', 'up_error'],
+        'storage_link' => ['storage_link_ok', 'storage_link_error'],
     ];
 
     private const ASSETS = [

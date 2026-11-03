@@ -33,6 +33,7 @@ class ActionRunner
         'migrate' => ['migrate', ['--force' => true, '--isolated' => true]], // --isolated: a second concurrent run exits instead of racing
         'down' => ['down', []], // a random --secret is added per run so the admin keeps a bypass URL
         'up' => ['up', []],
+        'storage_link' => ['storage:link', []],
     ];
 
     private const LOCK_KEY = 'opconsole:action-lock';
