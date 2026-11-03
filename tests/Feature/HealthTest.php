@@ -95,6 +95,62 @@ class HealthTest extends TestCase
         $this->artisan('opconsole:health')->assertExitCode(1);
     }
 
+    /**
+     * Regression: a throwing custom check is reported under a class-derived fallback ID, so its
+     * required ID silently vanished from the report and the endpoint stayed healthy.
+     */
+    public function test_required_custom_check_that_throws_makes_the_endpoint_critical(): void
+    {
+        config([
+            'opconsole.checks' => [ThrowingRequiredCheck::class],
+            'opconsole.health.required_checks' => ['custom.payments'],
+        ]);
+        $this->enableEndpoint();
+
+        $this->getJson('/admin/opconsole/health', ['Authorization' => 'Bearer '.self::TOKEN])
+            ->assertStatus(503)
+            ->assertJsonPath('status', 'critical')
+            ->assertJsonFragment(['id' => 'custom.payments', 'status' => 'critical']);
+        $this->artisan('opconsole:health')->assertExitCode(1);
+    }
+
+    public function test_required_custom_check_that_reports_normally_is_not_duplicated(): void
+    {
+        config([
+            'opconsole.checks' => [WarningCheck::class],
+            'opconsole.health.required_checks' => ['custom.always-warning'],
+        ]);
+
+        $report = app(ConsoleStatus::class)->health();
+
+        $this->assertSame(1, count(array_keys(array_column($report['checks'], 'id'), 'custom.always-warning')));
+        $this->assertSame('warning', $report['status']);
+    }
+
+    /** Built-in IDs only appear conditionally (database.connection only on failure), so absence is not a failure. */
+    public function test_required_built_in_check_that_is_absent_does_not_fail_the_report(): void
+    {
+        config(['opconsole.health.required_checks' => ['database.connection']]);
+
+        $this->assertNotSame('critical', app(ConsoleStatus::class)->health()['status']);
+    }
+
+    /** Regression: a failing security report store used to throw out of every dashboard render and health check. */
+    public function test_unreadable_security_report_store_degrades_to_unknown_instead_of_a_500(): void
+    {
+        $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
+        $this->allowOpConsole();
+        config(['opconsole.security.store' => 'store-that-does-not-exist']);
+        $this->enableEndpoint();
+
+        $this->getJson('/admin/opconsole/health', ['Authorization' => 'Bearer '.self::TOKEN])
+            ->assertOk()
+            ->assertJsonFragment(['id' => 'security.dependency_audit', 'status' => 'unknown']);
+
+        $this->actingAsUser();
+        $this->get('/admin/opconsole')->assertOk()->assertSee('Scan status: unavailable');
+    }
+
     public function test_unknown_policy_can_promote_unrequired_checks_to_warning(): void
     {
         config(['queue.default' => 'redis', 'opconsole.health.unknown_policy' => 'warning']);
@@ -168,6 +224,14 @@ class CriticalCheck implements HealthCheck
     public function run(): array
     {
         return ['id' => 'always-critical', 'group' => 'Custom', 'label' => 'Always critical', 'ok' => false, 'severity' => 'danger', 'hint' => 'Test.', 'value' => 'down', 'fix' => 'fix it'];
+    }
+}
+
+class ThrowingRequiredCheck implements HealthCheck
+{
+    public function run(): array
+    {
+        throw new \RuntimeException('Payment gateway unreachable');
     }
 }
 

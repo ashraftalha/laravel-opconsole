@@ -18,9 +18,15 @@ class SecurityScanner
 
     private const MAX_OUTPUT = 2_000_000;
 
+    /** Read by every dashboard render and health check, so a broken report store degrades to "unavailable" instead of throwing. */
     public function report(): array
     {
-        $report = Cache::store(config('opconsole.security.store'))->get(self::REPORT_KEY);
+        try {
+            $report = Cache::store(config('opconsole.security.store'))->get(self::REPORT_KEY);
+        } catch (Throwable $e) {
+            return ['status' => 'unavailable', 'scope' => $this->scope(), 'manifest_changed' => false, 'advisories' => [], 'abandoned' => [], 'ignored' => [], 'config_warnings' => $this->configurationWarnings(),
+                'last_failure' => ['at' => null, 'message' => 'The security report store could not be read ('.class_basename($e).').']];
+        }
         $hash = $this->manifestHash();
         if (! is_array($report)) {
             return ['status' => 'never_scanned', 'scope' => $this->scope(), 'manifest_changed' => false, 'advisories' => [], 'abandoned' => [], 'ignored' => [], 'config_warnings' => $this->configurationWarnings()];
@@ -233,14 +239,23 @@ class SecurityScanner
 
     private function failure(string $message): array
     {
-        $store = Cache::store(config('opconsole.security.store'));
-        $previous = $store->get(self::REPORT_KEY, []);
+        try {
+            $store = Cache::store(config('opconsole.security.store'));
+            $previous = $store->get(self::REPORT_KEY, []);
+        } catch (Throwable) {
+            $store = null;
+            $previous = [];
+        }
         $previous = is_array($previous) ? $previous : [];
         $previous['status'] = 'failed';
         $previous['last_failure'] = ['at' => now()->toIso8601String(), 'message' => $this->clean($message)];
         $previous['manifest_changed'] = ! hash_equals((string) ($previous['manifest_hash'] ?? ''), $this->manifestHash());
         $previous['config_warnings'] = $this->configurationWarnings();
-        $store->forever(self::REPORT_KEY, $previous);
+        try {
+            $store?->forever(self::REPORT_KEY, $previous);
+        } catch (Throwable) {
+            // The failure is still returned to the caller; only its persistence is lost.
+        }
 
         return $previous;
     }

@@ -264,6 +264,30 @@ class AuthorizationTest extends TestCase
         $this->delete('/admin/opconsole/logs/old.log')->assertForbidden();
     }
 
+    /** Documented default: an undefined deleteOpConsoleLogs follows whichever Gate run_gate names. */
+    public function test_default_log_delete_gate_follows_a_custom_run_gate_and_never_the_view_gate(): void
+    {
+        $logDir = $this->useTemporaryLogDirectory();
+        File::put($logDir.'/old.log', 'old');
+        touch($logDir.'/old.log', time() - 3600);
+        File::put($logDir.'/laravel.log', 'current');
+
+        $canRun = false;
+        config(['opconsole.authorization.run_gate' => 'opsRun']);
+        Gate::define('viewOpConsole', fn () => true);
+        Gate::define('opsRun', function () use (&$canRun): bool {
+            return $canRun;
+        });
+        $this->actingAsUser();
+
+        $this->delete('/admin/opconsole/logs/old.log')->assertForbidden();
+        $this->assertFileExists($logDir.'/old.log');
+
+        $canRun = true;
+        $this->delete('/admin/opconsole/logs/old.log')->assertRedirect();
+        $this->assertFileDoesNotExist($logDir.'/old.log');
+    }
+
     /** Overriding route.middleware cannot strip mandatory 'web' (session + CSRF) protection. */
     public function test_overriding_route_middleware_preserves_web_session_and_csrf_protection(): void
     {
