@@ -183,6 +183,7 @@ class HealthChecks
 
             // Cache and performance
             $this->cacheRoundTripCheck($production, $check),
+            $this->cachesBuiltCheck($production, $check),
 
             // URL & email
             $check('mail.delivery', 'URL and email', 'Email delivery enabled in production', ! $production || ! in_array(config('mail.default'), ['log', 'array'], true), 'warning', 'Log and array mailers do not deliver external email (SMTP transport is not probed).', 'MAIL_MAILER='.config('mail.default'), '.env: MAIL_MAILER=smtp'),
@@ -496,6 +497,36 @@ class HealthChecks
         $ms = (int) round((hrtime(true) - $started) / 1_000_000);
 
         return $check('cache.round_trip', self::CACHE_GROUP, $label, $ok, 'danger', $hint, 'store='.$store.' · '.$ms.' ms', $ok ? null : 'Check the cache backend, or .env: CACHE_STORE=database');
+    }
+
+    /**
+     * @param  \Closure(string, string, string, bool, string, string, ?string=, ?string=, ?string=): array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}  $check
+     * @return array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}
+     */
+    private function cachesBuiltCheck(bool $production, \Closure $check): array
+    {
+        $label = 'Framework caches built in production';
+
+        if (! $production) {
+            return $check('performance.caches_built', self::CACHE_GROUP, $label, true, 'info', 'Only applies in production; caching in development hides .env and route changes.', 'not production');
+        }
+
+        $missing = array_keys(array_filter([
+            'config' => ! app()->configurationIsCached(),
+            'routes' => ! app()->routesAreCached(),
+            'events' => ! app()->eventsAreCached(),
+        ]));
+
+        return $check(
+            'performance.caches_built',
+            self::CACHE_GROUP,
+            $label,
+            $missing === [],
+            'warning',
+            'Cached configuration, routes, and events avoid rebuilding them on every request.',
+            $missing === [] ? 'config, routes, events cached' : 'not cached: '.implode(', ', $missing),
+            $missing === [] ? null : 'php artisan optimize',
+        );
     }
 
     private function ago(int $timestamp): string

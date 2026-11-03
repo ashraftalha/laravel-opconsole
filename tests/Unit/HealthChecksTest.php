@@ -386,6 +386,42 @@ class HealthChecksTest extends TestCase
         $this->assertStringContainsString('exception', $check['hint']);
     }
 
+    public function test_caches_built_is_informational_outside_production(): void
+    {
+        $check = $this->checkById('performance.caches_built');
+
+        $this->assertSame('healthy', $check['status']);
+        $this->assertSame('info', $check['severity']);
+    }
+
+    public function test_caches_built_warns_in_production_and_lists_missing_caches(): void
+    {
+        $this->app['env'] = 'production';
+        $this->fakeFrameworkCaches(config: false, routes: true, events: false);
+
+        $check = $this->checkById('performance.caches_built');
+
+        $this->assertSame('warning', $check['status']);
+        $this->assertSame('not cached: config, events', $check['value']);
+        $this->assertSame('php artisan optimize', $check['fix']);
+    }
+
+    public function test_caches_built_is_healthy_in_production_when_everything_is_cached(): void
+    {
+        $this->app['env'] = 'production';
+        $this->fakeFrameworkCaches(config: true, routes: true, events: true);
+
+        $this->assertSame('healthy', $this->checkById('performance.caches_built')['status']);
+    }
+
+    /** The framework memoizes *IsCached()/*AreCached() in these bindings, so no cache files are touched. */
+    private function fakeFrameworkCaches(bool $config, bool $routes, bool $events): void
+    {
+        $this->app->instance('config_loaded_from_cache', $config);
+        $this->app->instance('routes.cached', $routes);
+        $this->app->instance('events.cached', $events);
+    }
+
     public function test_scheduler_heartbeat_is_not_scheduled_when_disabled(): void
     {
         config(['opconsole.heartbeats.scheduler' => false]);
