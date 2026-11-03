@@ -4,6 +4,13 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-11-03
+
+### Fixed
+- Keep System information expanded so its contents remain visible when tabs hide the details toggle.
+- Remove extra spaces in vulnerability severity counts and the APP_URL host comparison.
+- Include the host application name in the standalone page title without repeating OpConsole.
+
 ## [1.7.0] - 2026-11-03
 
 ### Added

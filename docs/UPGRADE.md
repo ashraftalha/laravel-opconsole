@@ -1,6 +1,19 @@
 # Upgrade Guide
 
-This document covers upgrades to the current `v1.7.0` release. The later sections retain migration notes for older installations.
+This document covers upgrades to the current `v1.7.1` release. The later sections retain migration notes for older installations.
+
+## Upgrade from v1.7.0 to v1.7.1
+
+This patch fixes the blank System information tab, duplicate standalone page title, and extra spaces in dashboard values. No configuration changes or database migrations are required.
+
+```bash
+composer update ashraftalha/laravel-opconsole
+php artisan view:clear
+```
+
+If package views were published or customized, merge the changes in `resources/views/index.blade.php` and `resources/views/layout.blade.php` into those copies. Older published configurations still need the keys described in the migration notes below; installing this patch does not overwrite host configuration.
+
+---
 
 ## Upgrade from v1.6.x to v1.7.0
 
