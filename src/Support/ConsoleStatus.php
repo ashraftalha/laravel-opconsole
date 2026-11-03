@@ -11,8 +11,6 @@ use Throwable;
 /** Everything the dashboard shows, gathered in one place. Pure read model. */
 class ConsoleStatus
 {
-    private const HISTORY_LIMIT = 15;
-
     public function __construct(
         private Migrator $migrator,
         private LogViewer $logs,
@@ -183,7 +181,7 @@ class ConsoleStatus
 
             $recentRows = OpConsoleRun::query()
                 ->latest('id')
-                ->limit(self::HISTORY_LIMIT)
+                ->limit(min(100, max(1, (int) config('opconsole.history_limit', 15))))
                 ->get(['id', 'action', 'status', 'user_id', 'user_label', 'exit_code', 'subject', 'error', 'started_at', 'finished_at', 'created_at']);
 
             $available = true;

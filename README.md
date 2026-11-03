@@ -107,6 +107,7 @@ Common options for your `.env` file:
 OPCONSOLE_ENABLED=true
 OPCONSOLE_ROUTE_PREFIX=admin/opconsole
 OPCONSOLE_LOCK_STORE=opconsole
+OPCONSOLE_HISTORY_LIMIT=15
 ```
 
 Use an isolated `redis` or `database` store for `OPCONSOLE_LOCK_STORE` on multi-server deployments. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every option.

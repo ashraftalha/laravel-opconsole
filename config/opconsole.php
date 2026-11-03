@@ -133,8 +133,10 @@ return [
     |--------------------------------------------------------------------------
     | Audit table
     |--------------------------------------------------------------------------
+    | history_limit: how many recent operations the dashboard shows (1-100).
     */
     'table' => env('OPCONSOLE_TABLE', 'opconsole_runs'),
     'connection' => env('OPCONSOLE_CONNECTION'),
+    'history_limit' => (int) env('OPCONSOLE_HISTORY_LIMIT', 15),
 
 ];

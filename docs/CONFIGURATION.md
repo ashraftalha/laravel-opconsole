@@ -81,6 +81,7 @@ Setting an action to `false` hides its card in the UI and causes `POST /admin/op
 | `back_label` | — | `'Dashboard'` | Label text for `back_url`. |
 | `table` | `OPCONSOLE_TABLE` | `'opconsole_runs'` | Database table name for operation audit records. |
 | `connection` | `OPCONSOLE_CONNECTION` | `null` | Database connection name for `opconsole_runs` (`null` uses the application's default connection). |
+| `history_limit` | `OPCONSOLE_HISTORY_LIMIT` | `15` | Number of recent operations shown in Operation history (clamped to `1`–`100`). |
 
 ---
 

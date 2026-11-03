@@ -171,4 +171,28 @@ class DashboardTest extends TestCase
 
         $this->assertLessThanOrEqual(6, count($queries), 'Dashboard SQL query count must remain bounded.');
     }
+
+    public function test_operation_history_respects_configured_limit(): void
+    {
+        config(['opconsole.history_limit' => 3]);
+
+        for ($i = 1; $i <= 5; $i++) {
+            OpConsoleRun::query()->create([
+                'action' => 'clear',
+                'status' => 'succeeded',
+                'user_id' => '1',
+                'user_label' => 'Actor '.$i,
+                'exit_code' => 0,
+                'started_at' => now()->subMinutes(10 - $i),
+                'finished_at' => now()->subMinutes(10 - $i),
+            ]);
+        }
+
+        $this->actingAsUser();
+
+        $this->get('/admin/opconsole')->assertOk()
+            ->assertSee('Actor 5')
+            ->assertSee('Actor 3')
+            ->assertDontSee('Actor 2');
+    }
 }
