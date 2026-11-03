@@ -11,13 +11,13 @@
 
 ## Features
 
-- **Health and Security:** runtime configuration checks plus a separate host dependency audit of locked Composer packages, including transitive dependencies. Scans run through `php artisan opconsole:security`; the dashboard reads stored results and shows stale or failed scans as unverified.
+- **Health and Security:** runtime configuration checks plus a separate host dependency audit of locked Composer packages, including transitive dependencies. Scans run through `php artisan opconsole:security`, or on demand from the dashboard's "Scan now" button; the dashboard reads stored results and shows stale or failed scans as unverified.
 - **Operations overview:** application and environment status, verified issues, unverified checks, scheduler/queue/maintenance state, and the last check time in one place. Log error counts are clearly marked as a sample from the newest readable log tail.
-- **Safe actions:** clear caches, optimize, run migrations, maintenance mode on/off (with a one-time bypass URL), and an optional storage link. Per-action Gates are available, and owner-renewed locks bound long-running commands.
+- **Safe actions:** clear caches, optimize, run migrations, maintenance mode on/off (with a one-time bypass URL), an optional storage link, and an on-demand security scan. Per-action Gates are available, and owner-renewed locks bound long-running commands.
 - **Action-level permissions:** support staff can be granted cache clearing access while migrations and maintenance mode stay administrator-only.
 - **Optional health alerts:** scheduled CLI monitoring can notify on unhealthy transitions, worsening status, and recovery without queue workers. Required checks and unknown-status policy are configurable.
 - **Audit history:** who ran what, when, and how long it took.
-- **Log viewer:** filter by environment and level, search, download, delete old files.
+- **Log viewer:** filter by environment and level, search, download, delete old files, in a dense scannable table.
 - **Monitoring:** `php artisan opconsole:health` for CI and cron, and an optional token-protected `/health` JSON endpoint for uptime monitors.
 
 ## Requirements
@@ -158,7 +158,7 @@ OPCONSOLE_HEALTH_TOKEN=change-me-to-a-long-random-string
 
 Heartbeat checks need the scheduler running (`* * * * * php artisan schedule:run`) and, for the queue check, a worker (`php artisan queue:work`).
 
-Use an isolated `redis` or `database` store for `OPCONSOLE_LOCK_STORE` on multi-server deployments. Set `OPCONSOLE_MAX_RUNTIME_SECONDS` to bound synchronous maintenance actions. For alerts, enable notifications in the published config, set a persistent shared state store, and schedule `php artisan opconsole:health --notify`. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every option and [docs/UPGRADE.md](docs/UPGRADE.md) for the 1.7.0 migration steps.
+Use an isolated `redis` or `database` store for `OPCONSOLE_LOCK_STORE` on multi-server deployments. Set `OPCONSOLE_MAX_RUNTIME_SECONDS` to bound synchronous maintenance actions. For alerts, enable notifications in the published config, set a persistent shared state store, and schedule `php artisan opconsole:health --notify`. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every option and [docs/UPGRADE.md](docs/UPGRADE.md) for the 1.8.0 migration steps.
 
 ## Testing
 

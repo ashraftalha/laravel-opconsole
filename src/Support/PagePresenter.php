@@ -59,6 +59,7 @@ class PagePresenter
         'down' => ['Enable maintenance mode', 'down --secret=…'],
         'up' => ['Bring application online', 'up'],
         'storage_link' => ['Create storage link', 'storage:link'],
+        'security_scan' => ['Run security scan', 'opconsole:security'],
         'log.download' => ['Download log', 'log.download'],
         'log.delete' => ['Delete log', 'log.delete'],
     ];
@@ -148,11 +149,11 @@ class PagePresenter
             'operations' => ($actions !== [] || $hasOutput)
                 ? ['label' => __('opconsole::opconsole.tab_actions'), 'icon' => 'terminal', 'hash' => 'operations'] + $actionsBadge
                 : null,
-            'logs' => ['label' => __('opconsole::opconsole.tab_logs'), 'icon' => 'file-text', 'hash' => 'logs', 'tone' => 'is-bad']
-                + $badge($errors, 'tab_badge_errors'),
             'history' => ['label' => __('opconsole::opconsole.tab_history'), 'icon' => 'clock', 'hash' => 'history', 'tone' => 'is-neutral']
                 + $badge($historyCount, 'tab_badge_history'),
             'system' => ['label' => __('opconsole::opconsole.tab_system'), 'icon' => 'info', 'hash' => 'system-info', 'tone' => '', 'badge' => null, 'badgeLabel' => null],
+            'logs' => ['label' => __('opconsole::opconsole.tab_logs'), 'icon' => 'file-text', 'hash' => 'logs', 'tone' => 'is-bad']
+                + $badge($errors, 'tab_badge_errors'),
         ]);
 
         $default = match (true) {
@@ -557,6 +558,24 @@ class PagePresenter
                 'disabledReason' => ! ($actionPermissions['storage_link'] ?? $canRun) ? ($canRun ? 'Your account cannot create the storage link.' : $readOnlyNote) : ($storageLinkOk ? 'public/storage already points to the public disk.' : null),
                 'pending' => [],
                 'last' => $last('storage_link'),
+            ],
+            'security_scan' => [
+                'icon' => 'shield',
+                'title' => 'Run security scan',
+                'command' => 'php artisan opconsole:security',
+                'risk' => 'low',
+                'riskLabel' => 'Low risk · Read-only scan',
+                'button' => 'Scan now',
+                'style' => 'oc-btn-soft-primary',
+                'url' => route($this->routeName('run'), 'security_scan'),
+                'text' => 'Audits host Composer dependencies and Laravel runtime configuration. Read-only; may take up to a couple of minutes.',
+                'confirmTitle' => 'Run security scan',
+                'confirm' => 'Run a Composer dependency and configuration security scan now? This can take up to a couple of minutes.',
+                'confirmAccept' => 'Scan now',
+                'enabled' => (bool) ($enabledActions['security_scan'] ?? false) && ($actionPermissions['security_scan'] ?? $canRun),
+                'disabledReason' => ! ($actionPermissions['security_scan'] ?? $canRun) ? ($canRun ? 'Your account cannot run security scans.' : $readOnlyNote) : null,
+                'pending' => [],
+                'last' => $last('security_scan'),
             ],
         ];
 

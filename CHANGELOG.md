@@ -4,6 +4,16 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-03
+
+### Added
+- On-demand security scan: a "Scan now" action in the Operations tab runs `opconsole:security` from the dashboard (`actions.security_scan`, default enabled). Findings are surfaced on the Security tab and never mark the action itself as failed.
+
+### Changed
+- Logs tab: entries now render as a dense, single-line table with truncated messages (full text on expand), aligned time column, and colored level badges, instead of stacked cards.
+- Reordered dashboard tabs so Logs is last, after System information.
+- System information panel now lays its fact groups out two per row on wide screens.
+
 ## [1.7.1] - 2026-11-03
 
 ### Fixed

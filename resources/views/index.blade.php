@@ -538,6 +538,7 @@
                             <div class="oc-log-levels" role="group" aria-label="Filter by log level">
                                 @foreach ($log['levelChips'] as $chip)
                                     <a href="{{ $chip['url'] }}" @class(['oc-chip', $chip['style'], 'is-active' => $chip['active']]) @if ($chip['active']) aria-current="true" @endif>
+                                        @if ($chip['active'])@include('opconsole::partials.icon', ['name' => 'check'])@endif
                                         <span>{{ $chip['label'] }}</span> <b>{{ $chip['count'] }}</b>
                                     </a>
                                 @endforeach
@@ -590,6 +591,7 @@
 
                         {{-- Entries (messageHtml / detailsHtml are pre-escaped by PagePresenter, with <mark> around search matches) --}}
                         @forelse ($log['entries'] as $entry)
+                            @if ($loop->first)<div class="oc-log-list">@endif
                             <details class="oc-log-entry {{ $entry['style'] }}">
                                 <summary>
                                     <span class="oc-log-level">{{ $entry['level'] }}</span>
@@ -606,6 +608,7 @@
                                     @endif
                                 </div>
                             </details>
+                            @if ($loop->last)</div>@endif
                         @empty
                             @include('opconsole::partials.empty-state', [
                                 'message' => $log['emptyMessage'],

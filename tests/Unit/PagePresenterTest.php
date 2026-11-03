@@ -75,7 +75,7 @@ class PagePresenterTest extends TestCase
 
         $tabs = $this->presentTabs([$this->check('Security', 'warning'), $this->check('Security', 'healthy'), $info]);
 
-        $this->assertSame(['overview', 'health', 'security', 'operations', 'logs', 'history', 'system'], array_keys($tabs['items']));
+        $this->assertSame(['overview', 'health', 'security', 'operations', 'history', 'system', 'logs'], array_keys($tabs['items']));
         $this->assertSame('1', $tabs['items']['health']['badge']);
         $this->assertSame('is-warning', $tabs['items']['health']['tone']);
         $this->assertSame('1 check needs attention', $tabs['items']['health']['badgeLabel']);

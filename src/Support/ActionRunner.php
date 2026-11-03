@@ -34,6 +34,7 @@ class ActionRunner
         'down' => ['down', []], // a random --secret is added per run so the admin keeps a bypass URL
         'up' => ['up', []],
         'storage_link' => ['storage:link', []],
+        'security_scan' => ['opconsole:security', []],
     ];
 
     private const LOCK_KEY = 'opconsole:action-lock';
@@ -41,6 +42,13 @@ class ActionRunner
     private const MAX_OUTPUT_CHARS = 16000;
 
     private ?bool $hasDurationColumn = null;
+
+    private SecurityScanner $security;
+
+    public function __construct(?SecurityScanner $security = null)
+    {
+        $this->security = $security ?? app(SecurityScanner::class);
+    }
 
     /** @return array{ok: bool, output: string, busy: bool, lock_error?: bool, audited?: bool} */
     public function run(string $action, ?Authenticatable $user): array
@@ -99,6 +107,13 @@ class ActionRunner
                 $ok = $exitCode === 0;
                 $firstLine = strtok($output, "\n");
                 $error = $ok ? null : ($firstLine !== false && trim($firstLine) !== '' ? trim($firstLine) : 'Exit code '.$exitCode);
+
+                // opconsole:security exits non-zero when it finds advisories or config warnings, which is
+                // correct for CI but not an "action failed" state here: the Security tab already surfaces them.
+                if ($action === 'security_scan') {
+                    $ok = ($this->security->report()['status'] ?? null) === 'complete';
+                    $error = $ok ? null : $error;
+                }
             } catch (Throwable $e) {
                 $exitCode = 1;
                 $ok = false;

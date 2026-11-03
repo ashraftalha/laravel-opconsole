@@ -42,7 +42,7 @@ php artisan vendor:publish --tag=opconsole-config
 | `authorization.run_gate` | `'runOpConsoleActions'` | Gate required to execute enabled Artisan operations. |
 | `authorization.download_gate` | `'downloadOpConsoleLogs'` | Gate required to download raw `.log` files (delegates to `view_gate` if not explicitly defined by the host). |
 | `authorization.delete_gate` | `'deleteOpConsoleLogs'` | Gate required to delete older `.log` files (delegates to `run_gate` if not explicitly defined by the host). |
-| `authorization.action_gates` | `[]` | Optional map from action keys (`clear`, `optimize`, `migrate`, `down`, `up`, `storage_link`) to independent Gate names. Missing keys inherit `run_gate`; configured but undefined/empty Gates deny access. |
+| `authorization.action_gates` | `[]` | Optional map from action keys (`clear`, `optimize`, `migrate`, `down`, `up`, `storage_link`, `security_scan`) to independent Gate names. Missing keys inherit `run_gate`; configured but undefined/empty Gates deny access. |
 
 ### Security audit (`security.*`)
 
@@ -164,6 +164,7 @@ Alerts cover the first unhealthy state, worsening status, and recovery. A cache 
 | `actions.down` | `true` | `php artisan down --secret=<random>`; the bypass URL is shown once in the output panel and never logged or audited. |
 | `actions.up` | `true` | `php artisan up` |
 | `actions.storage_link` | `false` (`OPCONSOLE_ACTION_STORAGE_LINK`) | `php artisan storage:link` (optional, low risk; disabled while the link is already correct). |
+| `actions.security_scan` | `true` (`OPCONSOLE_ACTION_SECURITY_SCAN`) | `php artisan opconsole:security` (read-only; findings do not mark the action as failed, see the Security tab). |
 
 ### Maintenance Mode (`maintenance.*`)
 

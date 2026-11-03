@@ -1,6 +1,33 @@
 # Upgrade Guide
 
-This document covers upgrades to the current `v1.7.1` release. The later sections retain migration notes for older installations.
+This document covers upgrades to the current `v1.8.0` release. The later sections retain migration notes for older installations.
+
+## Upgrade from v1.7.x to v1.8.0
+
+Laravel 12 and 13 and PHP `^8.3` remain supported. The release adds an on-demand security scan action and redesigns the Logs tab. No database migrations are required.
+
+1. Update the package:
+
+   ```bash
+   composer update ashraftalha/laravel-opconsole
+   ```
+
+2. If you publish `config/opconsole.php`, add the new `actions.security_scan` key (default `true`; `OPCONSOLE_ACTION_SECURITY_SCAN`). It runs `php artisan opconsole:security` read-only from the Operations tab; set it to `false` to hide the button.
+
+3. If you publish or customize package views, merge the Logs tab and System information markup changes in `resources/views/index.blade.php`, and the corresponding styles in `public/opconsole.css` (`php artisan vendor:publish --tag=opconsole-assets --force` if you have not customized them).
+
+4. Clear and rebuild optimized caches:
+
+   ```bash
+   php artisan optimize:clear
+   php artisan config:cache
+   php artisan route:cache
+   php artisan view:cache
+   ```
+
+See [CONFIGURATION.md](CONFIGURATION.md) for the `actions.security_scan` option.
+
+---
 
 ## Upgrade from v1.7.0 to v1.7.1
 

@@ -2,6 +2,7 @@
 
 namespace AshrafTalha\OpConsole\Tests\Feature;
 
+use AshrafTalha\OpConsole\Models\OpConsoleRun;
 use AshrafTalha\OpConsole\Support\SecurityScanner;
 use AshrafTalha\OpConsole\Tests\TestCase;
 use Illuminate\Support\Facades\Cache;
@@ -51,6 +52,46 @@ class SecurityTest extends TestCase
         Gate::define('viewOpConsole', fn () => false);
         $this->actingAsUser();
         $this->get('/admin/opconsole')->assertForbidden();
+    }
+
+    /**
+     * opconsole:security exits non-zero when it finds advisories (correct for CI), but clicking
+     * "Scan now" must not report that as a failed action: the scan itself completed successfully
+     * and the findings are already surfaced on the Security tab.
+     */
+    public function test_security_scan_action_succeeds_even_when_advisories_are_found(): void
+    {
+        $this->allowOpConsole();
+        $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
+
+        $directory = sys_get_temp_dir().'/opconsole-security-action-'.uniqid('', true);
+        File::makeDirectory($directory.'/cache', 0755, true);
+        file_put_contents($directory.'/composer.json', '{}');
+        file_put_contents($directory.'/composer.lock', json_encode(['packages' => [['name' => 'fixture/vulnerable', 'version' => 'v1.2.0']]]));
+        file_put_contents($directory.'/audit.json', json_encode([
+            'advisories' => ['fixture/vulnerable' => [[
+                'advisoryId' => 'PKSA-999', 'title' => 'Fixture vulnerability', 'severity' => 'high',
+            ]]],
+        ]));
+        file_put_contents($directory.'/composer', '#!/bin/sh'."\n".'if [ "$1" = "--version" ]; then echo "Composer version 2.10.0"; else cat "$PWD/audit.json"; exit 1; fi'."\n");
+        chmod($directory.'/composer', 0755);
+        $this->app->setBasePath($directory);
+        config([
+            'opconsole.actions.security_scan' => true,
+            'opconsole.security.composer' => $directory.'/composer',
+            'opconsole.security.store' => 'security_action_fixture',
+            'cache.stores.security_action_fixture' => ['driver' => 'file', 'path' => $directory.'/cache'],
+        ]);
+        $this->actingAsUser();
+
+        try {
+            $response = $this->post('/admin/opconsole/security_scan');
+
+            $response->assertRedirect()->assertSessionHas('opconsole_success');
+            $this->assertSame('succeeded', OpConsoleRun::query()->latest('id')->first()?->status);
+        } finally {
+            File::deleteDirectory($directory);
+        }
     }
 
     public function test_composer_json_fixture_keeps_active_ignored_and_abandoned_records_separate(): void

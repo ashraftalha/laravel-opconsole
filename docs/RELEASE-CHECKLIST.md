@@ -4,9 +4,9 @@ Use this checklist before tagging any release of `ashraftalha/laravel-opconsole`
 
 ---
 
-## Release Scope: `v1.7.1`
+## Release Scope: `v1.8.0`
 
-This patch restores System information visibility in tabbed mode, removes duplicate title branding, and normalizes spacing in vulnerability counts and the APP_URL comparison. Review `CHANGELOG.md`, `CONFIGURATION.md`, and `UPGRADE.md` against the exact release commit.
+This release adds an on-demand security scan action to the dashboard (`actions.security_scan`), redesigns the Logs tab into a dense single-line table with colored level badges, moves Logs to the last tab, and lays System information out two columns per row. Review `CHANGELOG.md`, `CONFIGURATION.md`, and `UPGRADE.md` against the exact release commit.
 
 ---
 
@@ -28,7 +28,7 @@ This patch restores System information visibility in tabbed mode, removes duplic
 - [ ] Authenticated users in `production`, `staging`, and `testing` receive HTTP `403` when host Gates are not explicitly defined.
 - [ ] Custom `authentication.guard` governs both Gate evaluation (`Gate::forUser`) and audit attribution (`OpConsoleRun`), failing closed (`403`) on invalid guard names.
 - [ ] Overriding `route.middleware` (even to `[]`) preserves `web` session and CSRF protection (`419` on forged POST/DELETE).
-- [ ] `ActionRunner` exposes only the six documented actions (`optimize:clear`, `optimize`, `migrate --force --isolated`, `down`, `up`, and optional `storage:link`) with zero user-supplied arguments.
+- [ ] `ActionRunner` exposes only the seven documented actions (`optimize:clear`, `optimize`, `migrate --force --isolated`, `down`, `up`, optional `storage:link`, and `opconsole:security`) with zero user-supplied arguments.
 - [ ] Unsafe lock stores (`null`, `array` outside unit tests, `lock_store === cache.default` without separate lock storage, overlapping `file` lock directories, missing stores) fail closed without executing Artisan.
 - [ ] `LogViewer::files()` and `LogViewer::path()` reject path traversal, invalid filenames, and external symlinks.
 - [ ] Rendered HTML escapes all log messages, stack traces, search highlights, and command outputs; standalone views emit zero inline `<script>` blocks, zero inline `style=` attributes, and zero mandatory CDN requests.

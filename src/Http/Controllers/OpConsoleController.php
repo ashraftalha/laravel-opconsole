@@ -25,6 +25,7 @@ class OpConsoleController extends Controller
         'down' => ['down_ok', 'down_error'],
         'up' => ['up_ok', 'up_error'],
         'storage_link' => ['storage_link_ok', 'storage_link_error'],
+        'security_scan' => ['security_scan_ok', 'security_scan_error'],
     ];
 
     private const ASSETS = [

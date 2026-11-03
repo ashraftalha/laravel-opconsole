@@ -144,6 +144,7 @@ return [
         'down' => true,
         'up' => true,
         'storage_link' => (bool) env('OPCONSOLE_ACTION_STORAGE_LINK', false),
+        'security_scan' => (bool) env('OPCONSOLE_ACTION_SECURITY_SCAN', true),
     ],
 
     /*
