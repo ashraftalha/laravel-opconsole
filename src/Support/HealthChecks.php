@@ -68,7 +68,8 @@ class HealthChecks
         ['free' => $free, 'total' => $total] = $this->diskSpace();
         $logLevel = $this->effectiveLogLevel();
         $lockValidation = $this->actionRunner->validateLockStore();
-        $cacheDriver = (string) config('cache.default');
+        $cacheStore = (string) config('cache.default');
+        $cacheDriver = (string) (config("cache.stores.{$cacheStore}.driver") ?? $cacheStore);
         $sessionDriver = (string) config('session.driver');
         $ephemeralDrivers = ['array', 'null'];
         $ephemeralInProd = $production && (in_array($cacheDriver, $ephemeralDrivers, true) || in_array($sessionDriver, $ephemeralDrivers, true));
@@ -213,35 +214,72 @@ class HealthChecks
      */
     private function databaseChecks(array $database, bool $production, \Closure $check): array
     {
-        if (! $database['ok']) {
-            return [$check('database.connection', 'Database and queues', 'Database connection', false, 'danger', 'Connection failed; database-backed features cannot operate.', (string) $database['driver'], '.env: DB_HOST / DB_DATABASE / DB_USERNAME / DB_PASSWORD')];
-        }
-
-        $schema = DB::connection()->getSchemaBuilder();
         $tableCache = [];
-        $hasTable = function (string $table) use ($schema, &$tableCache): bool {
-            return $tableCache[$table] ??= $schema->hasTable($table);
+        $unavailableConnections = [];
+        $hasTable = function (string $table, ?string $connection = null) use (&$tableCache, &$unavailableConnections): bool {
+            $key = ($connection ?? 'default').':'.$table;
+            try {
+                return $tableCache[$key] ??= DB::connection($connection)->getSchemaBuilder()->hasTable($table);
+            } catch (\Throwable) {
+                $unavailableConnections[$connection ?? 'default'] = true;
+
+                return $tableCache[$key] = false;
+            }
         };
 
+        $sessionConnection = config('session.connection');
+        $cacheStore = (string) config('cache.default');
+        $cacheConfig = config("cache.stores.{$cacheStore}", []);
+        $cacheDriver = is_array($cacheConfig) ? (string) ($cacheConfig['driver'] ?? $cacheStore) : $cacheStore;
+        $cacheConnection = is_array($cacheConfig) ? ($cacheConfig['connection'] ?? null) : null;
+        $queueConnectionName = (string) config('queue.default');
+        $queueConfig = config("queue.connections.{$queueConnectionName}", []);
+        $queueDriver = is_array($queueConfig) ? (string) ($queueConfig['driver'] ?? $queueConnectionName) : $queueConnectionName;
+        $queueConnection = is_array($queueConfig) ? ($queueConfig['connection'] ?? null) : null;
+        $failedConfig = config('queue.failed', []);
         $sessionTable = (string) config('session.table', 'sessions');
-        $cacheTable = (string) config('cache.stores.database.table', 'cache');
-        $cacheLockTable = (string) (config('cache.stores.database.lock_table') ?: 'cache_locks');
-        $jobsTable = (string) config('queue.connections.database.table', 'jobs');
+        $cacheTable = (string) (is_array($cacheConfig) ? ($cacheConfig['table'] ?? 'cache') : 'cache');
+        $cacheLockTable = (string) (is_array($cacheConfig) ? ($cacheConfig['lock_table'] ?? 'cache_locks') : 'cache_locks');
+        $cacheLockConnection = is_array($cacheConfig) ? ($cacheConfig['lock_connection'] ?? $cacheConnection) : $cacheConnection;
+        $actionLockStore = (string) config('opconsole.concurrency.lock_store', 'opconsole');
+        $actionLockConfig = config("cache.stores.{$actionLockStore}", []);
+        $jobsTable = (string) (is_array($queueConfig) ? ($queueConfig['table'] ?? 'jobs') : 'jobs');
         $failedDriver = config('queue.failed.driver');
-        $failedTable = (string) config('queue.failed.table', 'failed_jobs');
+        $failedTable = (string) (is_array($failedConfig) ? ($failedConfig['table'] ?? 'failed_jobs') : 'failed_jobs');
+        $failedConnection = is_array($failedConfig) ? ($failedConfig['database'] ?? null) : null;
         $usesDbFailedJobs = in_array($failedDriver, ['database', 'database-uuids'], true);
-        $queueDriver = (string) config('queue.default');
-
-        $needs = array_filter([
-            $sessionTable => config('session.driver') === 'database',
-            $cacheTable => config('cache.default') === 'database',
-            $cacheLockTable => config('cache.default') === 'database' || config('opconsole.concurrency.lock_store') === 'database',
-            $jobsTable => $queueDriver === 'database',
-            $failedTable => $usesDbFailedJobs,
-        ]);
-
-        $requiredTables = array_keys($needs);
-        $missingTables = array_values(array_filter($requiredTables, fn (string $table) => ! $hasTable($table)));
+        $requirements = [];
+        if (config('session.driver') === 'database') {
+            $requirements[] = [$sessionTable, $sessionConnection];
+        }
+        if ($cacheDriver === 'database') {
+            $requirements[] = [$cacheTable, $cacheConnection];
+        }
+        if ($cacheDriver === 'database') {
+            $requirements[] = [$cacheLockTable, $cacheLockConnection];
+        }
+        if (is_array($actionLockConfig) && ($actionLockConfig['driver'] ?? null) === 'database') {
+            $requirements[] = [
+                (string) ($actionLockConfig['lock_table'] ?? 'cache_locks'),
+                $actionLockConfig['lock_connection'] ?? $actionLockConfig['connection'] ?? null,
+            ];
+        }
+        if ($queueDriver === 'database') {
+            $requirements[] = [$jobsTable, $queueConnection];
+        }
+        if ($usesDbFailedJobs) {
+            $requirements[] = [$failedTable, $failedConnection];
+        }
+        $requiredTables = array_values(array_unique(array_column($requirements, 0)));
+        $missingTables = [];
+        $unverifiedTables = false;
+        foreach ($requirements as [$table, $connection]) {
+            if (! $hasTable($table, $connection)) {
+                $missingTables[] = $table;
+                $unverifiedTables = $unverifiedTables || isset($unavailableConnections[$connection ?? 'default']);
+            }
+        }
+        $missingTables = array_values(array_unique($missingTables));
 
         $tablesCheck = $check(
             'database.required_tables',
@@ -254,22 +292,27 @@ class HealthChecks
                 : ($requiredTables ? 'All tables required by active drivers exist.' : 'Current drivers do not require extra framework tables.'),
             $missingTables ? implode(', ', $missingTables) : ($requiredTables ? implode(', ', $requiredTables) : 'none required'),
             $missingTables ? 'php artisan migrate' : null,
+            $unverifiedTables ? 'unknown' : null,
         );
 
         // Stuck queue jobs: never report external brokers (Redis/SQS) as "0 stuck" when uninspected.
         if ($queueDriver === 'database') {
-            if ($hasTable($jobsTable)) {
-                $stuck = DB::table($jobsTable)->where('created_at', '<', now()->subHour()->getTimestamp())->count();
-                $stuckCheck = $check(
-                    'queue.stuck_jobs',
-                    'Database and queues',
-                    'No stuck queue jobs',
-                    $stuck === 0,
-                    'warning',
-                    'Jobs waiting over an hour usually indicate the queue worker is stopped.',
-                    $stuck.' stuck',
-                    $stuck > 0 ? 'php artisan queue:work' : null,
-                );
+            if ($hasTable($jobsTable, $queueConnection)) {
+                try {
+                    $stuck = DB::connection($queueConnection)->table($jobsTable)->where('created_at', '<', now()->subHour()->getTimestamp())->count();
+                    $stuckCheck = $check(
+                        'queue.stuck_jobs',
+                        'Database and queues',
+                        'No stuck queue jobs',
+                        $stuck === 0,
+                        'warning',
+                        'Jobs waiting over an hour usually indicate the queue worker is stopped.',
+                        $stuck.' stuck',
+                        $stuck > 0 ? 'php artisan queue:work' : null,
+                    );
+                } catch (\Throwable $e) {
+                    $stuckCheck = $check('queue.stuck_jobs', 'Database and queues', 'No stuck queue jobs', false, 'info', 'The jobs table could not be queried.', ActionRunner::sanitizeText($e->getMessage()), null, 'unknown');
+                }
             } else {
                 $stuckCheck = $check(
                     'queue.stuck_jobs',
@@ -319,18 +362,22 @@ class HealthChecks
         }
 
         // Failed jobs: distinguish verified 0 from unmigrated/non-database failed-job storage.
-        if ($usesDbFailedJobs && $hasTable($failedTable)) {
-            $failed = DB::table($failedTable)->count();
-            $failedCheck = $check(
-                'queue.failed_jobs',
-                'Database and queues',
-                'No failed jobs',
-                $failed === 0,
-                'warning',
-                'Background jobs that failed permanently.',
-                $failed.' failed',
-                $failed > 0 ? 'php artisan queue:retry all' : null,
-            );
+        if ($usesDbFailedJobs && $hasTable($failedTable, $failedConnection)) {
+            try {
+                $failed = DB::connection($failedConnection)->table($failedTable)->count();
+                $failedCheck = $check(
+                    'queue.failed_jobs',
+                    'Database and queues',
+                    'No failed jobs',
+                    $failed === 0,
+                    'warning',
+                    'Background jobs that failed permanently.',
+                    $failed.' failed',
+                    $failed > 0 ? 'php artisan queue:retry all' : null,
+                );
+            } catch (\Throwable $e) {
+                $failedCheck = $check('queue.failed_jobs', 'Database and queues', 'No failed jobs', false, 'info', 'The failed-jobs table could not be queried.', ActionRunner::sanitizeText($e->getMessage()), null, 'unknown');
+            }
         } elseif ($usesDbFailedJobs) {
             $failedCheck = $check(
                 'queue.failed_jobs',
@@ -357,7 +404,11 @@ class HealthChecks
             );
         }
 
-        return [$tablesCheck, $stuckCheck, $failedCheck];
+        $connectionCheck = $database['ok']
+            ? []
+            : [$check('database.connection', 'Database and queues', 'Database connection', false, 'danger', 'Connection failed; database-backed features cannot operate.', (string) $database['driver'], '.env: DB_HOST / DB_DATABASE / DB_USERNAME / DB_PASSWORD')];
+
+        return [...$connectionCheck, $tablesCheck, $stuckCheck, $failedCheck];
     }
 
     /**
@@ -659,6 +710,22 @@ class HealthChecks
                 Log::warning('OpConsole: custom health check failed', [
                     'class' => $class,
                     'error' => ActionRunner::sanitizeText($e->getMessage()),
+                ]);
+                $id = 'custom.'.Str::slug(class_basename($class));
+                if (isset($usedIds[$id])) {
+                    $id .= '.'.substr(hash('sha256', $class), 0, 8);
+                }
+                $usedIds[$id] = true;
+                $results[] = $this->normalizeCheck([
+                    'id' => $id,
+                    'group' => 'Custom checks',
+                    'label' => class_basename($class),
+                    'ok' => false,
+                    'status' => 'unknown',
+                    'severity' => 'info',
+                    'hint' => 'The custom health check could not be completed: '.ActionRunner::sanitizeText($e->getMessage()),
+                    'value' => 'Check failed to run',
+                    'fix' => null,
                 ]);
             }
         }

@@ -66,10 +66,14 @@ class PagePresenter
     public function page(array $status, array $logFiles, ?array $log, ?array $output, ?Authenticatable $user = null): array
     {
         $canRun = $user !== null ? AuthorizeOpConsole::allows('run', $user) : true;
+        $actionPermissions = [];
+        foreach (array_keys(ActionRunner::ACTIONS) as $action) {
+            $actionPermissions[$action] = $user === null || AuthorizeOpConsole::allowsAction($action, $user);
+        }
         $canDownload = $user !== null ? AuthorizeOpConsole::allows('download', $user) : true;
         $canDelete = $user !== null ? AuthorizeOpConsole::allows('delete', $user) : true;
 
-        $actions = $this->actions($status, $canRun);
+        $actions = $this->actions($status, $canRun, $actionPermissions);
         $checks = $this->checks($status['checks']) + ['lastChecked' => $this->lastChecked($status['checkedAt'] ?? null)];
         $history = $this->history($status['history']);
 
@@ -351,7 +355,7 @@ class PagePresenter
         }, $advice);
     }
 
-    private function actions(array $status, bool $canRun): array
+    private function actions(array $status, bool $canRun, array $actionPermissions = []): array
     {
         $pending = $status['database']['pending'];
         $dbOk = (bool) $status['database']['ok'];
@@ -386,8 +390,8 @@ class PagePresenter
                 'confirmTitle' => 'Clear application caches',
                 'confirm' => 'Clear all compiled and application caches? Initial requests afterward may be slightly slower while caches warm up.',
                 'confirmAccept' => 'Clear caches',
-                'enabled' => (bool) ($enabledActions['clear'] ?? false) && $canRun,
-                'disabledReason' => $readOnlyNote,
+                'enabled' => (bool) ($enabledActions['clear'] ?? false) && ($actionPermissions['clear'] ?? $canRun),
+                'disabledReason' => ! ($actionPermissions['clear'] ?? $canRun) ? ($canRun ? 'Your account cannot clear caches.' : $readOnlyNote) : null,
                 'pending' => [],
                 'last' => $last('clear'),
             ],
@@ -406,8 +410,8 @@ class PagePresenter
                     ? 'Compile and cache configuration, routes, events, and views?'
                     : 'Non-production environment: cached configuration and routes ignore .env and route edits until cleared. Continue?',
                 'confirmAccept' => 'Optimize now',
-                'enabled' => (bool) ($enabledActions['optimize'] ?? false) && $canRun,
-                'disabledReason' => $readOnlyNote,
+                'enabled' => (bool) ($enabledActions['optimize'] ?? false) && ($actionPermissions['optimize'] ?? $canRun),
+                'disabledReason' => ! ($actionPermissions['optimize'] ?? $canRun) ? ($canRun ? 'Your account cannot optimize the application.' : $readOnlyNote) : null,
                 'pending' => [],
                 'last' => $last('optimize'),
             ],
@@ -424,8 +428,8 @@ class PagePresenter
                 'confirmTitle' => 'Run database migrations',
                 'confirm' => 'Apply '.count($pending).' pending database '.(count($pending) === 1 ? 'migration' : 'migrations').' in ['.$status['app']['environment'].']? Ensure a recent database backup exists before modifying schema.',
                 'confirmAccept' => 'Run migrations',
-                'enabled' => (bool) ($enabledActions['migrate'] ?? false) && $canRun && $dbOk && $pending,
-                'disabledReason' => $migrateDisabledReason,
+                'enabled' => (bool) ($enabledActions['migrate'] ?? false) && ($actionPermissions['migrate'] ?? $canRun) && $dbOk && $pending,
+                'disabledReason' => ! ($actionPermissions['migrate'] ?? $canRun) ? ($canRun ? 'Your account cannot run migrations.' : $readOnlyNote) : $migrateDisabledReason,
                 'pending' => $pending,
                 'last' => $last('migrate'),
             ],
@@ -442,8 +446,8 @@ class PagePresenter
                 'confirmTitle' => 'Take the application offline',
                 'confirm' => 'Put ['.$status['app']['environment'].'] into maintenance mode? Visitors will see a 503 page until you bring it back online.',
                 'confirmAccept' => 'Take offline',
-                'enabled' => (bool) ($enabledActions['down'] ?? false) && $canRun && ! $down,
-                'disabledReason' => $readOnlyNote ?? ($down ? 'The application is already in maintenance mode.' : null),
+                'enabled' => (bool) ($enabledActions['down'] ?? false) && ($actionPermissions['down'] ?? $canRun) && ! $down,
+                'disabledReason' => ! ($actionPermissions['down'] ?? $canRun) ? ($canRun ? 'Your account cannot enable maintenance mode.' : $readOnlyNote) : ($down ? 'The application is already in maintenance mode.' : null),
                 'pending' => [],
                 'last' => $last('down'),
             ],
@@ -460,8 +464,8 @@ class PagePresenter
                 'confirmTitle' => 'Bring the application online',
                 'confirm' => 'End maintenance mode for ['.$status['app']['environment'].']?',
                 'confirmAccept' => 'Bring online',
-                'enabled' => (bool) ($enabledActions['up'] ?? false) && $canRun && $down,
-                'disabledReason' => $readOnlyNote ?? (! $down ? 'The application is online.' : null),
+                'enabled' => (bool) ($enabledActions['up'] ?? false) && ($actionPermissions['up'] ?? $canRun) && $down,
+                'disabledReason' => ! ($actionPermissions['up'] ?? $canRun) ? ($canRun ? 'Your account cannot end maintenance mode.' : $readOnlyNote) : (! $down ? 'The application is online.' : null),
                 'pending' => [],
                 'last' => $last('up'),
             ],
@@ -478,8 +482,8 @@ class PagePresenter
                 'confirmTitle' => 'Create the public storage link',
                 'confirm' => 'Create the public/storage symbolic link?',
                 'confirmAccept' => 'Create link',
-                'enabled' => (bool) ($enabledActions['storage_link'] ?? false) && $canRun && ! $storageLinkOk,
-                'disabledReason' => $readOnlyNote ?? ($storageLinkOk ? 'public/storage already points to the public disk.' : null),
+                'enabled' => (bool) ($enabledActions['storage_link'] ?? false) && ($actionPermissions['storage_link'] ?? $canRun) && ! $storageLinkOk,
+                'disabledReason' => ! ($actionPermissions['storage_link'] ?? $canRun) ? ($canRun ? 'Your account cannot create the storage link.' : $readOnlyNote) : ($storageLinkOk ? 'public/storage already points to the public disk.' : null),
                 'pending' => [],
                 'last' => $last('storage_link'),
             ],

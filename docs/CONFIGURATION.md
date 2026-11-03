@@ -42,13 +42,34 @@ php artisan vendor:publish --tag=opconsole-config
 | `authorization.run_gate` | `'runOpConsoleActions'` | Gate required to execute enabled Artisan operations. |
 | `authorization.download_gate` | `'downloadOpConsoleLogs'` | Gate required to download raw `.log` files (delegates to `view_gate` if not explicitly defined by the host). |
 | `authorization.delete_gate` | `'deleteOpConsoleLogs'` | Gate required to delete older `.log` files (delegates to `run_gate` if not explicitly defined by the host). |
+| `authorization.action_gates` | `[]` | Optional map from action keys (`clear`, `optimize`, `migrate`, `down`, `up`, `storage_link`) to independent Gate names. Missing keys inherit `run_gate`; configured but undefined/empty Gates deny access. |
+
+For example, let support staff clear caches while only administrators can migrate or change maintenance mode:
+
+```php
+// AppServiceProvider::boot()
+Gate::define('clearOpConsoleCaches', fn (User $user) => $user->hasRole('support') || $user->is_admin);
+Gate::define('manageOpConsole', fn (User $user) => $user->is_admin);
+
+// config/opconsole.php
+'authorization' => [
+    'run_gate' => 'runOpConsoleActions', // compatibility fallback for unmapped actions
+    'action_gates' => [
+        'clear' => 'clearOpConsoleCaches',
+        'migrate' => 'manageOpConsole',
+        'down' => 'manageOpConsole',
+        'up' => 'manageOpConsole',
+    ],
+],
+```
 
 ### Concurrency & Action Locking (`concurrency.*`)
 
 | Key | Environment Variable | Default | Description |
 |---|---|---|---|
 | `concurrency.lock_store` | `OPCONSOLE_LOCK_STORE` | `'opconsole'` | Cache store used for mutual-exclusion locking across Artisan runs. Must support atomic locks and must not share flushable storage with `cache.default`. |
-| `concurrency.lock_seconds` | `OPCONSOLE_LOCK_SECONDS` | `30` | Lock TTL in seconds (enforced minimum: `5`). |
+| `concurrency.lock_seconds` | `OPCONSOLE_LOCK_SECONDS` | `1800` | Initial lock lease. It is raised to at least the maximum runtime plus a recovery margin and renewed by the lock owner while Artisan runs. |
+| `concurrency.max_runtime_seconds` | `OPCONSOLE_MAX_RUNTIME_SECONDS` | `1500` | Maximum synchronous command runtime. Requires PHP `pcntl` signal support; execution fails closed when safe interruption is unavailable. A timed out process releases its owned lock and records failure; a killed process leaves a started audit row and the lease eventually expires. |
 
 - **Single-server deployments:** Keep `'opconsole'`. `OpConsoleServiceProvider` registers `cache.stores.opconsole` automatically under `storage/framework/cache/opconsole`, isolated from `storage/framework/cache/data` so `optimize:clear` (`cache:clear`) cannot wipe an active lock.
 - **Multi-server deployments:** Configure a dedicated `redis` or `database` cache store with separate lock storage (`lock_connection` or `cache_locks` table) and set `OPCONSOLE_LOCK_STORE` to that store name.
@@ -97,7 +118,26 @@ php artisan opconsole:health --json             # machine-readable
 php artisan opconsole:health --fail-on=warning  # exit 1 on warnings too (default: critical)
 ```
 
-The command, the endpoint, and the dashboard share one runner (`ConsoleStatus::health()`). `unknown` never fails the run.
+The command, the endpoint, and the dashboard share one runner (`ConsoleStatus::health()`). Unknown checks remain healthy for overall status by default to preserve monitoring integrations. `health.unknown_policy` can promote unknown checks to warning or critical, and IDs in `health.required_checks` are always critical if unknown.
+
+### Health Notifications
+
+Notifications are disabled unless explicitly enabled. Delivery is evaluated by `opconsole:health --notify`; schedule that command from the host application's scheduler (for example, `$schedule->command('opconsole:health --notify')->everyFiveMinutes();`). OpConsole does not create a schedule automatically. Queue workers are not required because delivery is synchronous; a scheduler outage prevents monitoring runs and therefore notifications. Configure mail normally through Laravel. Webhooks are HTTP POSTs; `slack` targets accept Slack incoming webhook URLs. Delivery errors are logged and do not fail the dashboard or health endpoint.
+
+```php
+'notifications' => [
+    'enabled' => true,
+    'channels' => [
+        'email' => ['on-call@example.com'],
+        'slack' => ['https://hooks.slack.com/services/...'],
+        'webhooks' => ['https://monitor.example.net/opconsole'],
+    ],
+    'cooldown_seconds' => 3600,
+    'state_store' => 'opconsole', // persistent, shared cache store
+],
+```
+
+Alerts cover the first unhealthy state, worsening status, and recovery. A cache lock prevents concurrent duplicate alerts. Only last status and cooldown metadata are stored; use a persistent shared store so restarts and multiple app servers preserve transitions.
 
 ### Allow-Listed Artisan Actions (`actions.*`)
 

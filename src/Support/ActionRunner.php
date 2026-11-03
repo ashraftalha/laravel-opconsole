@@ -94,7 +94,7 @@ class ActionRunner
             $startedAt = hrtime(true);
 
             try {
-                $exitCode = Artisan::call($command, $options);
+                $exitCode = $this->callArtisanWithLease($command, $options, $lock);
                 $output = $this->cleanOutput($this->safeArtisanOutput());
                 $ok = $exitCode === 0;
                 $firstLine = strtok($output, "\n");
@@ -192,6 +192,26 @@ class ActionRunner
                         'distributed' => false,
                     ];
                 }
+            } elseif ($underlyingStore instanceof RedisStore) {
+                try {
+                    $defaultConfig = config("cache.stores.{$defaultStore}", []);
+                    $defaultUnderlying = Cache::store($defaultStore)->getStore();
+                    if ($defaultUnderlying instanceof RedisStore && is_array($defaultConfig)) {
+                        $lockConnection = (string) ($storeConfig['lock_connection'] ?? $storeConfig['connection'] ?? 'default');
+                        $defaultConnection = (string) ($defaultConfig['connection'] ?? 'default');
+                        if ($this->redisStorageIdentity($lockConnection) === $this->redisStorageIdentity($defaultConnection)) {
+                            return [
+                                'ok' => false,
+                                'store' => $store,
+                                'driver' => $driver,
+                                'reason' => "Lock store [{$store}] shares Redis database storage with cache.default [{$defaultStore}] and would be flushed by optimize:clear.",
+                                'distributed' => false,
+                            ];
+                        }
+                    }
+                } catch (Throwable) {
+                    // Keep validating the isolated lock store if cache.default cannot be resolved.
+                }
             } elseif ($underlyingStore instanceof FileStore) {
                 try {
                     $defaultUnderlying = Cache::store($defaultStore)->getStore();
@@ -241,7 +261,7 @@ class ActionRunner
             throw new \RuntimeException($validation['reason'] ?? 'Lock store configuration is unsafe.');
         }
 
-        $seconds = max(5, (int) config('opconsole.concurrency.lock_seconds', 30));
+        $seconds = $this->leaseSeconds();
         $underlyingStore = Cache::store($validation['store'])->getStore();
 
         if (! $underlyingStore instanceof LockProvider) {
@@ -254,6 +274,47 @@ class ActionRunner
         }
 
         return $lock;
+    }
+
+    /** Renew the owner-bound cache lease while blocking, and interrupt an over-budget command. */
+    private function callArtisanWithLease(string $command, array $options, Lock $lock): int
+    {
+        $timeout = max(5, (int) config('opconsole.concurrency.max_runtime_seconds', 1500));
+        if (! function_exists('pcntl_signal') || ! function_exists('pcntl_alarm') || ! function_exists('pcntl_async_signals')) {
+            // Without an interruptible execution budget, a lease could expire while Artisan is still running.
+            throw new \RuntimeException('Safe action timeout requires the PHP pcntl extension.');
+        }
+
+        $started = hrtime(true);
+        $previousAsync = pcntl_async_signals();
+        $previousHandler = pcntl_signal_get_handler(SIGALRM);
+        pcntl_async_signals(true);
+        pcntl_signal(SIGALRM, function () use ($lock, $started, $timeout): void {
+            if ((hrtime(true) - $started) / 1_000_000_000 >= $timeout) {
+                throw new \RuntimeException("Artisan operation exceeded the {$timeout}-second timeout.");
+            }
+            if (! method_exists($lock, 'refresh') || ! $lock->refresh($this->leaseSeconds())) {
+                throw new \RuntimeException('Action lock ownership could not be renewed safely.');
+            }
+            pcntl_alarm(10);
+        });
+        pcntl_alarm(10);
+
+        try {
+            return Artisan::call($command, $options);
+        } finally {
+            pcntl_alarm(0);
+            pcntl_signal(SIGALRM, $previousHandler);
+            pcntl_async_signals($previousAsync);
+        }
+    }
+
+    private function leaseSeconds(): int
+    {
+        $configured = max(5, (int) config('opconsole.concurrency.lock_seconds', 1800));
+        $runtime = max(5, (int) config('opconsole.concurrency.max_runtime_seconds', 1500));
+
+        return max($configured, $runtime + 60);
     }
 
     /** Audit entry for an instantaneous operation that isn't an Artisan call (log delete/download) or a blocked lock. */
@@ -289,6 +350,7 @@ class ActionRunner
         $basePath = rtrim(base_path(), '/\\').DIRECTORY_SEPARATOR;
         if ($basePath !== DIRECTORY_SEPARATOR) {
             $clean = str_replace($basePath, '', $clean);
+            $clean = str_replace(rtrim($basePath, '/\\'), '[application]', $clean);
         }
 
         return trim($clean);
@@ -384,6 +446,15 @@ class ActionRunner
             return false;
         }
 
+        if ($underlyingStore instanceof RedisStore) {
+            $cacheConnection = (string) ($storeConfig['connection'] ?? 'default');
+            $lockConnection = (string) ($storeConfig['lock_connection'] ?? $cacheConnection);
+            $cacheIdentity = $this->redisStorageIdentity($cacheConnection);
+            $lockIdentity = $this->redisStorageIdentity($lockConnection);
+
+            return $cacheIdentity !== null && $lockIdentity !== null && $cacheIdentity !== $lockIdentity;
+        }
+
         if (method_exists($underlyingStore, 'hasSeparateLockStore')) {
             return (bool) $underlyingStore->hasSeparateLockStore();
         }
@@ -397,13 +468,6 @@ class ActionRunner
             return $lockTable !== $table || $lockConnection !== $connection;
         }
 
-        if ($underlyingStore instanceof RedisStore) {
-            $connection = (string) ($storeConfig['connection'] ?? 'cache');
-            $lockConnection = (string) ($storeConfig['lock_connection'] ?? 'default');
-
-            return $lockConnection !== $connection;
-        }
-
         if ($underlyingStore instanceof FileStore) {
             $cachePath = $this->normalizePath($underlyingStore->getDirectory());
             $lockPath = $this->normalizePath((string) ($storeConfig['lock_path'] ?? $cachePath));
@@ -412,6 +476,28 @@ class ActionRunner
         }
 
         return false;
+    }
+
+    private function redisStorageIdentity(string $connection): ?string
+    {
+        $config = config('database.redis.'.$connection);
+        if (! is_array($config)) {
+            $config = config('database.redis.default');
+        }
+        if (! is_array($config)) {
+            return null;
+        }
+
+        $url = isset($config['url']) && is_string($config['url']) ? parse_url($config['url']) : false;
+        $database = $config['database'] ?? (is_array($url) ? ltrim((string) ($url['path'] ?? ''), '/') : 0);
+
+        return implode('|', [
+            (string) ($config['scheme'] ?? 'tcp'),
+            strtolower((string) ($config['host'] ?? (is_array($url) ? ($url['host'] ?? '127.0.0.1') : '127.0.0.1'))),
+            (string) ($config['port'] ?? (is_array($url) ? ($url['port'] ?? 6379) : 6379)),
+            (string) $database,
+            (string) ($config['path'] ?? ''),
+        ]);
     }
 
     private function normalizePath(string $path): string

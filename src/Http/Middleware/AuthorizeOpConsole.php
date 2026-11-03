@@ -46,7 +46,10 @@ class AuthorizeOpConsole
             Auth::shouldUse($guardName);
         }
 
-        abort_unless(self::allows($ability, $guard->user()), 403);
+        $allowed = $ability === 'run'
+            ? self::allowsAction((string) $request->route('action'), $guard->user())
+            : self::allows($ability, $guard->user());
+        abort_unless($allowed, 403);
 
         return $next($request);
     }
@@ -82,6 +85,19 @@ class AuthorizeOpConsole
         $value = $authConfig[$key];
 
         return is_string($value) && trim($value) !== '' ? trim($value) : null;
+    }
+
+    public static function allowsAction(string $action, ?Authenticatable $user): bool
+    {
+        $actionGates = config('opconsole.authorization.action_gates', []);
+        if (is_array($actionGates) && array_key_exists($action, $actionGates)) {
+            $gate = $actionGates[$action];
+
+            return is_string($gate) && trim($gate) !== '' && Gate::has(trim($gate))
+                && Gate::forUser($user)->allows(trim($gate));
+        }
+
+        return self::allows('run', $user);
     }
 
     private function unauthenticated(Request $request): Response

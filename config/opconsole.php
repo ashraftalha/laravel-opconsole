@@ -58,6 +58,8 @@ return [
         'run_gate' => 'runOpConsoleActions',
         'download_gate' => 'downloadOpConsoleLogs',
         'delete_gate' => 'deleteOpConsoleLogs',
+        // Map individual action keys to Gate names. Missing entries use run_gate.
+        'action_gates' => [],
     ],
 
     /*
@@ -74,7 +76,9 @@ return [
     */
     'concurrency' => [
         'lock_store' => env('OPCONSOLE_LOCK_STORE', 'opconsole'),
-        'lock_seconds' => (int) env('OPCONSOLE_LOCK_SECONDS', 30),
+        // Must exceed max_runtime_seconds; expiry recovers a lock after process death.
+        'lock_seconds' => (int) env('OPCONSOLE_LOCK_SECONDS', 1800),
+        'max_runtime_seconds' => (int) env('OPCONSOLE_MAX_RUNTIME_SECONDS', 1500),
     ],
 
     /*
@@ -172,6 +176,19 @@ return [
     | resolved from the container. Register your host-specific checks here.
     */
     'checks' => [],
+
+    // Unknown results remain informational by default for monitoring compatibility.
+    'health' => [
+        'required_checks' => [],
+        'unknown_policy' => 'healthy', // healthy, warning, critical
+    ],
+
+    'notifications' => [
+        'enabled' => false,
+        'channels' => [],
+        'cooldown_seconds' => 3600,
+        'state_store' => null,
+    ],
 
     /*
     |--------------------------------------------------------------------------

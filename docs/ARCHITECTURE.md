@@ -12,8 +12,9 @@ src/
 ├── Contracts/HealthCheck.php                 The single host extension contract
 └── Support/
     ├── ConsoleStatus.php                     Read model: database/migrator snapshot, caches, checks, system info, advice, bounded audit history
-    ├── ActionRunner.php                      Write model: lock-store validation, atomic lock, allow-listed Artisan execution, sanitization, audit writes
+    ├── ActionRunner.php                      Write model: renewable owner-bound lock, bounded synchronous Artisan execution, allow-list, sanitization, audit writes
     ├── HealthChecks.php                      Built-in 4-state diagnostics + container-resolved config('opconsole.checks')
+    ├── HealthNotifier.php                    Opt-in transition evaluation with minimal cache state and duplicate suppression
     ├── LogViewer.php                         Request-scoped bounded tail reader (2 MB), text & NDJSON parser, filter/group, safe download/delete
     └── PagePresenter.php                     View presenter: tiles, risk-graded action cards, sorted checks, operation history, filter URLs, XSS-safe highlighting
 ```
@@ -28,7 +29,8 @@ src/
 - **`PagePresenter` owns all presentation logic:** Blade templates (`layout.blade.php`, `index.blade.php`, and `partials/*`) only print pre-formatted arrays and inline SVG icons. Grouping, severity ordering (`critical` → `warning` → `unknown` → `healthy`), stale-run classification (`Interrupted / Unknown`), URL generation, and raw-before-escape `<mark>` highlighting all live in `PagePresenter`.
 - **Self-contained, zero-CDN frontend:** `public/opconsole.css` and `public/opconsole.js` have zero runtime dependencies on Bootstrap, jQuery, or external icon fonts, use scoped `oc-*` classes to avoid colliding with host admin stylesheets, and emit zero inline `<script>` or `style=` attributes for strict Content-Security-Policy compatibility. If assets have not been published to `public/vendor/opconsole/` yet, `OpConsoleController::asset()` serves them behind `opconsole.authorize:view`.
 - **`HealthCheck` is the sole callable extension point:** `config/opconsole.php` contains zero closures (`config:cache` safe). Host applications register class names in `config('opconsole.checks')`; `HealthChecks` resolves each via the container, validates scalar types and shape, deduplicates repeated classes, and blocks collisions with built-in checks.
-- **Synchronous execution by design:** All three allow-listed Artisan commands execute synchronously within the web request. Asynchronous queue dispatch would introduce a dependency on a healthy queue worker — one of the exact failure modes OpConsole is used to diagnose.
+- **Bounded synchronous execution:** The six allow-listed Artisan operations run in the request without queue dispatch. A pcntl alarm renews the owner-bound cache lease and enforces `max_runtime_seconds`; crashed processes release the lock by lease expiry. Queue workers are not involved in recovery operations.
+- **One health report policy:** Dashboard, CLI, and HTTP endpoint consume the same check list and unknown-status policy. Notifications run only when explicitly requested from `opconsole:health --notify`, so health reads have no delivery side effects.
 - **Bounded `OpConsoleRun` queries:** `ConsoleStatus` fetches the latest completed run per action via `SELECT MAX(id) ... GROUP BY action` and the 15 most recent audit rows via `ORDER BY id DESC LIMIT 15`, keeping SQL query count and memory constant regardless of historical table size. `user_id` is stored as a nullable string without foreign keys so integer, UUID, and ULID user primary keys all work portably across SQLite, MySQL/MariaDB, PostgreSQL, and SQL Server.
 
 ---

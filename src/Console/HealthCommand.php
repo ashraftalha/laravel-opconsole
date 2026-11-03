@@ -3,12 +3,14 @@
 namespace AshrafTalha\OpConsole\Console;
 
 use AshrafTalha\OpConsole\Support\ConsoleStatus;
+use AshrafTalha\OpConsole\Support\HealthNotifier;
 use Illuminate\Console\Command;
 
 class HealthCommand extends Command
 {
     protected $signature = 'opconsole:health
                             {--json : Print machine-readable JSON}
+                            {--notify : Evaluate and send configured health transition notifications}
                             {--fail-on=critical : Exit 1 when any check is at or above this level (warning or critical)}';
 
     protected $description = 'Run the OpConsole health checks';
@@ -23,6 +25,9 @@ class HealthCommand extends Command
         }
 
         $report = $status->health();
+        if ($this->option('notify') && config('opconsole.notifications.enabled', false)) {
+            app(HealthNotifier::class)->evaluate($report);
+        }
         $threshold = ConsoleStatus::rank($failOn);
         $failed = array_filter($report['checks'], fn (array $check) => ConsoleStatus::rank($check['status']) >= $threshold);
 

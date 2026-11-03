@@ -6,9 +6,9 @@ parameters:
         - src
     level: 5
     tmpDir: build/phpstan
+    reportUnmatchedIgnoredErrors: false
     ignoreErrors:
         -
-            # Larastan resolves view-string literals against the host app's resources/views;
-            # it cannot see this package's own namespaced views ("opconsole::...") at analysis time.
+            # Larastan cannot infer package namespaced views from this package's own view path.
             message: '#expects view-string\|null#'
             path: src/Http/Controllers/OpConsoleController.php

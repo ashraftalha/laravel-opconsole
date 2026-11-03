@@ -329,6 +329,23 @@ class ActionsTest extends TestCase
         $this->assertSame([], $fake->calls, 'Artisan must never execute under any unsafe lock configuration.');
     }
 
+    public function test_differently_named_redis_stores_sharing_a_database_are_not_isolated(): void
+    {
+        config([
+            'cache.default' => 'app_cache',
+            'cache.stores.app_cache' => ['driver' => 'redis', 'connection' => 'default'],
+            'cache.stores.action_lock' => ['driver' => 'redis', 'connection' => 'action_locks'],
+            'database.redis.default' => ['host' => '127.0.0.1', 'port' => 6379, 'database' => 14],
+            'database.redis.action_locks' => ['host' => '127.0.0.1', 'port' => 6379, 'database' => 14],
+            'opconsole.concurrency.lock_store' => 'action_lock',
+        ]);
+
+        $result = app(ActionRunner::class)->validateLockStore();
+
+        $this->assertFalse($result['ok']);
+        $this->assertStringContainsString('shares Redis database storage', $result['reason']);
+    }
+
     /**
      * Runtime lock acquisition exceptions (e.g. Redis outage or unwritable lock storage)
      * must fail closed, never invoke Artisan, and record a sanitized failed audit row.
@@ -394,6 +411,7 @@ class ActionsTest extends TestCase
 
         try {
             $this->app['config']->set('opconsole.concurrency.lock_seconds', 10);
+            $this->app['config']->set('opconsole.concurrency.max_runtime_seconds', 5);
             $lock = Cache::store('opconsole_lock')->lock('opconsole:action-lock', 10);
             $this->assertTrue($lock->get());
 
@@ -406,8 +424,8 @@ class ActionsTest extends TestCase
                 'finished_at' => null,
             ]);
 
-            // Advance past the 10-second lock TTL and stale threshold (max(30, 10*2) = 30s).
-            Carbon::setTestNow($baseTime->copy()->addSeconds(45));
+            // The effective lease is max(10s, runtime 5s + 60s margin), and abandoned rows age out at 2x.
+            Carbon::setTestNow($baseTime->copy()->addSeconds(140));
 
             $this->actingAsUser();
             $this->get('/admin/opconsole')

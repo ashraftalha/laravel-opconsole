@@ -4,6 +4,17 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+### Added
+- Per-action Gate overrides for all six operations, with `runOpConsoleActions` fallback and fail-closed handling for configured undefined Gates.
+- Configurable required health checks and unknown-status policy; thrown custom checks remain visible as stable `unknown` rows.
+- Optional health transition notifications (`opconsole:health --notify`) with mail, Slack-compatible webhook, generic webhook, cooldown, and concurrent duplicate suppression.
+- Service-specific health table inspection using configured database connections, drivers, and table names.
+
+### Changed
+- Action operations now use an owner-bound renewable lock and a bounded runtime timeout. Unsafe runtime environments fail closed; abandoned lock leases expire for recovery without queue workers.
+- Redis lock isolation checks compare actual endpoint and database identity across differently named cache stores.
+- Corrected security and architecture documentation to describe all six available actions.
+
 ## [1.5.0] - 2026-11-03
 
 ### Added

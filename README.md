@@ -13,6 +13,8 @@
 
 - **Health checks:** files, PHP, security, database and queues, scheduler and queue worker heartbeats, cache round trip, production caches, maintenance mode, storage link. Anything not verified shows as `unknown`, never healthy.
 - **Safe actions:** clear caches, optimize, run migrations, maintenance mode on/off (with a one-time bypass URL), and an optional storage link. All behind Gates, a lock, and a confirmation dialog.
+- **Action-level permissions:** support staff can be granted cache clearing access while migrations and maintenance mode stay administrator-only.
+- **Optional health alerts:** scheduled CLI monitoring can notify on unhealthy transitions, worsening status, and recovery without queue workers.
 - **Audit history:** who ran what, when, and how long it took.
 - **Log viewer:** filter by environment and level, search, download, delete old files.
 - **Monitoring:** `php artisan opconsole:health` for CI and cron, and an optional token-protected `/health` JSON endpoint for uptime monitors.

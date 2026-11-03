@@ -55,6 +55,23 @@ class ConsoleStatus
     public function health(?string $host = null, ?array $database = null): array
     {
         $checks = $this->healthChecks->run($database ?? $this->database(), $host);
+        $required = config('opconsole.health.required_checks', []);
+        $required = is_array($required) ? $required : [];
+        $unknownPolicy = config('opconsole.health.unknown_policy', 'healthy');
+        if (! in_array($unknownPolicy, ['healthy', 'warning', 'critical'], true)) {
+            $unknownPolicy = 'healthy';
+        }
+        foreach ($checks as &$check) {
+            if ($check['status'] !== 'unknown') {
+                continue;
+            }
+            $policy = in_array($check['id'], $required, true) ? 'critical' : $unknownPolicy;
+            if ($policy !== 'healthy') {
+                $check['status'] = $policy;
+                $check['ok'] = false;
+            }
+        }
+        unset($check);
 
         return [
             'status' => self::overallStatus($checks),
@@ -204,7 +221,12 @@ class ConsoleStatus
     private function audit(): array
     {
         $actions = array_keys(array_filter(config('opconsole.actions', [])));
-        $staleSeconds = max(5, (int) config('opconsole.concurrency.lock_seconds', 30)) * 2;
+        $leaseSeconds = max(
+            5,
+            (int) config('opconsole.concurrency.lock_seconds', 1800),
+            max(5, (int) config('opconsole.concurrency.max_runtime_seconds', 1500)) + 60,
+        );
+        $staleSeconds = $leaseSeconds * 2;
         $staleThreshold = now()->subSeconds($staleSeconds);
 
         try {

@@ -50,6 +50,20 @@ class AuthorizationTest extends TestCase
         $this->post('/admin/opconsole/clear')->assertForbidden();
     }
 
+    public function test_action_specific_gate_overrides_run_gate_and_undefined_gate_fails_closed(): void
+    {
+        Gate::define('viewOpConsole', fn () => true);
+        Gate::define('runOpConsoleActions', fn () => false);
+        Gate::define('clearCaches', fn () => true);
+        $this->actingAsUser();
+        config(['opconsole.authorization.action_gates' => ['clear' => 'clearCaches']]);
+        $this->post('/admin/opconsole/clear')->assertRedirect();
+        $this->post('/admin/opconsole/optimize')->assertForbidden();
+
+        config(['opconsole.authorization.action_gates.clear' => 'missingGate']);
+        $this->post('/admin/opconsole/clear')->assertForbidden();
+    }
+
     public function test_authenticated_user_without_any_gate_defined_is_denied_outside_local(): void
     {
         $this->app['env'] = 'testing';

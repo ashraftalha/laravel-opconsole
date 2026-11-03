@@ -49,6 +49,17 @@ class HealthChecksTest extends TestCase
         $this->assertTrue($checks->contains('label', 'Custom check'));
     }
 
+    public function test_throwing_custom_check_is_reported_as_stable_unknown(): void
+    {
+        config(['opconsole.checks' => [ThrowingHealthCheck::class]]);
+        $checks = collect($this->app->make(HealthChecks::class)->run($this->database, null));
+        $failed = $checks->firstWhere('label', 'ThrowingHealthCheck');
+        $this->assertNotNull($failed);
+        $this->assertStringStartsWith('custom.', $failed['id']);
+        $this->assertSame('unknown', $failed['status']);
+        $this->assertStringNotContainsString(base_path(), $failed['hint']);
+    }
+
     public function test_malformed_custom_check_result_is_rejected_without_breaking_the_page(): void
     {
         config(['opconsole.checks' => [MalformedCheck::class]]);
@@ -122,6 +133,28 @@ class HealthChecksTest extends TestCase
 
         $checks = collect($this->app->make(HealthChecks::class)->run($this->database, 'localhost'));
 
+        $this->assertSame('healthy', $checks->firstWhere('id', 'database.required_tables')['status']);
+        $this->assertSame('healthy', $checks->firstWhere('id', 'queue.stuck_jobs')['status']);
+    }
+
+    public function test_service_tables_use_configured_connection_and_driver_names(): void
+    {
+        config([
+            'database.connections.service_db' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => true],
+            'session.driver' => 'database',
+            'session.connection' => 'service_db',
+            'session.table' => 'ops_sessions',
+            'queue.default' => 'ops_jobs',
+            'queue.connections.ops_jobs' => ['driver' => 'database', 'connection' => 'service_db', 'table' => 'ops_jobs_table'],
+            'queue.failed.driver' => null,
+        ]);
+        Schema::connection('service_db')->create('ops_sessions', fn (Blueprint $table) => $table->string('id')->primary());
+        Schema::connection('service_db')->create('ops_jobs_table', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedInteger('created_at')->default(0);
+        });
+
+        $checks = collect($this->app->make(HealthChecks::class)->run($this->database, null));
         $this->assertSame('healthy', $checks->firstWhere('id', 'database.required_tables')['status']);
         $this->assertSame('healthy', $checks->firstWhere('id', 'queue.stuck_jobs')['status']);
     }
@@ -541,6 +574,14 @@ class MalformedCheck implements HealthCheck
     public function run(): array
     {
         return ['label' => 'Malformed']; // missing required keys
+    }
+}
+
+class ThrowingHealthCheck implements HealthCheck
+{
+    public function run(): array
+    {
+        throw new \RuntimeException('probe failed at '.base_path());
     }
 }
 

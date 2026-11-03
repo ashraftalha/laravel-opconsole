@@ -3,6 +3,7 @@
 namespace AshrafTalha\OpConsole\Tests\Feature;
 
 use AshrafTalha\OpConsole\Contracts\HealthCheck;
+use AshrafTalha\OpConsole\Support\ConsoleStatus;
 use AshrafTalha\OpConsole\Tests\TestCase;
 use Illuminate\Support\Facades\Artisan;
 
@@ -78,6 +79,29 @@ class HealthTest extends TestCase
         $this->getJson('/admin/opconsole/health', ['Authorization' => 'Bearer '.self::TOKEN])
             ->assertStatus(503)
             ->assertJsonPath('status', 'critical');
+    }
+
+    public function test_required_unknown_check_promotes_overall_status_for_endpoint_and_cli(): void
+    {
+        config([
+            'queue.default' => 'redis',
+            'opconsole.health.required_checks' => ['queue.stuck_jobs'],
+        ]);
+        $this->enableEndpoint();
+
+        $this->getJson('/admin/opconsole/health', ['Authorization' => 'Bearer '.self::TOKEN])
+            ->assertStatus(503)
+            ->assertJsonPath('status', 'critical');
+        $this->artisan('opconsole:health')->assertExitCode(1);
+    }
+
+    public function test_unknown_policy_can_promote_unrequired_checks_to_warning(): void
+    {
+        config(['queue.default' => 'redis', 'opconsole.health.unknown_policy' => 'warning']);
+        $report = app(ConsoleStatus::class)->health();
+
+        $this->assertContains('warning', array_column($report['checks'], 'status'));
+        $this->assertContains($report['status'], ['warning', 'critical']);
     }
 
     public function test_endpoint_is_rate_limited(): void

@@ -11,6 +11,14 @@ This document covers upgrading existing installations or integration branches fr
 - **Database Schema (`opconsole_runs`):** Unchanged — no new database migrations are required.
 - **Existing 2-Gate Setups (`viewOpConsole`, `runOpConsoleActions`):** 100% backward-compatible. Even if you keep an older published `config/opconsole.php` without `download_gate` and `delete_gate`, OpConsole automatically defaults `download_gate` to `downloadOpConsoleLogs` (delegating to your `view_gate`) and `delete_gate` to `deleteOpConsoleLogs` (delegating to your `run_gate`).
 
+### Reliability, action permissions, and notifications
+
+- Copy the new `concurrency.max_runtime_seconds`, `health`, and `notifications` keys into published configurations. Existing unknown statuses remain non-failing unless required or `unknown_policy` is changed.
+- Existing `run_gate` remains the permission fallback for every action. Add only the `authorization.action_gates` entries you want to separate. Explicit mappings must name a Gate defined by the host.
+- Notifications remain disabled by default. Schedule `opconsole:health --notify` only after configuring channels and a persistent shared `state_store`.
+- The runtime timeout uses PHP's `pcntl` alarm support. When it is unavailable, maintenance actions fail closed rather than running without a bounded lease. This matters on some Windows and restricted shared-hosting setups.
+- Cache/database/queue checks now inspect each configured service connection. If those services use separate databases, ensure the configured tables exist on those connections.
+
 ---
 
 ## Notable Behavioral Changes
@@ -30,9 +38,12 @@ Update `'lock_store'` in your published `config/opconsole.php` (or `.env`):
 ```php
 'concurrency' => [
     'lock_store' => env('OPCONSOLE_LOCK_STORE', 'opconsole'),
-    'lock_seconds' => 30,
+    'lock_seconds' => (int) env('OPCONSOLE_LOCK_SECONDS', 1800),
+    'max_runtime_seconds' => (int) env('OPCONSOLE_MAX_RUNTIME_SECONDS', 1500),
 ],
 ```
+
+The timeout requires PHP `pcntl` signal support. Lock leases are renewed during execution, and the audit view classifies runs as abandoned only after twice the effective lease window.
 
 *(Multi-server applications using Redis or database locks should point `OPCONSOLE_LOCK_STORE` to an isolated Redis or database store where `hasSeparateLockStore()` is true.)*
 
