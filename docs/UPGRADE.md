@@ -1,6 +1,39 @@
 # Upgrade Guide
 
-This document covers upgrades to the current `v1.6.0` release. The later sections retain migration notes for older installations.
+This document covers upgrades to the current `v1.7.0` release. The later sections retain migration notes for older installations.
+
+## Upgrade from v1.6.x to v1.7.0
+
+Laravel 12 and 13 and PHP `^8.3` remain supported. The release adds an optional host Composer dependency security audit (`opconsole:security`) and a dashboard Security tab. No database migrations are required.
+
+1. Update the package:
+
+   ```bash
+   composer update ashraftalha/laravel-opconsole
+   ```
+
+2. If you publish `config/opconsole.php`, merge the new `security` key (`composer`, `timeout`, `max_age_seconds`, `include_dev`, `store`, `schedule`, `trusted_proxy_https`, `risky_actions`). The audit stays disabled until you run `php artisan opconsole:security`; scheduling stays off until you set `OPCONSOLE_SECURITY_SCHEDULE=true`.
+
+3. Run an initial scan so the Security tab has a report instead of showing an unverified state:
+
+   ```bash
+   php artisan opconsole:security
+   ```
+
+4. Clear and rebuild optimized caches after updating package routes, views, or config:
+
+   ```bash
+   php artisan optimize:clear
+   php artisan config:cache
+   php artisan route:cache
+   php artisan view:cache
+   ```
+
+5. If package assets were published, refresh them with `php artisan vendor:publish --tag=opconsole-assets --force`.
+
+See [CONFIGURATION.md](CONFIGURATION.md) for all `security.*` options and [SECURITY.md](SECURITY.md) for scan scope, advisory network requests, exit codes, and remediation guidance.
+
+---
 
 ## Upgrade from v1.5.x to v1.6.0
 

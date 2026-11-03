@@ -158,7 +158,7 @@ OPCONSOLE_HEALTH_TOKEN=change-me-to-a-long-random-string
 
 Heartbeat checks need the scheduler running (`* * * * * php artisan schedule:run`) and, for the queue check, a worker (`php artisan queue:work`).
 
-Use an isolated `redis` or `database` store for `OPCONSOLE_LOCK_STORE` on multi-server deployments. Set `OPCONSOLE_MAX_RUNTIME_SECONDS` to bound synchronous maintenance actions. For alerts, enable notifications in the published config, set a persistent shared state store, and schedule `php artisan opconsole:health --notify`. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every option and [docs/UPGRADE.md](docs/UPGRADE.md) for the 1.6.0 migration steps.
+Use an isolated `redis` or `database` store for `OPCONSOLE_LOCK_STORE` on multi-server deployments. Set `OPCONSOLE_MAX_RUNTIME_SECONDS` to bound synchronous maintenance actions. For alerts, enable notifications in the published config, set a persistent shared state store, and schedule `php artisan opconsole:health --notify`. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every option and [docs/UPGRADE.md](docs/UPGRADE.md) for the 1.7.0 migration steps.
 
 ## Testing
 

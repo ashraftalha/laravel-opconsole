@@ -4,9 +4,9 @@ Use this checklist before tagging any release of `ashraftalha/laravel-opconsole`
 
 ---
 
-## Release Scope: `v1.6.0`
+## Release Scope: `v1.7.0`
 
-This release adds per-action Gate overrides, configurable health requirements and unknown policy, connection-aware service table checks, bounded renewable action locks, and optional health transition notifications. Review `CHANGELOG.md`, `CONFIGURATION.md`, and `UPGRADE.md` against the exact release commit.
+This release adds a host Composer dependency security audit (`opconsole:security`) with stored reports, manifest freshness, and optional daily scheduling, plus a dashboard Security tab covering advisories and Laravel runtime configuration warnings. Review `CHANGELOG.md`, `CONFIGURATION.md`, and `UPGRADE.md` against the exact release commit.
 
 ---
 
