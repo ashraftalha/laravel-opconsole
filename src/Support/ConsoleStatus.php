@@ -31,6 +31,7 @@ class ConsoleStatus
                 'environment' => app()->environment(),
                 'production' => app()->isProduction(),
                 'debug' => (bool) config('app.debug'),
+                'down' => app()->isDownForMaintenance(),
             ],
             'database' => $database,
             'checks' => $checks,
@@ -264,6 +265,10 @@ class ConsoleStatus
                 'text' => count($criticalChecks).' critical health '.(count($criticalChecks) === 1 ? 'check requires' : 'checks require').' immediate attention ('.$criticalChecks[0]['label'].').',
                 'action' => 'checks',
             ];
+        }
+
+        if (app()->isDownForMaintenance()) {
+            $advice[] = ['level' => 'danger', 'text' => 'The application is in maintenance mode: visitors receive a 503 page.', 'action' => 'up'];
         }
 
         if ($errors['count'] > 0) {

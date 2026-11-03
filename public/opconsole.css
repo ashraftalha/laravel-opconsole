@@ -109,6 +109,8 @@ body.oc-standalone {
 
 .oc-btn-soft-success { background: #f0fdf4; border-color: #bbf7d0; color: var(--oc-approved); }
 .oc-btn-soft-success:hover:not(:disabled) { background: #dcfce7; border-color: #86efac; color: #166534; }
+.oc-btn-soft-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.oc-btn-soft-warning:hover:not(:disabled) { background: #fef3c7; border-color: #fcd34d; color: #78350f; }
 
 .oc-btn-soft-secondary { background: #f1f5f9; border-color: #cbd5e1; color: #334155; }
 .oc-btn-soft-secondary:hover:not(:disabled) { background: #e2e8f0; border-color: #94a3b8; color: #0f172a; }
@@ -196,6 +198,7 @@ body.oc-standalone {
 .oc-action.is-high-risk .oc-action-icon { background: #fee2e2; color: var(--oc-danger); }
 .oc-risk-badge { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 99px; font-size: 0.72rem; font-weight: 700; background: #f8fafc; color: #334155; border: 1px solid #cbd5e1; }
 .oc-risk-badge.is-high { background: #fef2f2; color: var(--oc-danger-ink); border-color: #fecaca; }
+.oc-risk-badge.is-medium { background: #fffbeb; color: #92400e; border-color: #fde68a; }
 .oc-action h2 { margin: 0 0 0.35rem; font-size: 1.02rem; font-weight: 800; color: var(--oc-text); }
 .oc-command-pill { display: inline-block; align-self: flex-start; margin-bottom: 0.65rem; padding: 0.18rem 0.5rem; border-radius: 0.4rem; background: #f1f5f9; border: 1px solid #e2e8f0; color: #1e293b; font-family: var(--oc-mono); font-size: 0.73rem; overflow-wrap: anywhere; }
 .oc-action p { flex: 1; margin: 0 0 0.75rem; color: var(--oc-muted); font-size: 0.84rem; line-height: 1.6; }

@@ -187,6 +187,7 @@ class HealthChecks
 
             // URL & email
             $check('mail.delivery', 'URL and email', 'Email delivery enabled in production', ! $production || ! in_array(config('mail.default'), ['log', 'array'], true), 'warning', 'Log and array mailers do not deliver external email (SMTP transport is not probed).', 'MAIL_MAILER='.config('mail.default'), '.env: MAIL_MAILER=smtp'),
+            $check('app.maintenance_mode', 'URL and email', 'Application is online', ! app()->isDownForMaintenance(), 'warning', 'Maintenance mode returns 503 to every visitor except bypass-cookie holders.', app()->isDownForMaintenance() ? 'down for maintenance' : 'online', 'php artisan up'),
             $check('app.timezone', 'URL and email', 'Application timezone is valid', in_array((string) config('app.timezone'), timezone_identifiers_list(), true), 'warning', 'Valid IANA timezone identifier for timestamps and scheduled tasks.', 'APP_TIMEZONE='.config('app.timezone'), 'config/app.php: timezone=UTC'),
         ];
 

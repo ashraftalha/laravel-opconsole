@@ -76,6 +76,16 @@ php artisan vendor:publish --tag=opconsole-config
 | `actions.clear` | `true` | `php artisan optimize:clear` |
 | `actions.optimize` | `true` | `php artisan optimize` |
 | `actions.migrate` | `true` | `php artisan migrate --force --isolated` |
+| `actions.down` | `true` | `php artisan down --secret=<random>`; the bypass URL is shown once in the output panel and never logged or audited. |
+| `actions.up` | `true` | `php artisan up` |
+
+### Maintenance Mode (`maintenance.*`)
+
+| Key | Environment Variable | Default | Description |
+|---|---|---|---|
+| `maintenance.allow_console` | `OPCONSOLE_MAINTENANCE_ALLOW_CONSOLE` | `true` | Adds the OpConsole route prefix to `PreventRequestsDuringMaintenance::except()` so the console (still behind authentication and Gates) stays reachable while the application is down. |
+
+If you published `config/opconsole.php` before these actions existed, your `actions` array replaces the package default, so `down` and `up` stay hidden until you add them.
 
 Setting an action to `false` hides its card in the UI and causes `POST /admin/opconsole/{action}` to return `404`. Arbitrary commands cannot be added.
 

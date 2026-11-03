@@ -8,6 +8,7 @@ use AshrafTalha\OpConsole\Support\Heartbeat;
 use AshrafTalha\OpConsole\Support\LogViewer;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -41,6 +42,11 @@ class OpConsoleServiceProvider extends ServiceProvider
 
         if (config('opconsole.enabled')) {
             $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
+
+            if (config('opconsole.maintenance.allow_console', true)) {
+                $prefix = trim((string) config('opconsole.route.prefix', 'admin/opconsole'), '/');
+                PreventRequestsDuringMaintenance::except([$prefix, $prefix.'/*']);
+            }
         }
 
         if ($this->app->runningInConsole()) {

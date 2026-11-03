@@ -90,7 +90,7 @@
                         <article @class(['oc-action', 'is-high-risk' => $action['risk'] === 'high']) id="action-{{ $key }}">
                             <div class="oc-action-top">
                                 <span class="oc-action-icon">@include('opconsole::partials.icon', ['name' => $action['icon']])</span>
-                                <span @class(['oc-risk-badge', 'is-high' => $action['risk'] === 'high'])>{{ $action['riskLabel'] }}</span>
+                                <span @class(['oc-risk-badge', 'is-high' => $action['risk'] === 'high', 'is-medium' => $action['risk'] === 'medium'])>{{ $action['riskLabel'] }}</span>
                             </div>
                             <h2>{{ $action['title'] }}</h2>
                             <code class="oc-command-pill" dir="ltr">{{ $action['command'] }}</code>

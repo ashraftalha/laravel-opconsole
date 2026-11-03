@@ -21,6 +21,8 @@ class OpConsoleController extends Controller
         'clear' => ['clear_ok', 'clear_error'],
         'optimize' => ['optimize_ok', 'optimize_error'],
         'migrate' => ['migrate_ok', 'migrate_error'],
+        'down' => ['down_ok', 'down_error'],
+        'up' => ['up_ok', 'up_error'],
     ];
 
     private const ASSETS = [

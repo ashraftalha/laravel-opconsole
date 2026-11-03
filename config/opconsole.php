@@ -104,12 +104,26 @@ return [
     | Artisan actions
     |--------------------------------------------------------------------------
     | Closed allow-list. Set any entry to false to hide and disable it.
-    | You cannot add new commands here — only disable the three built in.
+    | You cannot add new commands here — only disable the built-in ones.
+    | `down` generates a one-time bypass secret shown in the output panel.
     */
     'actions' => [
         'clear' => true,
         'optimize' => true,
         'migrate' => true,
+        'down' => true,
+        'up' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Maintenance mode
+    |--------------------------------------------------------------------------
+    | Keeps the OpConsole routes reachable (still behind authentication and
+    | Gates) while the application is down, so an admin can bring it back up.
+    */
+    'maintenance' => [
+        'allow_console' => (bool) env('OPCONSOLE_MAINTENANCE_ALLOW_CONSOLE', true),
     ],
 
     /*

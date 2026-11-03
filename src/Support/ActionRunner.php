@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
 use Throwable;
 
 /**
- * Runs the three allow-listed Artisan actions and writes the audit trail.
+ * Runs the allow-listed Artisan actions and writes the audit trail.
  * Different risk class from ConsoleStatus (this one writes); kept separate
  * so authorization and tests can treat them differently.
  */
@@ -31,6 +31,8 @@ class ActionRunner
         'clear' => ['optimize:clear', []],
         'optimize' => ['optimize', []],
         'migrate' => ['migrate', ['--force' => true, '--isolated' => true]], // --isolated: a second concurrent run exits instead of racing
+        'down' => ['down', []], // a random --secret is added per run so the admin keeps a bypass URL
+        'up' => ['up', []],
     ];
 
     private const LOCK_KEY = 'opconsole:action-lock';
@@ -83,6 +85,11 @@ class ActionRunner
         try {
             $run = $this->recordStart($action, $user);
             [$command, $options] = self::ACTIONS[$action];
+            $bypassSecret = null;
+            if ($action === 'down') {
+                $bypassSecret = Str::random(40);
+                $options['--secret'] = $bypassSecret;
+            }
             $startedAt = hrtime(true);
 
             try {
@@ -107,6 +114,11 @@ class ActionRunner
 
             // The command has already run by this point: a failure to persist the audit row
             // must never be reported back to the user as the action itself having failed.
+            if ($bypassSecret !== null && $ok) {
+                // Only ever shown in the one-time output flash; never logged or written to the audit row.
+                $output = trim($output."\n\nBypass URL (shown once): ".url($bypassSecret));
+            }
+
             $durationMs = (int) round((hrtime(true) - $startedAt) / 1_000_000);
             $audited = $this->recordFinish($run, $ok, $exitCode, $error, $durationMs);
             Log::info("OpConsole: {$command}", ['user_id' => $user?->getAuthIdentifier(), 'exit_code' => $exitCode]);

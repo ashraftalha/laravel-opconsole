@@ -98,7 +98,7 @@
             if (riskEl) {
                 if (form.dataset.confirmRiskLabel) {
                     riskEl.textContent = form.dataset.confirmRiskLabel;
-                    riskEl.className = 'oc-risk-badge' + (form.dataset.confirmRisk === 'high' ? ' is-high' : '');
+                    riskEl.className = 'oc-risk-badge' + (form.dataset.confirmRisk === 'high' ? ' is-high' : (form.dataset.confirmRisk === 'medium' ? ' is-medium' : ''));
                     riskEl.hidden = false;
                 } else {
                     riskEl.textContent = '';

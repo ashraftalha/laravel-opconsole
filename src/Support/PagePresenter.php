@@ -25,6 +25,7 @@ class PagePresenter
         'clear' => ['#action-clear', 'Clear caches'],
         'optimize' => ['#action-optimize', 'Optimize performance'],
         'migrate' => ['#action-migrate', 'Run migrations'],
+        'up' => ['#action-up', 'Bring online'],
         'logs' => ['#logs', 'View logs'],
         'checks' => ['#checks', 'Review checks'],
     ];
@@ -44,6 +45,8 @@ class PagePresenter
         'clear' => ['Clear caches', 'optimize:clear'],
         'optimize' => ['Optimize performance', 'optimize'],
         'migrate' => ['Run migrations', 'migrate --force --isolated'],
+        'down' => ['Enable maintenance mode', 'down --secret=…'],
+        'up' => ['Bring application online', 'up'],
         'log.download' => ['Download log', 'log.download'],
         'log.delete' => ['Delete log', 'log.delete'],
     ];
@@ -224,7 +227,7 @@ class PagePresenter
             $action = $item['action'];
             $hasTarget = $action !== null
                 && isset(self::ADVICE_LINKS[$action])
-                && (! in_array($action, ['clear', 'optimize', 'migrate'], true) || isset($actions[$action]));
+                && (! in_array($action, ['clear', 'optimize', 'migrate', 'up'], true) || isset($actions[$action]));
 
             return [
                 'class' => self::ADVICE_STYLES[$item['level']][0],
@@ -240,6 +243,7 @@ class PagePresenter
         $pending = $status['database']['pending'];
         $dbOk = (bool) $status['database']['ok'];
         $production = $status['app']['production'];
+        $down = (bool) ($status['app']['down'] ?? false);
         $enabledActions = config('opconsole.actions', []);
         $last = function (string $action) use ($status) {
             $run = $status['lastRuns'][$action] ?? null;
@@ -309,6 +313,42 @@ class PagePresenter
                 'disabledReason' => $migrateDisabledReason,
                 'pending' => $pending,
                 'last' => $last('migrate'),
+            ],
+            'down' => [
+                'icon' => 'power',
+                'title' => 'Maintenance mode',
+                'command' => 'php artisan down --secret=…',
+                'risk' => 'medium',
+                'riskLabel' => 'Medium risk · Site offline',
+                'button' => $down ? 'Already offline' : 'Take offline',
+                'style' => $down ? 'oc-btn-soft-secondary' : 'oc-btn-soft-warning',
+                'url' => route($this->routeName('run'), 'down'),
+                'text' => 'Returns 503 to visitors while you work. A one-time bypass URL is shown in the output; this console stays reachable.',
+                'confirmTitle' => 'Take the application offline',
+                'confirm' => 'Put ['.$status['app']['environment'].'] into maintenance mode? Visitors will see a 503 page until you bring it back online.',
+                'confirmAccept' => 'Take offline',
+                'enabled' => (bool) ($enabledActions['down'] ?? false) && $canRun && ! $down,
+                'disabledReason' => $readOnlyNote ?? ($down ? 'The application is already in maintenance mode.' : null),
+                'pending' => [],
+                'last' => $last('down'),
+            ],
+            'up' => [
+                'icon' => 'check-circle',
+                'title' => 'Bring online',
+                'command' => 'php artisan up',
+                'risk' => 'low',
+                'riskLabel' => 'Low risk · Site online',
+                'button' => $down ? 'Bring online' : 'Already online',
+                'style' => $down ? 'oc-btn-soft-success' : 'oc-btn-soft-secondary',
+                'url' => route($this->routeName('run'), 'up'),
+                'text' => 'Ends maintenance mode so visitors can reach the application again.',
+                'confirmTitle' => 'Bring the application online',
+                'confirm' => 'End maintenance mode for ['.$status['app']['environment'].']?',
+                'confirmAccept' => 'Bring online',
+                'enabled' => (bool) ($enabledActions['up'] ?? false) && $canRun && $down,
+                'disabledReason' => $readOnlyNote ?? (! $down ? 'The application is online.' : null),
+                'pending' => [],
+                'last' => $last('up'),
             ],
         ];
 
