@@ -211,7 +211,7 @@ class HealthChecks
 
         if ($host !== null && $appHost) {
             $same = strcasecmp($host, $appHost) === 0 || (in_array(strtolower($host), self::LOOPBACK, true) && in_array(strtolower($appHost), self::LOOPBACK, true));
-            $checks[] = $check('app.url_host', 'URL and email', 'Application URL matches current host', $same, 'warning', 'A host mismatch can generate signed URLs and links with the wrong domain.', 'APP_URL='.$appHost.'  ←  '.$host, '.env: APP_URL=https://'.$host);
+            $checks[] = $check('app.url_host', 'URL and email', 'Application URL matches current host', $same, 'warning', 'A host mismatch can generate signed URLs and links with the wrong domain.', 'APP_URL='.$appHost.' ← '.$host, '.env: APP_URL=https://'.$host);
         }
 
         return $checks;

@@ -4,9 +4,9 @@ Use this checklist before tagging any release of `ashraftalha/laravel-opconsole`
 
 ---
 
-## Release Scope: `v1.7.0`
+## Release Scope: `v1.7.1`
 
-This release adds a host Composer dependency security audit (`opconsole:security`) with stored reports, manifest freshness, and optional daily scheduling, plus a dashboard Security tab covering advisories and Laravel runtime configuration warnings. Review `CHANGELOG.md`, `CONFIGURATION.md`, and `UPGRADE.md` against the exact release commit.
+This patch restores System information visibility in tabbed mode, removes duplicate title branding, and normalizes spacing in vulnerability counts and the APP_URL comparison. Review `CHANGELOG.md`, `CONFIGURATION.md`, and `UPGRADE.md` against the exact release commit.
 
 ---
 
@@ -63,6 +63,6 @@ Verify in disposable fresh **Laravel 12** and **Laravel 13** applications (outsi
 
 1. Merge the verified release branch into `main` after GitHub Actions passes green.
 2. Stamp the release date and version heading in `CHANGELOG.md`.
-3. Create an annotated Git tag (`git tag -a v0.2.0 -m "Release v0.2.0"`).
+3. Create an annotated Git tag (`git tag -a v1.7.1 -m "Release v1.7.1"`).
 4. Push `main` and the annotated tag (`git push origin main --tags`).
 5. Verify Packagist webhook / VCS tag resolution in a clean disposable Laravel project.

@@ -354,7 +354,7 @@
                         @if ($securityFresh && empty($securityReport['advisories']))<p class="oc-advice oc-advice-info" role="status">No known vulnerabilities found in scanned dependencies.</p>@elseif (!$securityFresh)<p class="oc-advice oc-advice-warning" role="status">A clean result cannot be confirmed until a current scan completes.</p>@endif
                         @if ($securityFresh)
                             @php($securityCounts = collect($securityReport['advisories'] ?? [])->groupBy(fn ($advisory) => $advisory['severity'] ?? 'not supplied')->map->count())
-                            <p aria-label="Vulnerability counts by severity">Vulnerability counts — @foreach (['critical', 'high', 'medium', 'low', 'not supplied'] as $level){{ ucfirst($level) }}: {{ $securityCounts[$level] ?? 0 }}@if (!$loop->last) · @endif @endforeach</p>
+                            <p aria-label="Vulnerability counts by severity">Vulnerability counts — @foreach (['critical', 'high', 'medium', 'low', 'not supplied'] as $level){{ ucfirst($level) }}: {{ $securityCounts[$level] ?? 0 }}{{ $loop->last ? '' : ' · ' }}@endforeach</p>
                         @endif
                         @if (!empty($securityReport['advisories']))
                             <div class="oc-health-filter"><label for="oc-security-search">Search advisories</label><input id="oc-security-search" class="oc-input" type="search" data-security-search aria-controls="oc-security-advisories"><label for="oc-security-severity">Filter severity</label><select id="oc-security-severity" class="oc-input" data-security-severity aria-controls="oc-security-advisories"><option value="all">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="not supplied">Not supplied</option></select></div>
@@ -446,7 +446,7 @@
 
             <div class="oc-tab-panel" id="oc-panel-system" role="tabpanel" aria-labelledby="oc-tab-system" data-oc-panel="system">
             {{-- System info, grouped; copyable for support --}}
-            <details class="oc-section oc-system-info" id="system-info">
+            <details class="oc-section oc-system-info" id="system-info" open>
                 <summary class="oc-system-toggle">
                     <span class="oc-inline-flex">@include('opconsole::partials.icon', ['name' => 'info']) <span>System information</span></span>
                     <span class="oc-inline-flex"><span>View details</span> <span class="oc-check-chevron">@include('opconsole::partials.icon', ['name' => 'chevron-down'])</span></span>
