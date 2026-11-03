@@ -2,6 +2,7 @@
 
 namespace AshrafTalha\OpConsole;
 
+use AshrafTalha\OpConsole\Console\HealthCommand;
 use AshrafTalha\OpConsole\Http\Middleware\AuthorizeOpConsole;
 use AshrafTalha\OpConsole\Jobs\OpConsoleHeartbeatJob;
 use AshrafTalha\OpConsole\Support\Heartbeat;
@@ -50,6 +51,8 @@ class OpConsoleServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
+            $this->commands([HealthCommand::class]);
+
             $this->publishes([
                 __DIR__.'/../config/opconsole.php' => config_path('opconsole.php'),
             ], 'opconsole-config');

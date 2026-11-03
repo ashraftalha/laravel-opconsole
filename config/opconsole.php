@@ -101,6 +101,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Health endpoint
+    |--------------------------------------------------------------------------
+    | GET {prefix}/health for uptime monitors. Off by default and also off
+    | while no token is set. Send `Authorization: Bearer <token>`. Returns
+    | statuses and values only (no hints or fixes); HTTP 503 when any check
+    | is critical. Runs without session or CSRF middleware.
+    */
+    'health_endpoint' => [
+        'enabled' => (bool) env('OPCONSOLE_HEALTH_ENDPOINT', false),
+        'token' => env('OPCONSOLE_HEALTH_TOKEN'),
+        'rate_limit' => (int) env('OPCONSOLE_HEALTH_RATE_LIMIT', 60), // requests per minute
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Artisan actions
     |--------------------------------------------------------------------------
     | Closed allow-list. Set any entry to false to hide and disable it.

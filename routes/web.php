@@ -1,5 +1,6 @@
 <?php
 
+use AshrafTalha\OpConsole\Http\Controllers\HealthController;
 use AshrafTalha\OpConsole\Http\Controllers\OpConsoleController;
 use AshrafTalha\OpConsole\Support\ActionRunner;
 use Illuminate\Support\Facades\Route;
@@ -42,3 +43,10 @@ Route::prefix(config('opconsole.route.prefix', 'admin/opconsole'))
             ->middleware(['opconsole.authorize:run', 'throttle:6,1,opconsole-run'])
             ->name($prefix.'run');
     });
+
+// Outside the 'web' group on purpose: machine clients get no session, cookies, or CSRF; the bearer token is the only credential.
+Route::prefix(config('opconsole.route.prefix', 'admin/opconsole'))
+    ->domain(config('opconsole.route.domain'))
+    ->middleware('throttle:'.max(1, (int) config('opconsole.health_endpoint.rate_limit', 60)).',1,opconsole-health')
+    ->get('health', HealthController::class)
+    ->name($prefix.'health');

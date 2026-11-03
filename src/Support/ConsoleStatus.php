@@ -11,6 +11,8 @@ use Throwable;
 /** Everything the dashboard shows, gathered in one place. Pure read model. */
 class ConsoleStatus
 {
+    private const STATUS_RANK = ['healthy' => 0, 'unknown' => 0, 'warning' => 1, 'critical' => 2];
+
     public function __construct(
         private Migrator $migrator,
         private LogViewer $logs,
@@ -22,7 +24,8 @@ class ConsoleStatus
     {
         $database = $this->database();
         $caches = $this->caches();
-        $checks = $this->healthChecks->run($database, $host);
+        $health = $this->health($host, $database);
+        $checks = $health['checks'];
         $errors = $this->logs->recentErrors();
         $audit = $this->audit();
 
@@ -35,12 +38,51 @@ class ConsoleStatus
             ],
             'database' => $database,
             'checks' => $checks,
+            'checkedAt' => $health['checked_at'],
             'errors' => $errors,
             'info' => $this->info($database, $caches),
             'lastRuns' => $audit['lastRuns'],
             'history' => $audit['history'],
             'advice' => $this->advice($database, $caches, $errors, $checks),
         ];
+    }
+
+    /**
+     * The single health runner shared by the dashboard, `opconsole:health`, and the JSON endpoint.
+     *
+     * @return array{status: 'healthy'|'warning'|'critical', checked_at: string, checks: list<array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}>}
+     */
+    public function health(?string $host = null, ?array $database = null): array
+    {
+        $checks = $this->healthChecks->run($database ?? $this->database(), $host);
+
+        return [
+            'status' => self::overallStatus($checks),
+            'checked_at' => now()->toIso8601String(),
+            'checks' => $checks,
+        ];
+    }
+
+    /**
+     * Worst check status; unknown never degrades the result because nothing failed verification.
+     *
+     * @param  list<array{status: string}>  $checks
+     * @return 'healthy'|'warning'|'critical'
+     */
+    public static function overallStatus(array $checks): string
+    {
+        $worst = max([0, ...array_map(fn (array $check) => self::rank($check['status']), $checks)]);
+
+        return match ($worst) {
+            2 => 'critical',
+            1 => 'warning',
+            default => 'healthy',
+        };
+    }
+
+    public static function rank(string $status): int
+    {
+        return self::STATUS_RANK[$status] ?? 0;
     }
 
     /**

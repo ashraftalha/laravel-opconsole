@@ -69,6 +69,30 @@ php artisan vendor:publish --tag=opconsole-config
 - `queue.worker_heartbeat` reads `unknown` while the scheduler heartbeat is missing or stale (no job can be expected) and for the first `queue_max_age` seconds after the first dispatch.
 - Array and null cache drivers never persist between processes, so the checks stay `unknown` with those drivers.
 
+### Health Endpoint (`health_endpoint.*`)
+
+| Key | Environment Variable | Default | Description |
+|---|---|---|---|
+| `health_endpoint.enabled` | `OPCONSOLE_HEALTH_ENDPOINT` | `false` | Enables `GET {prefix}/health`. Returns `404` while disabled or while no token is set. |
+| `health_endpoint.token` | `OPCONSOLE_HEALTH_TOKEN` | `null` | Bearer token, compared with `hash_equals`. A wrong or missing token returns `401`. |
+| `health_endpoint.rate_limit` | `OPCONSOLE_HEALTH_RATE_LIMIT` | `60` | Requests per minute (route-level `throttle`). |
+
+The endpoint runs without the `web` middleware group (no session, cookies, or CSRF) and responds with `{status, checked_at, checks: [{id, group, label, status, value}]}`: no hints or fixes. HTTP `200` unless a check is critical, then `503`.
+
+```bash
+curl -H "Authorization: Bearer $OPCONSOLE_HEALTH_TOKEN" https://example.com/admin/opconsole/health
+```
+
+### Health Command
+
+```bash
+php artisan opconsole:health                    # table: id, status, label, value, fix
+php artisan opconsole:health --json             # machine-readable
+php artisan opconsole:health --fail-on=warning  # exit 1 on warnings too (default: critical)
+```
+
+The command, the endpoint, and the dashboard share one runner (`ConsoleStatus::health()`). `unknown` never fails the run.
+
 ### Allow-Listed Artisan Actions (`actions.*`)
 
 | Key | Default | Artisan Command Executed |
