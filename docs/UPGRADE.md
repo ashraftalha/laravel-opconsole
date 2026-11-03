@@ -2,6 +2,20 @@
 
 This document covers upgrades to the current `v1.8.0` release. The later sections retain migration notes for older installations.
 
+## Upgrading to the next release (unreleased)
+
+No database migrations are required, and existing configuration keeps working.
+
+1. **Composer metadata:** the package now requires `laravel/framework` instead of individual `illuminate/*` components, because it uses classes that only ship in the framework (`Illuminate\Foundation`). Every working installation already has it, so no action is needed.
+2. **New optional key:** `audit.policy` (`OPCONSOLE_AUDIT_POLICY`, default `best_effort`, the current behaviour). Set it to `required` to refuse actions, log deletes, and log downloads that cannot be audited first. Published configs without the key keep the default.
+3. **Behaviour you may notice:**
+   - On a PHP runtime without `pcntl` (common for PHP-FPM), every action was already refused, but only after the request had taken the lock and written a `started` row. Those actions are now disabled on the dashboard with the reason shown, and `security_scan` (bounded by its own subprocess timeouts) now runs. Run the others from the CLI, or enable `pcntl` for the web SAPI.
+   - On Laravel < 12.63 / < 13.16, actions running longer than 10 seconds (for example migrations) were interrupted by a failed lease renewal. They now run to completion within `max_runtime_seconds`.
+   - A required `custom.*` health check that throws now makes the report `critical`; previously it was silently omitted.
+   - With an empty `route.prefix`, maintenance mode now applies to the console too, instead of the whole application ignoring maintenance mode.
+   - Deleting a log symlink removes the link, not its target.
+   - Notification failures no longer log transport messages (which could contain webhook URLs).
+
 ## Upgrade from v1.7.x to v1.8.0
 
 Laravel 12 and 13 and PHP `^8.3` remain supported. The release adds an on-demand security scan action and redesigns the Logs tab. No database migrations are required.

@@ -4,6 +4,28 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+### Added
+- `audit.policy` (`best_effort` default, or `required`): `required` refuses Artisan actions, log deletes, and log downloads unless their audit row is written first. Unrecognised values fail closed as `required`.
+- Operation cards show, before any click, when the web PHP runtime cannot enforce the action timeout (no `pcntl`).
+
+### Fixed
+- Actions longer than 10 seconds were aborted mid-run on Laravel < 12.63 / < 13.16, whose locks cannot `refresh()`; renewal is now used only where the driver supports it, since the lease already outlasts `max_runtime_seconds`.
+- A transient lock-store error during lease renewal no longer interrupts a running command.
+- An empty `route.prefix` exempted the entire application from maintenance mode.
+- A required custom health check that threw disappeared from the report instead of making it critical.
+- An unreadable security report store returned HTTP 500 from the dashboard and health endpoint.
+- Log deletion through a symlink deleted the target file, and an alias could bypass active-log protection.
+- One failing notification channel or webhook prevented delivery to the others.
+- Notification failures logged transport messages containing full webhook URLs (credentials for Slack).
+
+### Changed
+- `security_scan` runs without `pcntl` (bounded by its own subprocess timeouts); other actions on such runtimes are refused before taking the lock.
+- PHP fatal errors during an action release the lock and close the audit row via a shutdown hook instead of waiting for lease expiry.
+- Timer-bound actions ignore client disconnects and raise a lower `max_execution_time` to the configured runtime budget.
+- Webhooks: `http`/`https` only, no redirects, non-2xx is a failure, 3 s connect / 5 s total timeout.
+- Log deletion records a `started` audit row before unlinking.
+- Composer now requires `laravel/framework` rather than a subset of `illuminate/*` components that did not cover the classes used.
+
 ## [1.8.0] - 2026-11-03
 
 ### Added

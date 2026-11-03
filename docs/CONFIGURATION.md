@@ -44,6 +44,8 @@ php artisan vendor:publish --tag=opconsole-config
 | `authorization.delete_gate` | `'deleteOpConsoleLogs'` | Gate required to delete older `.log` files (delegates to `run_gate` if not explicitly defined by the host). |
 | `authorization.action_gates` | `[]` | Optional map from action keys (`clear`, `optimize`, `migrate`, `down`, `up`, `storage_link`, `security_scan`) to independent Gate names. Missing keys inherit `run_gate`; configured but undefined/empty Gates deny access. |
 
+**Least privilege in production:** by default, everyone who passes `run_gate` can also run the high-risk actions (`migrate`, `down`) and delete logs. Log deletion destroys forensic evidence. Define `deleteOpConsoleLogs` explicitly, and map `migrate`/`down` to a narrower Gate in `action_gates`, as in the example below.
+
 ### Security audit (`security.*`)
 
 | Key | Environment Variable | Default | Description |
@@ -83,11 +85,33 @@ Gate::define('manageOpConsole', fn (User $user) => $user->is_admin);
 | Key | Environment Variable | Default | Description |
 |---|---|---|---|
 | `concurrency.lock_store` | `OPCONSOLE_LOCK_STORE` | `'opconsole'` | Cache store used for mutual-exclusion locking across Artisan runs. Must support atomic locks and must not share flushable storage with `cache.default`. |
-| `concurrency.lock_seconds` | `OPCONSOLE_LOCK_SECONDS` | `1800` | Initial lock lease. It is raised to at least the maximum runtime plus a recovery margin and renewed by the lock owner while Artisan runs. |
-| `concurrency.max_runtime_seconds` | `OPCONSOLE_MAX_RUNTIME_SECONDS` | `1500` | Maximum synchronous command runtime. Requires PHP `pcntl` signal support; execution fails closed when safe interruption is unavailable. A timed out process releases its owned lock and records failure; a killed process leaves a started audit row and the lease eventually expires. |
+| `concurrency.lock_seconds` | `OPCONSOLE_LOCK_SECONDS` | `1800` | Initial lock lease. It is raised to at least the maximum runtime plus 60 seconds, so the lease always outlasts the runtime budget. |
+| `concurrency.max_runtime_seconds` | `OPCONSOLE_MAX_RUNTIME_SECONDS` | `1500` | Maximum synchronous command runtime, enforced with a `pcntl` alarm. A command that exceeds it is interrupted (it may have partially applied), recorded as `failed`, and its lock released. See *Execution environments* below. |
 
 - **Single-server deployments:** Keep `'opconsole'`. `OpConsoleServiceProvider` registers `cache.stores.opconsole` automatically under `storage/framework/cache/opconsole`, isolated from `storage/framework/cache/data` so `optimize:clear` (`cache:clear`) cannot wipe an active lock.
 - **Multi-server deployments:** Configure a dedicated `redis` or `database` cache store with separate lock storage (`lock_connection` or `cache_locks` table) and set `OPCONSOLE_LOCK_STORE` to that store name.
+- **Lease renewal:** while a command runs, the owner renews its lease every 10 seconds on drivers that support `refresh()` (Laravel 12.63+ / 13.16+). Older releases run on the initial lease alone, which is safe because the lease always exceeds `max_runtime_seconds`. A renewal reporting that another owner holds the lock interrupts the command; a transient store error during renewal does not.
+- **Process death:** a PHP fatal error (for example memory exhaustion) closes the audit row as `failed` and releases the lock from a shutdown hook. A hard kill (`SIGKILL`, PHP-FPM `request_terminate_timeout`) leaves a `started` row, shown as *Interrupted / Unknown*, and the lock expires with its lease.
+
+#### Execution environments
+
+Actions run synchronously inside the HTTP request that triggered them.
+
+| Runtime | Supported actions |
+|---|---|
+| PHP CLI, or PHP-FPM / mod_php with the `pcntl` functions available | All enabled actions. |
+| PHP-FPM / mod_php **without** `pcntl` (Debian/Ubuntu `php.ini` disables `pcntl_*` for web SAPIs by default) | Only `security_scan`, which is bounded by its own Composer subprocess timeouts. Every other action is refused before it takes the lock or runs; its card is disabled, the reason is shown, and the refusal is audited. Run the equivalent `php artisan` command from the CLI or your deploy pipeline, or enable `pcntl` for the web SAPI. |
+| Windows | `pcntl` does not exist; as above. |
+
+While a timer-bound action runs, OpConsole calls `ignore_user_abort(true)` so a browser or proxy disconnect cannot abort a migration halfway. It raises a lower non-zero `max_execution_time` to `max_runtime_seconds + 30` so its own timeout, not a PHP fatal error, ends an over-long command; it never lowers an existing limit. Web server and proxy timeouts (for example nginx `fastcgi_read_timeout`) may still end the HTTP response earlier. The command keeps running, and its outcome appears in Operation history.
+
+### Audit Policy (`audit.*`)
+
+| Key | Environment Variable | Default | Description |
+|---|---|---|---|
+| `audit.policy` | `OPCONSOLE_AUDIT_POLICY` | `'best_effort'` | `best_effort`: an unavailable audit table never blocks an operation; the result shows a warning. `required`: Artisan actions, log deletion, and log downloads are refused unless their audit row is written **before** the operation starts. Any value other than unset or `best_effort` is treated as `required`. |
+
+Under both policies, a command that has already run keeps its real outcome when only the final audit update fails: success stays success, with an "audit record could not be saved" warning. Execution failures, audit persistence failures, and interrupted runs (*Interrupted / Unknown*) are reported separately.
 
 ### Heartbeats (`heartbeats.*`)
 
@@ -133,7 +157,11 @@ php artisan opconsole:health --json             # machine-readable
 php artisan opconsole:health --fail-on=warning  # exit 1 on warnings too (default: critical)
 ```
 
-The command, the endpoint, and the dashboard share one runner (`ConsoleStatus::health()`). Unknown checks remain healthy for overall status by default to preserve monitoring integrations. `health.unknown_policy` can promote unknown checks to warning or critical, and IDs in `health.required_checks` are always critical if unknown.
+The command, the endpoint, and the dashboard share one runner (`ConsoleStatus::health()`). Unknown checks remain healthy for overall status by default to preserve monitoring integrations. `health.unknown_policy` can promote unknown checks to warning or critical, and IDs in `health.required_checks` are always critical if unknown. A required `custom.*` ID that is missing from the report (the check threw, so it was reported under a class-derived fallback ID, or the ID is misspelled) adds a critical `Required check …` entry. Built-in IDs are exempt from this rule because several appear only conditionally (for example `database.connection` appears only when the connection fails).
+
+Each request runs every check synchronously, including database, cache, and table probes plus your custom checks. Keep custom checks fast and give any network calls they make their own short timeouts, because OpConsole cannot interrupt them.
+
+**Kubernetes:** use the endpoint as a **readiness** probe or for external uptime monitoring, not as a **liveness** probe. It returns `503` when a dependency such as the database is critical, and restarting the pod does not fix a database outage. A liveness probe should only check that PHP answers.
 
 ### Health Notifications
 
@@ -152,7 +180,9 @@ Notifications are disabled unless explicitly enabled. Delivery is evaluated by `
 ],
 ```
 
-Alerts cover the first unhealthy state, worsening status, and recovery. A cache lock prevents concurrent duplicate alerts. Only last status and cooldown metadata are stored; use a persistent shared store so restarts and multiple app servers preserve transitions.
+Alerts cover the first unhealthy state, worsening status, and recovery. A cache lock prevents concurrent duplicate alerts. Only last status and cooldown metadata are stored; use a persistent shared store so restarts and multiple app servers preserve transitions. A `state_store` without lock support disables delivery and logs a warning.
+
+Delivery is isolated per channel and per destination. A failing mailer does not stop the webhooks, and one failing webhook does not stop the others. A transition counts as sent once at least one channel delivers it. If every channel fails, the transition is retried on the next run; there is no tight retry loop. Webhooks accept only `http`/`https` URLs, never follow redirects, and treat any non-2xx response as a failure (3 s connect timeout, 5 s total). Failure logs record the channel, destination index, and HTTP status or exception class. They never record the URL or the transport message, because webhook URLs such as Slack's are credentials. Repeated healthy ↔ unhealthy flapping is reported truthfully, one alert per transition per run.
 
 ### Allow-Listed Artisan Actions (`actions.*`)
 
@@ -170,7 +200,7 @@ Alerts cover the first unhealthy state, worsening status, and recovery. A cache 
 
 | Key | Environment Variable | Default | Description |
 |---|---|---|---|
-| `maintenance.allow_console` | `OPCONSOLE_MAINTENANCE_ALLOW_CONSOLE` | `true` | Adds the OpConsole route prefix to `PreventRequestsDuringMaintenance::except()` so the console (still behind authentication and Gates) stays reachable while the application is down. |
+| `maintenance.allow_console` | `OPCONSOLE_MAINTENANCE_ALLOW_CONSOLE` | `true` | Adds the OpConsole route prefix to `PreventRequestsDuringMaintenance::except()` so the console (still behind authentication and Gates) stays reachable while the application is down. Ignored when `route.prefix` is empty: exempting `/*` would exempt the entire application, so a console mounted at the root follows maintenance mode like every other route. |
 
 If you published `config/opconsole.php` before these actions existed, your `actions` array replaces the package default, so `down` and `up` stay hidden until you add them.
 
@@ -182,7 +212,7 @@ Setting an action to `false` hides its card in the UI and causes `POST /admin/op
 |---|---|---|
 | `logs.path` | `storage_path('logs')` | Directory scanned for readable `^[\w.-]+\.log$` files (enforced with `realpath()` containment). |
 | `logs.allow_download` | `true` | When `false`, hides download buttons and aborts `GET /admin/opconsole/logs/{file}` with `403`. |
-| `logs.allow_delete` | `true` | When `false`, hides delete buttons and aborts `DELETE /admin/opconsole/logs/{file}` with `403`. Even when `true`, the newest valid log file can never be deleted. |
+| `logs.allow_delete` | `true` | When `false`, hides delete buttons and aborts `DELETE /admin/opconsole/logs/{file}` with `403`. Even when `true`, the newest valid log file (or any symlink resolving to it) can never be deleted. Deleting a symlink removes only the link, never its target. |
 
 ### UI, Layout & Audit Storage
 

@@ -10,6 +10,7 @@ Laravel OpConsole installs into any Laravel 12 or Laravel 13 application running
 |---|---|
 | PHP | `^8.3` (`8.3`, `8.4`, `8.5`) with `mbstring`, `openssl`, `tokenizer`, `ctype`, `json`, and your database PDO extension |
 | Laravel Framework | `^12.0` or `^13.0` |
+| Browser-triggered actions | `pcntl` functions available to the **web** SAPI (PHP-FPM / mod_php). Without them only `security_scan` runs from the browser; see [Execution environments](CONFIGURATION.md#execution-environments). |
 
 ---
 

@@ -33,6 +33,10 @@ This release adds an on-demand security scan action to the dashboard (`actions.s
 - [ ] `LogViewer::files()` and `LogViewer::path()` reject path traversal, invalid filenames, and external symlinks.
 - [ ] Rendered HTML escapes all log messages, stack traces, search highlights, and command outputs; standalone views emit zero inline `<script>` blocks, zero inline `style=` attributes, and zero mandatory CDN requests.
 - [ ] Exception messages and Artisan outputs sanitize DSN passwords, `password=`/`token=`/`secret=` parameters, and `base_path()` prefixes before display or database persistence.
+- [ ] On a PHP-FPM runtime **without** `pcntl`, timer-bound action cards are disabled with the runtime reason and a forced POST is refused and audited; `security_scan` still runs.
+- [ ] On a PHP-FPM runtime **with** `pcntl`, a migration longer than 10 seconds completes, on both the lowest supported Laravel 12/13 releases and the latest.
+- [ ] `audit.policy=required` with the audit table unavailable refuses actions, log deletes, and downloads.
+- [ ] Notification failure logs contain no webhook URLs.
 
 ---
 
@@ -63,6 +67,6 @@ Verify in disposable fresh **Laravel 12** and **Laravel 13** applications (outsi
 
 1. Merge the verified release branch into `main` after GitHub Actions passes green.
 2. Stamp the release date and version heading in `CHANGELOG.md`.
-3. Create an annotated Git tag (`git tag -a v1.7.1 -m "Release v1.7.1"`).
+3. Create an annotated Git tag (`git tag -a vX.Y.Z -m "Release vX.Y.Z"`).
 4. Push `main` and the annotated tag (`git push origin main --tags`).
 5. Verify Packagist webhook / VCS tag resolution in a clean disposable Laravel project.
