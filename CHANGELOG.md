@@ -4,6 +4,8 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-03
+
 ### Added
 - Per-action Gate overrides for all six operations, with `runOpConsoleActions` fallback and fail-closed handling for configured undefined Gates.
 - Configurable required health checks and unknown-status policy; thrown custom checks remain visible as stable `unknown` rows.
