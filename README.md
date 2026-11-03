@@ -14,32 +14,57 @@
 - PHP 8.3+
 - Laravel 12 or 13
 
-## Installation
+## Quick Start
+
+**Step 1. Install the package**
 
 ```bash
 composer require ashraftalha/laravel-opconsole
+```
+
+**Step 2. Publish the config file**
+
+```bash
+php artisan vendor:publish --tag=opconsole-config
+```
+
+This creates `config/opconsole.php`, where you can change settings later.
+
+**Step 3. Create the database table**
+
+```bash
 php artisan migrate
 ```
 
-The service provider is auto-discovered. The migration creates the `opconsole_runs` audit table.
+**Step 4. Log in to your app**
 
-## Usage
+You must be signed in as a user.
 
-Open `/admin/opconsole`. Access is allowed only in the `local` environment until you define Gates.
+**Step 5. Open the console**
 
-Grant access in `App\Providers\AppServiceProvider::boot()`:
+Go to `http://your-app.test/admin/opconsole`
+
+On your local machine (`APP_ENV=local`), it works right away.
+
+**Step 6. Allow access on your live server**
+
+Open `app/Providers/AppServiceProvider.php` and add this inside `boot()`. Replace the email with yours:
 
 ```php
-use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 
-Gate::define('viewOpConsole', fn (User $user): bool => in_array($user->email, ['admin@example.com'], true));
-Gate::define('runOpConsoleActions', fn (User $user): bool => in_array($user->email, ['admin@example.com'], true));
+Gate::define('viewOpConsole', fn ($user) => $user->email === 'you@example.com');
+Gate::define('runOpConsoleActions', fn ($user) => $user->email === 'you@example.com');
 ```
 
-`viewOpConsole` shows the dashboard and logs. `runOpConsoleActions` runs `optimize:clear`, `optimize`, and `migrate --force --isolated`. The optional `downloadOpConsoleLogs` and `deleteOpConsoleLogs` Gates fall back to these two.
+- `viewOpConsole`: can see the dashboard and logs.
+- `runOpConsoleActions`: can click the buttons (clear caches, optimize, run migrations).
 
-Add a custom health check:
+Done.
+
+## Custom Health Checks (optional)
+
+Create a class:
 
 ```php
 namespace App\HealthChecks;
@@ -76,11 +101,7 @@ Register it in `config/opconsole.php`:
 
 ## Configuration
 
-```bash
-php artisan vendor:publish --tag=opconsole-config
-```
-
-Common options:
+Common options for your `.env` file:
 
 ```dotenv
 OPCONSOLE_ENABLED=true
