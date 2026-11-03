@@ -53,6 +53,17 @@ php artisan vendor:publish --tag=opconsole-config
 - **Single-server deployments:** Keep `'opconsole'`. `OpConsoleServiceProvider` registers `cache.stores.opconsole` automatically under `storage/framework/cache/opconsole`, isolated from `storage/framework/cache/data` so `optimize:clear` (`cache:clear`) cannot wipe an active lock.
 - **Multi-server deployments:** Configure a dedicated `redis` or `database` cache store with separate lock storage (`lock_connection` or `cache_locks` table) and set `OPCONSOLE_LOCK_STORE` to that store name.
 
+### Heartbeats (`heartbeats.*`)
+
+| Key | Environment Variable | Default | Description |
+|---|---|---|---|
+| `heartbeats.store` | `OPCONSOLE_HEARTBEAT_STORE` | `null` | Cache store for heartbeat timestamps (`null` uses `cache.default`). Must be shared by every server. |
+| `heartbeats.scheduler` | `OPCONSOLE_HEARTBEAT_SCHEDULER` | `true` | Registers a scheduled callback that writes `opconsole:heartbeat:scheduler` every minute and enables the `scheduler.heartbeat` check. |
+| `heartbeats.scheduler_max_age` | `OPCONSOLE_HEARTBEAT_SCHEDULER_MAX_AGE` | `120` | Seconds before the scheduler heartbeat counts as stale (enforced minimum: `60`). Stale is a warning outside production and critical in production. |
+
+- `optimize:clear` flushes `cache.default`, so with the default store the heartbeat checks read `unknown` for up to a minute afterwards.
+- Array and null cache drivers never persist between processes, so the checks stay `unknown` with those drivers.
+
 ### Allow-Listed Artisan Actions (`actions.*`)
 
 | Key | Default | Artisan Command Executed |

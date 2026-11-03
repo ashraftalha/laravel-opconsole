@@ -79,6 +79,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Heartbeats
+    |--------------------------------------------------------------------------
+    | The scheduler writes a timestamp every minute so the dashboard can tell
+    | whether `schedule:run` is actually firing. The store must be shared by
+    | every server (null uses cache.default); `optimize:clear` flushes
+    | cache.default, so the check reads "unknown" for up to a minute after it.
+    | Max ages are in seconds.
+    */
+    'heartbeats' => [
+        'store' => env('OPCONSOLE_HEARTBEAT_STORE'),
+        'scheduler' => (bool) env('OPCONSOLE_HEARTBEAT_SCHEDULER', true),
+        'scheduler_max_age' => (int) env('OPCONSOLE_HEARTBEAT_SCHEDULER_MAX_AGE', 120),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Artisan actions
     |--------------------------------------------------------------------------
     | Closed allow-list. Set any entry to false to hide and disable it.

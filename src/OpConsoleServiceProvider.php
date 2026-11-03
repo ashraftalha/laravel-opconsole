@@ -3,7 +3,9 @@
 namespace AshrafTalha\OpConsole;
 
 use AshrafTalha\OpConsole\Http\Middleware\AuthorizeOpConsole;
+use AshrafTalha\OpConsole\Support\Heartbeat;
 use AshrafTalha\OpConsole\Support\LogViewer;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -34,6 +36,7 @@ class OpConsoleServiceProvider extends ServiceProvider
         $this->app['router']->aliasMiddleware('opconsole.authorize', AuthorizeOpConsole::class);
 
         $this->registerDefaultGates();
+        $this->registerHeartbeats();
 
         if (config('opconsole.enabled')) {
             $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
@@ -60,6 +63,19 @@ class OpConsoleServiceProvider extends ServiceProvider
                 __DIR__.'/../database/migrations' => database_path('migrations'),
             ], 'opconsole-migrations');
         }
+    }
+
+    private function registerHeartbeats(): void
+    {
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
+            if (! config('opconsole.heartbeats.scheduler', true)) {
+                return;
+            }
+
+            $schedule->call(fn () => app(Heartbeat::class)->beat(Heartbeat::SCHEDULER))
+                ->everyMinute()
+                ->name('opconsole:heartbeat:scheduler');
+        });
     }
 
     /**

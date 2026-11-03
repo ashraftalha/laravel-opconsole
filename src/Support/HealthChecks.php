@@ -3,6 +3,7 @@
 namespace AshrafTalha\OpConsole\Support;
 
 use AshrafTalha\OpConsole\Contracts\HealthCheck;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Number;
@@ -20,11 +21,16 @@ class HealthChecks
 
     private const STATUSES = ['healthy', 'warning', 'critical', 'unknown'];
 
+    private const WORKERS_GROUP = 'Scheduler and workers';
+
     private ActionRunner $actionRunner;
 
-    public function __construct(?ActionRunner $actionRunner = null)
+    private Heartbeat $heartbeat;
+
+    public function __construct(?ActionRunner $actionRunner = null, ?Heartbeat $heartbeat = null)
     {
         $this->actionRunner = $actionRunner ?? app(ActionRunner::class);
+        $this->heartbeat = $heartbeat ?? app(Heartbeat::class);
     }
 
     /**
@@ -168,6 +174,9 @@ class HealthChecks
 
             // Database & queues
             ...$this->databaseChecks($database, $production, $check),
+
+            // Scheduler and workers
+            ...$this->workerChecks($production, $check),
 
             // URL & email
             $check('mail.delivery', 'URL and email', 'Email delivery enabled in production', ! $production || ! in_array(config('mail.default'), ['log', 'array'], true), 'warning', 'Log and array mailers do not deliver external email (SMTP transport is not probed).', 'MAIL_MAILER='.config('mail.default'), '.env: MAIL_MAILER=smtp'),
@@ -335,6 +344,50 @@ class HealthChecks
         }
 
         return [$tablesCheck, $stuckCheck, $failedCheck];
+    }
+
+    /**
+     * Heartbeats written by the scheduler (and the queue job it dispatches): proves they actually run.
+     *
+     * @param  \Closure(string, string, string, bool, string, string, ?string=, ?string=, ?string=): array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}  $check
+     * @return list<array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}>
+     */
+    private function workerChecks(bool $production, \Closure $check): array
+    {
+        if (! config('opconsole.heartbeats.scheduler', true)) {
+            return [];
+        }
+
+        $label = 'Scheduler is running';
+        $fix = app()->environment('local') ? 'php artisan schedule:work' : '* * * * * cd /path && php artisan schedule:run';
+        $beat = $this->heartbeat->last(Heartbeat::SCHEDULER);
+
+        if ($beat['error'] !== null) {
+            return [$check('scheduler.heartbeat', self::WORKERS_GROUP, $label, true, 'info', 'Heartbeat store could not be read.', 'store='.$this->heartbeat->storeName(), null, 'unknown')];
+        }
+
+        if ($beat['at'] === null) {
+            return [$check('scheduler.heartbeat', self::WORKERS_GROUP, $label, true, 'info', 'Scheduler has not run yet.', 'no heartbeat', $fix, 'unknown')];
+        }
+
+        $maxAge = max(60, (int) config('opconsole.heartbeats.scheduler_max_age', 120));
+        $fresh = now()->getTimestamp() - $beat['at'] <= $maxAge;
+
+        return [$check(
+            'scheduler.heartbeat',
+            self::WORKERS_GROUP,
+            $label,
+            $fresh,
+            $production ? 'danger' : 'warning',
+            'schedule:run should fire every minute; checked through a cache heartbeat.',
+            'last run '.$this->ago($beat['at']),
+            $fresh ? null : $fix,
+        )];
+    }
+
+    private function ago(int $timestamp): string
+    {
+        return Carbon::createFromTimestamp($timestamp)->locale('en')->diffForHumans();
     }
 
     /**

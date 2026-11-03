@@ -4,6 +4,9 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+### Added
+- **Scheduler heartbeat (`scheduler.heartbeat`):** The service provider schedules a callback every minute that writes `opconsole:heartbeat:scheduler` to the heartbeat cache store. The new "Scheduler and workers" check is healthy within `heartbeats.scheduler_max_age` (default 120 s), a warning when stale outside production, critical in production, and `unknown` until the first beat.
+
 ### Fixed
 - **Accurate action durations:** Operation history showed `0 ms` because `started_at`/`finished_at` are second-precision. A new migration adds a nullable `duration_ms` column; `ActionRunner` measures Artisan calls with `hrtime(true)` and stores `0` for instant operations. Older rows fall back to the timestamp difference, and audit writes keep working until the host runs the new migration.
 

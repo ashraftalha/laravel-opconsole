@@ -4,7 +4,9 @@ namespace AshrafTalha\OpConsole\Tests\Unit;
 
 use AshrafTalha\OpConsole\Contracts\HealthCheck;
 use AshrafTalha\OpConsole\Support\HealthChecks;
+use AshrafTalha\OpConsole\Support\Heartbeat;
 use AshrafTalha\OpConsole\Tests\TestCase;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
@@ -153,6 +155,93 @@ class HealthChecksTest extends TestCase
         $this->assertSame(1, $checks->where('label', 'Application key configured')->count());
         $this->assertTrue($checks->firstWhere('label', 'Application key configured')['ok']);
         $this->assertFalse($checks->contains('label', 'Type invalid'));
+    }
+
+    private function checkById(string $id): ?array
+    {
+        return collect($this->app->make(HealthChecks::class)->run($this->database, 'localhost'))->firstWhere('id', $id);
+    }
+
+    public function test_scheduler_heartbeat_is_unknown_until_the_scheduler_has_run(): void
+    {
+        $check = $this->checkById('scheduler.heartbeat');
+
+        $this->assertSame('unknown', $check['status']);
+        $this->assertSame('Scheduler and workers', $check['group']);
+        $this->assertSame('Scheduler has not run yet.', $check['hint']);
+        $this->assertStringContainsString('schedule:run', (string) $check['fix']);
+    }
+
+    public function test_fresh_scheduler_heartbeat_is_healthy(): void
+    {
+        app(Heartbeat::class)->beat(Heartbeat::SCHEDULER);
+
+        $check = $this->checkById('scheduler.heartbeat');
+
+        $this->assertSame('healthy', $check['status']);
+        $this->assertStringStartsWith('last run', (string) $check['value']);
+        $this->assertNull($check['fix']);
+    }
+
+    public function test_stale_scheduler_heartbeat_warns_outside_production(): void
+    {
+        $this->travelTo(now()->subMinutes(5));
+        app(Heartbeat::class)->beat(Heartbeat::SCHEDULER);
+        $this->travelBack();
+
+        $check = $this->checkById('scheduler.heartbeat');
+
+        $this->assertSame('warning', $check['status']);
+        $this->assertStringContainsString('5 minutes ago', (string) $check['value']);
+    }
+
+    public function test_stale_scheduler_heartbeat_is_critical_in_production(): void
+    {
+        $this->travelTo(now()->subMinutes(5));
+        app(Heartbeat::class)->beat(Heartbeat::SCHEDULER);
+        $this->travelBack();
+        $this->app['env'] = 'production';
+
+        $this->assertSame('critical', $this->checkById('scheduler.heartbeat')['status']);
+    }
+
+    public function test_scheduler_heartbeat_threshold_is_configurable(): void
+    {
+        config(['opconsole.heartbeats.scheduler_max_age' => 600]);
+        $this->travelTo(now()->subMinutes(5));
+        app(Heartbeat::class)->beat(Heartbeat::SCHEDULER);
+        $this->travelBack();
+
+        $this->assertSame('healthy', $this->checkById('scheduler.heartbeat')['status']);
+    }
+
+    public function test_scheduler_heartbeat_check_is_omitted_when_disabled(): void
+    {
+        config(['opconsole.heartbeats.scheduler' => false]);
+
+        $this->assertNull($this->checkById('scheduler.heartbeat'));
+    }
+
+    public function test_scheduled_callback_writes_the_scheduler_heartbeat(): void
+    {
+        $event = collect($this->app->make(Schedule::class)->events())
+            ->first(fn ($event) => $event->description === 'opconsole:heartbeat:scheduler');
+
+        $this->assertNotNull($event);
+        $this->assertSame('* * * * *', $event->expression);
+
+        $event->run($this->app);
+
+        $this->assertNotNull(app(Heartbeat::class)->last(Heartbeat::SCHEDULER)['at']);
+    }
+
+    public function test_scheduler_heartbeat_is_not_scheduled_when_disabled(): void
+    {
+        config(['opconsole.heartbeats.scheduler' => false]);
+
+        $names = collect($this->app->make(Schedule::class)->events())->pluck('description');
+
+        $this->assertNotContains('opconsole:heartbeat:scheduler', $names);
     }
 }
 
