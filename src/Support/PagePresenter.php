@@ -71,6 +71,7 @@ class PagePresenter
 
         $actions = $this->actions($status, $canRun);
         $checks = $this->checks($status['checks']) + ['lastChecked' => $this->lastChecked($status['checkedAt'] ?? null)];
+        $history = $this->history($status['history']);
 
         return [
             'assets' => $this->assets(),
@@ -84,7 +85,9 @@ class PagePresenter
             'advice' => $this->advice($status['advice'], $actions),
             'actions' => $actions,
             'checks' => $checks,
-            'history' => $this->history($status['history']),
+            'history' => $history,
+            'tabs' => $this->tabs($status, $actions, $history, $output !== null),
+            'theme' => $this->theme(),
             'info' => $status['info'],
             'infoText' => collect($status['info'])
                 ->map(fn ($rows, $group) => "== $group\n".collect($rows)->map(fn ($value, $label) => "$label: $value")->implode("\n"))
@@ -100,6 +103,67 @@ class PagePresenter
             'backUrl' => config('opconsole.back_url'),
             'backLabel' => config('opconsole.back_label', 'Dashboard'),
         ];
+    }
+
+    /**
+     * Section tabs with attention badges, plus the tab that opens first: Actions right after an
+     * operation ran (so its output is visible), Health when a check is critical, otherwise the first tab.
+     *
+     * @return array{items: array<string, array{label: string, icon: string, hash: string, badge: ?string, badgeLabel: ?string, tone: string}>, default: string}
+     */
+    private function tabs(array $status, array $actions, array $history, bool $hasOutput): array
+    {
+        $checks = collect($status['checks']);
+        $critical = $checks->where('status', 'critical')->count();
+        // Same rule as the Health tile: informational warnings are not counted as problems.
+        $problems = $critical + $checks->filter(fn (array $c) => $c['status'] === 'warning' && $c['severity'] !== 'info')->count();
+        $pending = isset($actions['migrate']) ? count($status['database']['pending'] ?? []) : 0;
+        $failedAction = collect($actions)->contains(fn (array $action) => ($action['last']['ok'] ?? true) === false);
+        $historyCount = $history['available'] ? count($history['items']) : 0;
+        $errors = (int) ($status['errors']['count'] ?? 0);
+
+        $badge = fn (int $count, string $key) => $count > 0
+            ? ['badge' => (string) $count, 'badgeLabel' => trans_choice('opconsole::opconsole.'.$key, $count, ['count' => $count])]
+            : ['badge' => null, 'badgeLabel' => null];
+
+        $actionsBadge = $pending > 0
+            ? $badge($pending, 'tab_badge_pending_migrations') + ['tone' => 'is-warning']
+            : ($failedAction
+                ? ['badge' => '!', 'badgeLabel' => __('opconsole::opconsole.tab_badge_failed_action'), 'tone' => 'is-bad']
+                : ['badge' => null, 'badgeLabel' => null, 'tone' => '']);
+
+        $items = array_filter([
+            'actions' => ($actions !== [] || $hasOutput)
+                ? ['label' => __('opconsole::opconsole.tab_actions'), 'icon' => 'terminal', 'hash' => 'actions'] + $actionsBadge
+                : null,
+            'health' => ['label' => __('opconsole::opconsole.tab_health'), 'icon' => 'heart-rate', 'hash' => 'checks', 'tone' => $critical ? 'is-bad' : 'is-warning']
+                + $badge($problems, 'tab_badge_health'),
+            'history' => ['label' => __('opconsole::opconsole.tab_history'), 'icon' => 'clock', 'hash' => 'history', 'tone' => 'is-neutral']
+                + $badge($historyCount, 'tab_badge_history'),
+            'logs' => ['label' => __('opconsole::opconsole.tab_logs'), 'icon' => 'file-text', 'hash' => 'logs', 'tone' => 'is-bad']
+                + $badge($errors, 'tab_badge_errors'),
+            'system' => ['label' => __('opconsole::opconsole.tab_system'), 'icon' => 'info', 'hash' => 'system-info', 'tone' => '', 'badge' => null, 'badgeLabel' => null],
+        ]);
+
+        $default = match (true) {
+            $hasOutput && isset($items['actions']) => 'actions',
+            $critical > 0 => 'health',
+            default => (string) array_key_first($items),
+        };
+
+        return ['items' => $items, 'default' => $default];
+    }
+
+    /** @return 'auto'|'light'|'dark' */
+    private function theme(): string
+    {
+        $theme = config('opconsole.theme');
+
+        if (in_array($theme, ['auto', 'light', 'dark'], true)) {
+            return $theme;
+        }
+
+        return config('opconsole.layout') ? 'light' : 'auto';
     }
 
     /** @return array{css: string, js: string} */

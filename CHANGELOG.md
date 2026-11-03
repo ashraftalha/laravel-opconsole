@@ -4,6 +4,14 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-03
+
+### Added
+- **Section tabs:** The dashboard groups its sections into Actions, Health, History, Logs, and System tabs below the status tiles. Tabs carry attention badges (pending migrations or a failed last action, health checks needing attention, recent operations, errors in the last 24 hours) with screen-reader text. Actions opens first after an operation runs, Health opens first when a check is critical, and otherwise the last tab used is remembered. Existing anchors (`#checks`, `#history`, `#logs`, `#action-*`) switch to the right tab, log filters stay on Logs, and arrow/Home/End keys move between tabs. Without JavaScript every section still renders in page order.
+- **Dark mode (`theme`, `OPCONSOLE_THEME`):** `auto` follows the system setting, `light` or `dark` force one. Defaults to `auto` for the standalone layout and `light` when embedded in a host layout. All colors are now CSS custom properties.
+- **`--oc-tabs-offset` CSS variable:** Host layouts with a fixed header can set it so the sticky tab bar sits below their header.
+- New language strings: `tabs_label`, `tab_*`, `tab_badge_*`.
+
 ## [1.2.0] - 2026-11-03
 
 ### Added

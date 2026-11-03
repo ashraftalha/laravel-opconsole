@@ -50,6 +50,34 @@ class DashboardTest extends TestCase
         $this->get('/admin/opconsole')->assertSee('/admin/dashboard', false);
     }
 
+    public function test_section_tabs_render_with_panels_for_every_section(): void
+    {
+        $this->actingAsUser();
+
+        $response = $this->get('/admin/opconsole')->assertOk();
+
+        $response->assertSee('role="tablist"', false)
+            ->assertSee('data-oc-tabs-wrap hidden', false)
+            ->assertSee('<html lang="en" dir="ltr" data-oc-theme="auto">', false);
+
+        foreach (['actions', 'health', 'history', 'logs', 'system'] as $key) {
+            $response->assertSee('id="oc-tab-'.$key.'"', false)
+                ->assertSee('id="oc-panel-'.$key.'"', false);
+        }
+
+        // Existing anchors keep working as tab targets.
+        $response->assertSee('data-oc-hash="checks"', false)
+            ->assertSee('id="system-info"', false);
+    }
+
+    public function test_theme_can_be_forced_from_config(): void
+    {
+        $this->app['config']->set('opconsole.theme', 'dark');
+        $this->actingAsUser();
+
+        $this->get('/admin/opconsole')->assertSee('data-oc-theme="dark"', false);
+    }
+
     public function test_disabled_actions_are_not_rendered(): void
     {
         $this->app['config']->set('opconsole.actions.migrate', false);
@@ -112,7 +140,8 @@ class DashboardTest extends TestCase
                 ->assertSee('data-host-shell', false)
                 ->assertSee('/admin/opconsole/assets/opconsole.css', false)
                 ->assertSee('/admin/opconsole/assets/opconsole.js', false)
-                ->assertSee('id="opconsole-confirm-modal"', false);
+                ->assertSee('id="opconsole-confirm-modal"', false)
+                ->assertSee('class="oc-embedded-shell" data-oc-theme="light"', false);
         } finally {
             File::deleteDirectory($viewDir);
         }

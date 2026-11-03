@@ -284,7 +284,7 @@
 
             var preferred = tablist.dataset.ocDefault;
             // The server picks "actions" after an action ran and "health" when a check is critical.
-            if (preferred === 'actions' && document.querySelector('[aria-label="Last operation output"]')) {
+            if (preferred === 'actions' && document.querySelector('[data-oc-output]')) {
                 return tabFor('actions') || tabs[0];
             }
             if (preferred === 'health') return tabFor('health') || tabs[0];
@@ -292,9 +292,22 @@
             return tabFor(stored()) || tabFor(preferred) || tabs[0];
         }
 
+        var wrap = tablist.closest('[data-oc-tabs-wrap]');
         shell.classList.add('oc-tabbed');
         tablist.hidden = false;
+        if (wrap) wrap.hidden = false;
         activate(initialTab());
+
+        // Fade the edge(s) of the tab bar that hide more tabs on narrow screens.
+        function updateOverflow() {
+            var max = tablist.scrollWidth - tablist.clientWidth;
+            var pos = Math.abs(tablist.scrollLeft); // negative in RTL
+            tablist.classList.toggle('has-more-start', max > 1 && pos > 1);
+            tablist.classList.toggle('has-more-end', max > 1 && pos < max - 1);
+        }
+        tablist.addEventListener('scroll', updateOverflow, { passive: true });
+        window.addEventListener('resize', updateOverflow);
+        updateOverflow();
 
         tabs.forEach(function (tab, index) {
             tab.addEventListener('click', function () {

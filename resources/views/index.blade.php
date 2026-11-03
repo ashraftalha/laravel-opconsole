@@ -13,7 +13,7 @@
 @endif
 
 @section('content')
-    <div class="oc-embedded-shell">
+    <div class="oc-embedded-shell" data-oc-theme="{{ $theme }}">
         @if ($layout)
             @include('opconsole::partials.flash')
         @endif
@@ -84,32 +84,21 @@
             </section>
 
             {{-- Section tabs: progressive enhancement. Without JavaScript every panel stays visible in page order. --}}
-            @php
-                $hasActionsTab = count($actions) > 0 || $output;
-                $healthProblems = collect($checks['groups'])->flatMap(fn ($group) => $group['items'])
-                    ->whereIn('status', ['warning', 'critical'])->count();
-                $healthCritical = collect($checks['groups'])->flatMap(fn ($group) => $group['items'])
-                    ->where('status', 'critical')->count();
-                $tabs = array_filter([
-                    'actions' => $hasActionsTab ? ['label' => 'Actions', 'icon' => 'terminal', 'hash' => 'actions', 'badge' => null, 'tone' => ''] : null,
-                    'health' => ['label' => 'Health', 'icon' => 'heart-rate', 'hash' => 'checks', 'badge' => $healthProblems ?: null, 'tone' => $healthCritical ? 'is-bad' : ($healthProblems ? 'is-warning' : '')],
-                    'history' => ['label' => 'History', 'icon' => 'clock', 'hash' => 'history', 'badge' => $history['available'] && count($history['items']) ? count($history['items']) : null, 'tone' => 'is-neutral'],
-                    'logs' => ['label' => 'Logs', 'icon' => 'file-text', 'hash' => 'logs', 'badge' => null, 'tone' => ''],
-                    'system' => ['label' => 'System', 'icon' => 'info', 'hash' => 'system-info', 'badge' => null, 'tone' => ''],
-                ]);
-                $defaultTab = $output ? 'actions' : ($healthCritical ? 'health' : array_key_first($tabs));
-            @endphp
-            <nav class="oc-tabs" role="tablist" aria-label="OpConsole sections" data-oc-tabs data-oc-default="{{ $defaultTab }}" hidden>
-                @foreach ($tabs as $key => $tab)
-                    <button type="button" class="oc-tab" role="tab" id="oc-tab-{{ $key }}" aria-controls="oc-panel-{{ $key }}" aria-selected="false" tabindex="-1" data-oc-tab="{{ $key }}" data-oc-hash="{{ $tab['hash'] }}">
-                        @include('opconsole::partials.icon', ['name' => $tab['icon']])
-                        <span>{{ $tab['label'] }}</span>
-                        @if ($tab['badge'])
-                            <span class="oc-tab-badge {{ $tab['tone'] }}">{{ $tab['badge'] }}</span>
-                        @endif
-                    </button>
-                @endforeach
-            </nav>
+            @php($hasActionsTab = isset($tabs['items']['actions']))
+            <div class="oc-tabs-wrap" data-oc-tabs-wrap hidden>
+                <nav class="oc-tabs" role="tablist" aria-label="{{ __('opconsole::opconsole.tabs_label') }}" data-oc-tabs data-oc-default="{{ $tabs['default'] }}">
+                    @foreach ($tabs['items'] as $key => $tab)
+                        <button type="button" class="oc-tab" role="tab" id="oc-tab-{{ $key }}" aria-controls="oc-panel-{{ $key }}" aria-selected="false" tabindex="-1" data-oc-tab="{{ $key }}" data-oc-hash="{{ $tab['hash'] }}">
+                            @include('opconsole::partials.icon', ['name' => $tab['icon']])
+                            <span>{{ $tab['label'] }}</span>
+                            @if ($tab['badge'] !== null)
+                                <span class="oc-tab-badge {{ $tab['tone'] }}" aria-hidden="true" title="{{ $tab['badgeLabel'] }}">{{ $tab['badge'] }}</span>
+                                <span class="oc-sr-only">({{ $tab['badgeLabel'] }})</span>
+                            @endif
+                        </button>
+                    @endforeach
+                </nav>
+            </div>
 
             @if ($hasActionsTab)
             <div class="oc-tab-panel" id="oc-panel-actions" role="tabpanel" aria-labelledby="oc-tab-actions" data-oc-panel="actions">
@@ -172,7 +161,7 @@
 
             {{-- Output of the last action --}}
             @if ($output)
-                <section class="oc-section" aria-label="Last operation output">
+                <section class="oc-section" aria-label="Last operation output" data-oc-output>
                     <div class="oc-section-head">
                         <b>@include('opconsole::partials.icon', ['name' => 'terminal'])</b>
                         <div>

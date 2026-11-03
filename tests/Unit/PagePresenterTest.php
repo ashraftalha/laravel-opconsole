@@ -54,6 +54,102 @@ class PagePresenterTest extends TestCase
         $this->assertSame('URL and email', $groups[0]['name']);
     }
 
+    private function presentTabs(array $checks = [], array $actions = ['clear' => ['last' => null]], int $pending = 0, int $errors = 0, int $history = 0, bool $hasOutput = false): array
+    {
+        $presenter = new PagePresenter;
+        $method = new \ReflectionMethod($presenter, 'tabs');
+
+        return $method->invoke(
+            $presenter,
+            ['checks' => $checks, 'database' => ['pending' => array_fill(0, $pending, 'migration')], 'errors' => ['count' => $errors]],
+            $actions,
+            ['available' => true, 'items' => array_fill(0, $history, [])],
+            $hasOutput,
+        );
+    }
+
+    public function test_tabs_are_listed_in_order_with_health_badges_counting_only_real_problems(): void
+    {
+        $info = $this->check('PHP settings', 'warning');
+        $info['severity'] = 'info';
+
+        $tabs = $this->presentTabs([$this->check('Security', 'warning'), $this->check('Security', 'healthy'), $info]);
+
+        $this->assertSame(['actions', 'health', 'history', 'logs', 'system'], array_keys($tabs['items']));
+        $this->assertSame('1', $tabs['items']['health']['badge']);
+        $this->assertSame('is-warning', $tabs['items']['health']['tone']);
+        $this->assertSame('1 check needs attention', $tabs['items']['health']['badgeLabel']);
+        $this->assertSame('actions', $tabs['default']);
+    }
+
+    public function test_critical_checks_open_the_health_tab_with_a_red_badge(): void
+    {
+        $tabs = $this->presentTabs([$this->check('Security', 'critical'), $this->check('PHP settings', 'warning')]);
+
+        $this->assertSame('2', $tabs['items']['health']['badge']);
+        $this->assertSame('is-bad', $tabs['items']['health']['tone']);
+        $this->assertSame('health', $tabs['default']);
+    }
+
+    public function test_action_output_opens_the_actions_tab_even_with_critical_checks(): void
+    {
+        $tabs = $this->presentTabs([$this->check('Security', 'critical')], hasOutput: true);
+
+        $this->assertSame('actions', $tabs['default']);
+    }
+
+    public function test_actions_badge_shows_pending_migrations_then_a_failed_last_run(): void
+    {
+        $pending = $this->presentTabs(actions: ['migrate' => ['last' => null]], pending: 3);
+        $this->assertSame('3', $pending['items']['actions']['badge']);
+        $this->assertSame('3 pending migrations', $pending['items']['actions']['badgeLabel']);
+
+        $failed = $this->presentTabs(actions: ['clear' => ['last' => ['ok' => false, 'text' => 'failed']]]);
+        $this->assertSame('!', $failed['items']['actions']['badge']);
+        $this->assertSame('is-bad', $failed['items']['actions']['tone']);
+
+        // Pending migrations are not counted when the migrate action is disabled.
+        $this->assertNull($this->presentTabs(pending: 3)['items']['actions']['badge']);
+    }
+
+    public function test_logs_and_history_badges_and_empty_states(): void
+    {
+        $busy = $this->presentTabs(errors: 4, history: 5);
+        $this->assertSame('4', $busy['items']['logs']['badge']);
+        $this->assertSame('4 errors in the last 24 hours', $busy['items']['logs']['badgeLabel']);
+        $this->assertSame('5', $busy['items']['history']['badge']);
+
+        $quiet = $this->presentTabs();
+        foreach (['health', 'history', 'logs', 'system'] as $key) {
+            $this->assertNull($quiet['items'][$key]['badge'], $key);
+        }
+    }
+
+    public function test_actions_tab_is_omitted_without_actions_or_output(): void
+    {
+        $tabs = $this->presentTabs(actions: []);
+
+        $this->assertArrayNotHasKey('actions', $tabs['items']);
+        $this->assertSame('health', $tabs['default']);
+    }
+
+    public function test_theme_defaults_to_auto_standalone_and_light_when_embedded(): void
+    {
+        $presenter = new PagePresenter;
+        $method = new \ReflectionMethod($presenter, 'theme');
+
+        $this->assertSame('auto', $method->invoke($presenter));
+
+        $this->app['config']->set('opconsole.layout', 'host-shell');
+        $this->assertSame('light', $method->invoke($presenter));
+
+        $this->app['config']->set('opconsole.theme', 'dark');
+        $this->assertSame('dark', $method->invoke($presenter));
+
+        $this->app['config']->set('opconsole.theme', 'neon');
+        $this->assertSame('light', $method->invoke($presenter));
+    }
+
     public function test_plain_text_is_escaped(): void
     {
         $this->assertSame('&lt;script&gt;', $this->highlight('<script>', ''));

@@ -185,6 +185,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Color theme
+    |--------------------------------------------------------------------------
+    | 'auto' follows the visitor's system light/dark setting, 'light' or 'dark'
+    | force one. Null uses 'auto' for the standalone layout and 'light' when
+    | embedded in your own layout, so the console never clashes with a light host.
+    */
+    'theme' => env('OPCONSOLE_THEME'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Back link
     |--------------------------------------------------------------------------
     | Optional link back to your own admin dashboard. Hidden when null.
