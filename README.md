@@ -9,6 +9,14 @@
 <a href="LICENSE"><img src="https://img.shields.io/packagist/l/ashraftalha/laravel-opconsole" alt="License"></a>
 </p>
 
+## Features
+
+- **Health checks:** files, PHP, security, database and queues, scheduler and queue worker heartbeats, cache round trip, production caches, maintenance mode, storage link. Anything not verified shows as `unknown`, never healthy.
+- **Safe actions:** clear caches, optimize, run migrations, maintenance mode on/off (with a one-time bypass URL), and an optional storage link. All behind Gates, a lock, and a confirmation dialog.
+- **Audit history:** who ran what, when, and how long it took.
+- **Log viewer:** filter by environment and level, search, download, delete old files.
+- **Monitoring:** `php artisan opconsole:health` for CI and cron, and an optional token-protected `/health` JSON endpoint for uptime monitors.
+
 ## Requirements
 
 - PHP 8.3+
@@ -108,7 +116,13 @@ OPCONSOLE_ENABLED=true
 OPCONSOLE_ROUTE_PREFIX=admin/opconsole
 OPCONSOLE_LOCK_STORE=opconsole
 OPCONSOLE_HISTORY_LIMIT=15
+
+# Optional uptime endpoint: GET /admin/opconsole/health with "Authorization: Bearer <token>"
+OPCONSOLE_HEALTH_ENDPOINT=true
+OPCONSOLE_HEALTH_TOKEN=change-me-to-a-long-random-string
 ```
+
+Heartbeat checks need the scheduler running (`* * * * * php artisan schedule:run`) and, for the queue check, a worker (`php artisan queue:work`).
 
 Use an isolated `redis` or `database` store for `OPCONSOLE_LOCK_STORE` on multi-server deployments. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every option.
 
@@ -117,6 +131,16 @@ Use an isolated `redis` or `database` store for `OPCONSOLE_LOCK_STORE` on multi-
 ```bash
 composer test
 ```
+
+## Roadmap
+
+- [x] Accurate action durations
+- [x] Scheduler and queue worker heartbeats
+- [x] Cache round-trip and production cache checks
+- [x] Maintenance mode check and down/up actions
+- [x] Storage link check and action
+- [x] `opconsole:health` command and JSON health endpoint
+- [x] Last-checked time, disk percentage warning, group ordering
 
 ## Changelog
 
