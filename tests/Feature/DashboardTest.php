@@ -231,4 +231,42 @@ class DashboardTest extends TestCase
 
         $this->get('/admin/opconsole')->assertOk()->assertSee('Last checked');
     }
+
+    public function test_theme_toggle_is_rendered_by_default(): void
+    {
+        $this->actingAsUser();
+
+        $this->get('/admin/opconsole')->assertOk()->assertSee('data-oc-theme-toggle', false);
+    }
+
+    public function test_theme_cookie_from_the_toggle_overrides_the_configured_theme(): void
+    {
+        config(['opconsole.theme' => 'light']);
+        $this->actingAsUser();
+
+        $html = $this->withUnencryptedCookie('opconsole_theme', 'dark')->get('/admin/opconsole')->assertOk()->getContent();
+
+        $this->assertStringContainsString('<html lang="en" dir="ltr" data-oc-theme="dark">', $html);
+        $this->assertStringContainsString('class="oc-embedded-shell" data-oc-theme="dark"', $html);
+    }
+
+    public function test_invalid_theme_cookie_values_are_ignored(): void
+    {
+        config(['opconsole.theme' => 'light']);
+        $this->actingAsUser();
+
+        $this->withUnencryptedCookie('opconsole_theme', '"><script>')->get('/admin/opconsole')->assertOk()
+            ->assertSee('data-oc-theme="light"', false)
+            ->assertDontSee('"><script>', false);
+    }
+
+    public function test_disabling_the_toggle_hides_it_and_ignores_the_cookie(): void
+    {
+        config(['opconsole.theme' => 'light', 'opconsole.theme_toggle' => false]);
+        $this->actingAsUser();
+
+        $this->withUnencryptedCookie('opconsole_theme', 'dark')->get('/admin/opconsole')->assertOk()
+            ->assertDontSee('data-oc-theme-toggle', false)
+            ->assertSee('data-oc-theme="light"', false);
+    }
 }

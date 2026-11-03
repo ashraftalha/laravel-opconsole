@@ -36,10 +36,18 @@
                 </div>
                 <p class="oc-subtitle">Monitor. Diagnose. Maintain.</p>
             </div>
-            <a href="{{ $indexUrl }}" class="oc-btn oc-btn-soft-primary">
-                @include('opconsole::partials.icon', ['name' => 'refresh'])
-                <span>Refresh status</span>
-            </a>
+            <div class="oc-header-actions">
+                @if ($themeToggle)
+                    <button type="button" class="oc-btn oc-btn-soft-secondary oc-theme-toggle" data-oc-theme-toggle hidden aria-label="Switch theme" title="Switch theme">
+                        <span class="oc-theme-icon-dark">@include('opconsole::partials.icon', ['name' => 'moon'])</span>
+                        <span class="oc-theme-icon-light">@include('opconsole::partials.icon', ['name' => 'sun'])</span>
+                    </button>
+                @endif
+                <a href="{{ $indexUrl }}" class="oc-btn oc-btn-soft-primary">
+                    @include('opconsole::partials.icon', ['name' => 'refresh'])
+                    <span>Refresh status</span>
+                </a>
+            </div>
         </header>
 
         <div class="oc-workspace">

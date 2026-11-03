@@ -192,6 +192,13 @@ body.oc-standalone {
 
 /* ---- Header ---- */
 .oc-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; }
+.oc-header-actions { display: flex; align-items: center; gap: 0.5rem; }
+.oc-theme-toggle { padding-inline: 0.7rem; }
+.oc-theme-toggle[hidden] { display: none; }
+/* The icon shows the theme a click switches to. */
+.oc-theme-toggle .oc-theme-icon-light { display: none; }
+.oc-theme-toggle.is-dark .oc-theme-icon-light { display: inline-flex; }
+.oc-theme-toggle.is-dark .oc-theme-icon-dark { display: none; }
 .oc-back-link { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--oc-muted); font-size: 0.84rem; font-weight: 600; text-decoration: none; margin-bottom: 0.35rem; }
 .oc-back-link:hover { color: var(--oc-primary); text-decoration: underline; }
 .oc-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.65rem; }

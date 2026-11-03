@@ -4,6 +4,11 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-03
+
+### Added
+- **Theme toggle (`theme_toggle`, `OPCONSOLE_THEME_TOGGLE`):** A light/dark switch in the header. The choice is saved per browser in the plain `opconsole_theme` cookie (excluded from cookie encryption) and rendered server-side, so the page loads in the chosen theme with no flash and no inline script. Enabled by default.
+
 ## [1.4.0] - 2026-11-03
 
 ### Added

@@ -193,6 +193,9 @@ return [
     */
     'theme' => env('OPCONSOLE_THEME'),
 
+    // Light/dark switch in the header; the choice is remembered per browser in a cookie.
+    'theme_toggle' => (bool) env('OPCONSOLE_THEME_TOGGLE', true),
+
     /*
     |--------------------------------------------------------------------------
     | Back link

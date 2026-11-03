@@ -88,6 +88,7 @@ class PagePresenter
             'history' => $history,
             'tabs' => $this->tabs($status, $actions, $history, $output !== null),
             'theme' => $this->theme(),
+            'themeToggle' => (bool) config('opconsole.theme_toggle', true),
             'info' => $status['info'],
             'infoText' => collect($status['info'])
                 ->map(fn ($rows, $group) => "== $group\n".collect($rows)->map(fn ($value, $label) => "$label: $value")->implode("\n"))
@@ -154,9 +155,19 @@ class PagePresenter
         return ['items' => $items, 'default' => $default];
     }
 
+    /** The visitor's toggle choice (plain cookie written by opconsole.js) wins over the configured default. */
+    public const THEME_COOKIE = 'opconsole_theme';
+
     /** @return 'auto'|'light'|'dark' */
     private function theme(): string
     {
+        if (config('opconsole.theme_toggle', true)) {
+            $chosen = request()->cookie(self::THEME_COOKIE);
+            if ($chosen === 'light' || $chosen === 'dark') {
+                return $chosen;
+            }
+        }
+
         $theme = config('opconsole.theme');
 
         if (in_array($theme, ['auto', 'light', 'dark'], true)) {

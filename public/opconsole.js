@@ -8,7 +8,45 @@
         initAlertDismiss();
         initHashReveal();
         initTabs();
+        initThemeToggle();
     });
+
+    function initThemeToggle() {
+        var button = document.querySelector('[data-oc-theme-toggle]');
+        if (!button) return;
+
+        var shell = button.closest('[data-oc-theme]');
+        var root = document.documentElement;
+        var media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+        function effective() {
+            var theme = shell ? shell.getAttribute('data-oc-theme') : 'auto';
+            if (theme === 'light' || theme === 'dark') return theme;
+            return media && media.matches ? 'dark' : 'light';
+        }
+
+        function render() {
+            var dark = effective() === 'dark';
+            var label = dark ? 'Switch to light theme' : 'Switch to dark theme';
+            button.classList.toggle('is-dark', dark);
+            button.setAttribute('aria-label', label);
+            button.title = label;
+            button.setAttribute('aria-pressed', dark ? 'true' : 'false');
+        }
+
+        button.addEventListener('click', function () {
+            var next = effective() === 'dark' ? 'light' : 'dark';
+            if (shell) shell.setAttribute('data-oc-theme', next);
+            if (root.hasAttribute('data-oc-theme')) root.setAttribute('data-oc-theme', next);
+            document.cookie = 'opconsole_theme=' + next + '; path=/; max-age=31536000; SameSite=Lax';
+            render();
+        });
+
+        if (media && media.addEventListener) media.addEventListener('change', render);
+
+        button.hidden = false;
+        render();
+    }
 
     function initConfirmDialog() {
         var dialog = document.getElementById('opconsole-confirm-modal');
