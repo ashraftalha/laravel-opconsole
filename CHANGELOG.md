@@ -4,6 +4,8 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-03
+
 ### Added
 - **Scheduler heartbeat (`scheduler.heartbeat`):** The service provider schedules a callback every minute that writes `opconsole:heartbeat:scheduler` to the heartbeat cache store. The new "Scheduler and workers" check is healthy within `heartbeats.scheduler_max_age` (default 120 s), a warning when stale outside production, critical in production, and `unknown` until the first beat.
 - **Queue worker heartbeat (`queue.worker_heartbeat`):** The scheduler dispatches `OpConsoleHeartbeatJob` every minute on a configurable connection and queue; the worker writes `opconsole:heartbeat:queue`. Healthy within `heartbeats.queue_max_age` (default 300 s), warning/critical when stale with fix `php artisan queue:work`, `unknown` while the scheduler is not confirmed running, and skipped for `sync`/`null` drivers. Unlike `queue.stuck_jobs`, it works with Redis, SQS, and any other driver.
