@@ -61,7 +61,7 @@
             </section>
 
             {{-- What to do next, most urgent first --}}
-            <section aria-label="Operational recommendations" class="oc-advice-list" data-advice-count="{{ count($advice) }}">
+            <section aria-label="Operational recommendations" class="oc-advice-list">
                 @forelse ($advice as $item)
                     <div class="oc-advice {{ $item['class'] }}">
                         @include('opconsole::partials.icon', ['name' => $item['icon']])
@@ -170,7 +170,7 @@
                         <h2>Health checks</h2>
                         <small>Application and environment diagnostics, critical issues listed first</small>
                     </div>
-                    <span class="oc-checks-summary {{ $checks['tone'] }} oc-ms-auto" data-checks-summary>{{ $checks['summary'] }}</span>
+                    <span class="oc-checks-summary {{ $checks['tone'] }} oc-ms-auto">{{ $checks['summary'] }}</span>
                     <span class="oc-check-chevron">@include('opconsole::partials.icon', ['name' => 'chevron-down'])</span>
                 </summary>
                 <div class="oc-section-body">
@@ -182,18 +182,18 @@
                             </h3>
                             <ul class="oc-checks oc-checks-grid">
                                 @foreach ($group['items'] as $check)
-                                    <li class="{{ $check['class'] }}" data-check-id="{{ $check['id'] }}" data-check-status="{{ $check['statusKey'] }}">
+                                    <li class="{{ $check['class'] }}">
                                         <span class="oc-check-icon">@include('opconsole::partials.icon', ['name' => $check['icon']])</span>
                                         <div>
                                             <div class="oc-check-title-row">
                                                 <strong>{{ $check['label'] }}</strong>
-                                                @if ($check['statusKey'] !== 'healthy')
+                                                @if ($check['status'] !== 'healthy')
                                                     <span class="oc-status-pill {{ $check['class'] }}">{{ $check['badge'] }}</span>
                                                 @endif
                                             </div>
                                             <small>{{ $check['hint'] }}</small>
                                             @if ($check['value'])<code class="oc-check-value" dir="ltr">{{ $check['value'] }}</code>@endif
-                                            @if ($check['fix'] && (! $check['ok'] || $check['statusKey'] === 'unknown'))
+                                            @if ($check['fix'] && (! $check['ok'] || $check['status'] === 'unknown'))
                                                 <span class="oc-check-fix"><span>Fix:</span> <code dir="ltr">{{ $check['fix'] }}</code></span>
                                             @endif
                                         </div>
@@ -347,7 +347,7 @@
                             <div class="oc-log-toolbar">
                                 <div class="oc-log-levels" role="group" aria-label="Filter by environment">
                                     @foreach ($log['envChips'] as $chip)
-                                        <a href="{{ $chip['url'] }}" @class(['oc-chip', 'is-active' => $chip['active']]) @if ($chip['active']) aria-current="true" @endif @if ($chip['env']) data-env="{{ $chip['env'] }}" @endif>
+                                        <a href="{{ $chip['url'] }}" @class(['oc-chip', 'is-active' => $chip['active']]) @if ($chip['active']) aria-current="true" @endif>
                                             <span>{{ $chip['label'] }}</span> <b>{{ $chip['count'] }}</b>
                                         </a>
                                     @endforeach
@@ -358,7 +358,7 @@
                         <div class="oc-log-toolbar">
                             <div class="oc-log-levels" role="group" aria-label="Filter by log level">
                                 @foreach ($log['levelChips'] as $chip)
-                                    <a href="{{ $chip['url'] }}" @class(['oc-chip', $chip['style'], 'is-active' => $chip['active']]) @if ($chip['active']) aria-current="true" @endif @if ($chip['level']) data-level="{{ $chip['level'] }}" @endif>
+                                    <a href="{{ $chip['url'] }}" @class(['oc-chip', $chip['style'], 'is-active' => $chip['active']]) @if ($chip['active']) aria-current="true" @endif>
                                         <span>{{ $chip['label'] }}</span> <b>{{ $chip['count'] }}</b>
                                     </a>
                                 @endforeach
@@ -386,7 +386,7 @@
                             @endif
                         </div>
 
-                        <p class="oc-log-summary" data-log-summary>
+                        <p class="oc-log-summary">
                             <span>{{ $log['summary'] }}</span>
                             @if ($log['truncated'])
                                 <span>· Showing the latest 2 MB tail only. Download the file to inspect older entries.</span>

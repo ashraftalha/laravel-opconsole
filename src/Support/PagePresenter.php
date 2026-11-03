@@ -65,16 +65,11 @@ class PagePresenter
                 'production' => $status['app']['production'],
                 'debug' => $status['app']['debug'],
             ],
-            'permissions' => [
-                'run' => $canRun,
-                'download' => $canDownload,
-                'delete' => $canDelete,
-            ],
             'tiles' => $this->tiles($status, $actions),
             'advice' => $this->advice($status['advice'], $actions),
             'actions' => $actions,
             'checks' => $checks,
-            'history' => $this->history($status['history'] ?? ['available' => false, 'items' => []]),
+            'history' => $this->history($status['history']),
             'info' => $status['info'],
             'infoText' => collect($status['info'])
                 ->map(fn ($rows, $group) => "== $group\n".collect($rows)->map(fn ($value, $label) => "$label: $value")->implode("\n"))
@@ -83,7 +78,7 @@ class PagePresenter
             'output' => $output ? [
                 'title' => $actions[$output['action']]['title'] ?? (self::ACTION_LABELS[$output['action']][0] ?? $output['action']),
                 'text' => $output['text'] ?: '(No output)',
-                'ok' => $output['ok'] ?? true,
+                'ok' => $output['ok'],
             ] : null,
             'logFiles' => $this->files($logFiles, $log, $canDelete),
             'log' => $log ? $this->log($log, $status['app']['environment'], $canDownload) : null,
@@ -110,22 +105,13 @@ class PagePresenter
         return config('opconsole.route.name_prefix', 'opconsole.').$suffix;
     }
 
-    private function checkStatus(array $check): string
-    {
-        return $check['status'] ?? ($check['ok'] ? 'healthy' : (($check['severity'] ?? 'warning') === 'danger' ? 'critical' : 'warning'));
-    }
-
     private function tiles(array $status, array $actions): array
     {
         ['database' => $db, 'checks' => $checks, 'errors' => $errors] = $status;
         $pending = count($db['pending']);
         $allChecks = collect($checks);
-        $failed = $allChecks->filter(function (array $check): bool {
-            $checkStatus = $this->checkStatus($check);
-
-            return $checkStatus === 'critical' || ($checkStatus === 'warning' && ($check['severity'] ?? 'warning') !== 'info');
-        });
-        $unknown = $allChecks->filter(fn (array $c) => $this->checkStatus($c) === 'unknown')->count();
+        $failed = $allChecks->filter(fn (array $c) => $c['status'] === 'critical' || ($c['status'] === 'warning' && $c['severity'] !== 'info'));
+        $unknown = $allChecks->filter(fn (array $c) => $c['status'] === 'unknown')->count();
 
         $checksSub = count($checks).' checks'.($unknown ? ' · '.$unknown.' unverified' : '');
 
@@ -143,7 +129,7 @@ class PagePresenter
                 'value' => $failed->isEmpty() ? 'Healthy' : $failed->count().' '.($failed->count() === 1 ? 'alert' : 'alerts'),
                 'sub' => $checksSub,
                 'icon' => 'heart-rate',
-                'tone' => $failed->contains(fn (array $c) => $this->checkStatus($c) === 'critical')
+                'tone' => $failed->contains(fn (array $c) => $c['status'] === 'critical')
                     ? 'is-bad'
                     : ($failed->isEmpty() ? 'is-ok' : 'is-warning'),
                 'link' => '#checks',
@@ -162,14 +148,14 @@ class PagePresenter
     /** Checks grouped by area, critical problems first across both groups and items, with explicit status distinction. */
     private function checks(array $checks): array
     {
-        $order = fn (array $check): int => match ($this->checkStatus($check)) {
+        $order = fn (array $check): int => match ($check['status']) {
             'critical' => 0,
             'warning' => $check['severity'] === 'info' ? 2 : 1,
             'unknown' => 3,
             default => 4,
         };
 
-        $style = fn (array $check): array => match ($this->checkStatus($check)) {
+        $style = fn (array $check): array => match ($check['status']) {
             'critical' => ['is-bad', 'x-circle', 'Critical'],
             'warning' => $check['severity'] === 'info'
                 ? ['is-info', 'info', 'Advisory']
@@ -179,11 +165,11 @@ class PagePresenter
         };
 
         $all = collect($checks);
-        $healthyCount = $all->filter(fn (array $c) => $this->checkStatus($c) === 'healthy')->count();
-        $criticalCount = $all->filter(fn (array $c) => $this->checkStatus($c) === 'critical')->count();
-        $warningCount = $all->filter(fn (array $c) => $this->checkStatus($c) === 'warning' && $c['severity'] !== 'info')->count();
-        $advisoryCount = $all->filter(fn (array $c) => $this->checkStatus($c) === 'warning' && $c['severity'] === 'info')->count();
-        $unknownCount = $all->filter(fn (array $c) => $this->checkStatus($c) === 'unknown')->count();
+        $healthyCount = $all->filter(fn (array $c) => $c['status'] === 'healthy')->count();
+        $criticalCount = $all->filter(fn (array $c) => $c['status'] === 'critical')->count();
+        $warningCount = $all->filter(fn (array $c) => $c['status'] === 'warning' && $c['severity'] !== 'info')->count();
+        $advisoryCount = $all->filter(fn (array $c) => $c['status'] === 'warning' && $c['severity'] === 'info')->count();
+        $unknownCount = $all->filter(fn (array $c) => $c['status'] === 'unknown')->count();
         $problems = $criticalCount + $warningCount;
 
         $summaryParts = [$healthyCount.' of '.$all->count().' verified healthy'];
@@ -201,10 +187,10 @@ class PagePresenter
         }
 
         $groups = $all->groupBy('group')->map(function ($group, $name) use ($order, $style) {
-            $groupCritical = $group->filter(fn (array $c) => $this->checkStatus($c) === 'critical')->count();
-            $groupWarning = $group->filter(fn (array $c) => $this->checkStatus($c) === 'warning' && $c['severity'] !== 'info')->count();
-            $groupHealthy = $group->filter(fn (array $c) => $this->checkStatus($c) === 'healthy')->count();
-            $groupUnknown = $group->filter(fn (array $c) => $this->checkStatus($c) === 'unknown')->count();
+            $groupCritical = $group->filter(fn (array $c) => $c['status'] === 'critical')->count();
+            $groupWarning = $group->filter(fn (array $c) => $c['status'] === 'warning' && $c['severity'] !== 'info')->count();
+            $groupHealthy = $group->filter(fn (array $c) => $c['status'] === 'healthy')->count();
+            $groupUnknown = $group->filter(fn (array $c) => $c['status'] === 'unknown')->count();
 
             return [
                 'name' => $name,
@@ -216,7 +202,6 @@ class PagePresenter
                     [$cls, $icon, $badge] = $style($check);
 
                     return $check + [
-                        'statusKey' => $this->checkStatus($check),
                         'class' => $cls,
                         'icon' => $icon,
                         'badge' => $badge,
@@ -372,10 +357,10 @@ class PagePresenter
                 'duration' => $duration,
                 'details' => $detailsParts !== [] ? implode(' · ', $detailsParts) : '—',
             ];
-        }, $history['items'] ?? []);
+        }, $history['items']);
 
         return [
-            'available' => (bool) ($history['available'] ?? false),
+            'available' => $history['available'],
             'items' => $items,
         ];
     }
@@ -410,21 +395,20 @@ class PagePresenter
         )).'#logs';
 
         $envChips = count($log['envs']) > 1 ? [
-            ['label' => 'All environments', 'count' => array_sum($log['envs']), 'url' => $url(['env' => 'all', 'level' => null]), 'active' => $log['env'] === null, 'env' => null],
+            ['label' => 'All environments', 'count' => array_sum($log['envs']), 'url' => $url(['env' => 'all', 'level' => null]), 'active' => $log['env'] === null],
             ...array_map(fn ($env, $count) => [
-                'label' => $env.($env === $currentEnv ? ' (current)' : ''), 'count' => $count, 'url' => $url(['env' => $env, 'level' => null]), 'active' => $log['env'] === $env, 'env' => $env,
+                'label' => $env.($env === $currentEnv ? ' (current)' : ''), 'count' => $count, 'url' => $url(['env' => $env, 'level' => null]), 'active' => $log['env'] === $env,
             ], array_keys($log['envs']), $log['envs']),
         ] : [];
 
         $levelChips = [
-            ['label' => 'All', 'count' => $log['total'], 'url' => $url(['level' => null]), 'active' => ! $log['level'], 'style' => '', 'level' => null],
+            ['label' => 'All', 'count' => $log['total'], 'url' => $url(['level' => null]), 'active' => ! $log['level'], 'style' => ''],
             ...array_map(fn ($level, $count) => [
-                'label' => $level, 'count' => $count, 'url' => $url(['level' => $level]), 'active' => $log['level'] === $level, 'style' => self::LEVEL_STYLES[$level] ?? 'is-muted', 'level' => $level,
+                'label' => $level, 'count' => $count, 'url' => $url(['level' => $level]), 'active' => $log['level'] === $level, 'style' => self::LEVEL_STYLES[$level] ?? 'is-muted',
             ], array_keys($log['counts']), $log['counts']),
         ];
 
         $hasActiveFilters = $log['level'] !== null || $log['search'] !== '' || $log['env'] !== null;
-        $allTotal = $log['allTotal'] ?? $log['total'];
 
         return [
             'name' => $log['name'],
@@ -437,7 +421,7 @@ class PagePresenter
             'resetFiltersUrl' => $hasActiveFilters ? $url(['env' => 'all', 'level' => null, 'q' => null]) : null,
             'downloadUrl' => (config('opconsole.logs.allow_download', true) && $canDownload) ? route($this->routeName('log'), $log['name']) : null,
             'summary' => 'Showing '.count($log['entries']).' of '.$log['shown'].' entries'.($log['shown'] !== $log['total'] ? ' (total: '.$log['total'].')' : ''),
-            'emptyMessage' => $allTotal === 0 ? 'This log file is empty or contains no parsable entries.' : 'No entries match the active filters.',
+            'emptyMessage' => $log['allTotal'] === 0 ? 'This log file is empty or contains no parsable entries.' : 'No entries match the active filters.',
             'truncated' => $log['truncated'],
             'groups' => array_map(fn ($group) => $group + ['style' => self::LEVEL_STYLES[$group['level']] ?? 'is-muted', 'message' => Str::limit($group['message'], 180)], $log['groups']),
             'entries' => array_map(fn ($entry) => [
