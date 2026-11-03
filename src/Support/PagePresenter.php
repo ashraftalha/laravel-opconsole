@@ -579,6 +579,16 @@ class PagePresenter
             ],
         ];
 
+        // Surface the runtime limitation before the click instead of only after a refused request.
+        $runner = app(ActionRunner::class);
+        foreach ($all as $key => $card) {
+            $blocked = $card['enabled'] ? $runner->unsupportedRuntimeReason($key) : null;
+            if ($blocked !== null) {
+                $all[$key]['enabled'] = false;
+                $all[$key]['disabledReason'] = $blocked;
+            }
+        }
+
         return array_filter($all, fn ($action, $key) => $enabledActions[$key] ?? false, ARRAY_FILTER_USE_BOTH);
     }
 

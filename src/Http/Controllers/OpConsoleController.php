@@ -75,7 +75,8 @@ class OpConsoleController extends Controller
         $path = $this->logs->path($file);
         abort_if($path === null, 404);
 
-        $this->actions->record('log.download', $request->user(), true, $file);
+        $audited = $this->actions->record('log.download', $request->user(), true, $file);
+        abort_if(! $audited && $this->actions->auditRequired(), 503, __('opconsole::opconsole.audit_required'));
 
         return response()->download($path, $file, ['Content-Type' => 'text/plain; charset=UTF-8']);
     }
@@ -83,19 +84,24 @@ class OpConsoleController extends Controller
     public function deleteLog(Request $request, string $file): RedirectResponse
     {
         abort_unless(config('opconsole.logs.allow_delete', true), 403);
+        abort_if($this->logs->path($file) === null, 404);
 
-        $outcome = $this->logs->deleteOutcome($file);
-        if ($outcome === 'not_found') {
-            abort(404);
+        // Audit before deleting, so the "required" policy can refuse an irreversible delete it cannot record.
+        $run = $this->actions->recordStart('log.delete', $request->user(), $file);
+        if ($run === null && $this->actions->auditRequired()) {
+            return redirect()->to(route($this->routeName('index')).'#logs')
+                ->with('opconsole_error', __('opconsole::opconsole.audit_required'));
         }
 
+        $outcome = $this->logs->deleteOutcome($file);
         $ok = $outcome === 'deleted';
         $reason = match ($outcome) {
             'deleted' => null,
             'latest_blocked' => 'Refused to delete active newest log file',
+            'not_found' => 'Log file disappeared before it could be deleted',
             default => 'Filesystem delete failed',
         };
-        $audited = $this->actions->record('log.delete', $request->user(), $ok, $file, $reason);
+        $audited = $this->actions->recordFinish($run, $ok, null, $reason);
 
         $flashKey = $ok ? 'opconsole_success' : 'opconsole_error';
         $flashMessage = match ($outcome) {
@@ -121,9 +127,10 @@ class OpConsoleController extends Controller
 
         $result = $this->actions->run($action, $request->user());
         [$successKey, $errorKey] = self::MESSAGES[$action];
-        $lockFailure = $result['busy'] || ($result['lock_error'] ?? false);
-        $flash = ($lockFailure || ! $result['ok']) ? 'opconsole_error' : 'opconsole_success';
-        $message = $lockFailure ? $result['output'] : __('opconsole::opconsole.'.($result['ok'] ? $successKey : $errorKey));
+        // Not started at all: show the specific reason rather than a generic "command failed" message.
+        $notStarted = $result['busy'] || ($result['lock_error'] ?? false) || ($result['blocked'] ?? false);
+        $flash = ($notStarted || ! $result['ok']) ? 'opconsole_error' : 'opconsole_success';
+        $message = $notStarted ? $result['output'] : __('opconsole::opconsole.'.($result['ok'] ? $successKey : $errorKey));
 
         $redirect = redirect()->route($this->routeName('index'))
             ->with($flash, $message)
