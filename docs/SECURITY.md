@@ -58,3 +58,25 @@ Gate::define($runGate, fn ($user = null) => app()->environment('local'));
 - Does **not** accept arbitrary Artisan command names, flags, or shell arguments from HTTP requests.
 - Does **not** grant access via IP allow-lists, query tokens, or debug backdoors.
 - Does **not** load third-party CDN scripts, stylesheets, or external icon fonts.
+
+## Host application security audit
+
+OpConsole combines runtime Laravel configuration checks with an explicit host application dependency audit. The dashboard only reads the last stored report; it never launches Composer while rendering a page.
+
+## Dependency scan
+
+Prerequisites: Composer 2.4 or newer and a valid host `composer.json` plus `composer.lock`. Composer 2.4 introduced the supported `audit --format=json` command. OpConsole requests `composer audit --format=json --locked --no-interaction --no-plugins --no-scripts`; production dependencies are included by default. `--include-dev` (or `OPCONSOLE_SECURITY_INCLUDE_DEV=true`) includes development dependencies. The audit covers transitive packages. Lock versions are the scanned versions; when Composer's installed package metadata is available, OpConsole flags installed/locked version differences. A lock-based scan does not claim that installed files match the lock when Composer metadata is absent.
+
+Run `php artisan opconsole:security` or `php artisan opconsole:security --json`. OpConsole uses stable exit status `0` for a complete scan without vulnerability/configuration findings and `1` for findings or scan failure; inspect JSON `status` to distinguish failure from findings. Composer's own audit exit codes have changed across Composer releases, so OpConsole validates the JSON result and applies its documented mapping instead of passing through Composer's code. A failed scan preserves the last successful report and records the failure time/message. The dashboard labels changed-manifest and older reports as stale and never presents them as clean.
+
+Set `OPCONSOLE_COMPOSER` to the configured Composer executable, `OPCONSOLE_SECURITY_TIMEOUT` to the process timeout in seconds, and `OPCONSOLE_SECURITY_STORE` to a shared lock-capable cache store. Enable the optional daily schedule with `OPCONSOLE_SECURITY_SCHEDULE=true` and run Laravel's scheduler. Concurrent scans are suppressed by a cache lock. Audit is read-only; dependency updates remain developer-reviewed actions.
+
+Composer contacts Packagist by default, or the advisory repositories configured in the host `composer.json`. The advisory request identifies package names and locked versions so repositories can match advisories. Composer authentication is used only by Composer for configured repositories and is never copied into the report. Reports retain titles, identifiers, severity only when supplied, affected constraints, dates, validated HTTPS advisory links, and source-provided remediation when present. Missing data is labeled as unavailable. Ignored records remain visible with Composer's reason where supplied. Abandoned packages are listed separately from vulnerabilities.
+
+The scan command can fail when Composer is unavailable/too old, lock files are missing or malformed, a repository is unreachable, output is invalid/incomplete, output exceeds the safety bound, the process times out, or another scan holds the lock. The last success remains visible alongside the failure. Reports are stored in the configured cache store; use a shared persistent store for multi-server deployments. Vulnerability findings feed the existing Health check and can use its opt-in `opconsole:health --notify` transition notifications, including configured cooldown and duplicate suppression.
+
+## Runtime configuration
+
+Checks use Laravel's runtime `config()` values and therefore work with cached configuration. They cover production debug mode, presence (never value) of `APP_KEY`, session Secure/HttpOnly/SameSite, HTTPS including an explicit trusted-proxy edge assertion, OpConsole view/run Gate configuration, and configured risky actions. Configure Laravel trusted proxies correctly before setting `OPCONSOLE_SECURITY_TRUSTED_PROXY_HTTPS=true`; that option asserts the TLS edge enforces HTTPS.
+
+Dependency updates should be reviewed and applied by developers through the normal Composer workflow, then deployed and scanned again. For example, review the advisory's affected range and patched release, update the affected direct dependency or constraint, run the package/application test suite, commit the resulting manifest and lock changes, and deploy through the usual release process.

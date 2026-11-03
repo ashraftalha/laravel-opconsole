@@ -190,6 +190,18 @@ return [
         'state_store' => null,
     ],
 
+    /* Host dependency audit. No dashboard request launches Composer. */
+    'security' => [
+        'composer' => env('OPCONSOLE_COMPOSER', 'composer'),
+        'timeout' => (int) env('OPCONSOLE_SECURITY_TIMEOUT', 120),
+        'max_age_seconds' => (int) env('OPCONSOLE_SECURITY_MAX_AGE', 604800),
+        'include_dev' => (bool) env('OPCONSOLE_SECURITY_INCLUDE_DEV', false),
+        'store' => env('OPCONSOLE_SECURITY_STORE', 'opconsole'),
+        'schedule' => (bool) env('OPCONSOLE_SECURITY_SCHEDULE', false),
+        'trusted_proxy_https' => (bool) env('OPCONSOLE_SECURITY_TRUSTED_PROXY_HTTPS', false),
+        'risky_actions' => ['migrate', 'down'],
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Layout

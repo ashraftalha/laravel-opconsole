@@ -3,6 +3,7 @@
 namespace AshrafTalha\OpConsole;
 
 use AshrafTalha\OpConsole\Console\HealthCommand;
+use AshrafTalha\OpConsole\Console\SecurityCommand;
 use AshrafTalha\OpConsole\Http\Middleware\AuthorizeOpConsole;
 use AshrafTalha\OpConsole\Jobs\OpConsoleHeartbeatJob;
 use AshrafTalha\OpConsole\Support\Heartbeat;
@@ -56,7 +57,12 @@ class OpConsoleServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
-            $this->commands([HealthCommand::class]);
+            $this->commands([HealthCommand::class, SecurityCommand::class]);
+            $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
+                if (config('opconsole.security.schedule', false)) {
+                    $schedule->command('opconsole:security')->daily()->withoutOverlapping()->name('opconsole:security');
+                }
+            });
 
             $this->publishes([
                 __DIR__.'/../config/opconsole.php' => config_path('opconsole.php'),

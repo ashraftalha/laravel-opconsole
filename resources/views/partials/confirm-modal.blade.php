@@ -1,5 +1,5 @@
 {{-- Dependency-free accessible <dialog> confirmation for any <form data-confirm="message">. --}}
-<dialog class="oc-dialog" id="opconsole-confirm-modal" aria-labelledby="opconsole-confirm-title" aria-describedby="opconsole-confirm-message">
+<dialog class="oc-dialog" id="opconsole-confirm-modal" aria-modal="true" aria-labelledby="opconsole-confirm-title" aria-describedby="opconsole-confirm-message">
     <div class="oc-dialog-card">
         <div class="oc-dialog-head">
             <div>

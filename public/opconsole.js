@@ -2,12 +2,26 @@
 (function () {
     'use strict';
 
+    var securitySearch = document.querySelector('[data-security-search]');
+    var securitySeverity = document.querySelector('[data-security-severity]');
+    function filterSecurityRows() {
+        var query = securitySearch ? securitySearch.value.toLocaleLowerCase() : '';
+        var severity = securitySeverity ? securitySeverity.value : 'all';
+        document.querySelectorAll('[data-security-row]').forEach(function (row) {
+            row.hidden = !row.textContent.toLocaleLowerCase().includes(query) || (severity !== 'all' && row.dataset.securityLevel !== severity);
+        });
+    }
+    if (securitySearch) securitySearch.addEventListener('input', filterSecurityRows);
+    if (securitySeverity) securitySeverity.addEventListener('change', filterSecurityRows);
+
     document.addEventListener('DOMContentLoaded', function () {
         initConfirmDialog();
         initCopyButtons();
         initAlertDismiss();
         initHashReveal();
+        initHealthFilter();
         initTabs();
+        initRefreshLinks();
         initThemeToggle();
     });
 
@@ -92,6 +106,8 @@
             submitBtn.setAttribute('aria-busy', 'true');
             var label = submitBtn.querySelector('[data-oc-btn-label]');
             if (label) label.textContent = 'Running…';
+            var liveRegion = document.getElementById('opconsole-live-region');
+            if (liveRegion) liveRegion.textContent = 'Operation started: ' + (form.dataset.confirmTitle || 'maintenance action') + '.';
         }
 
         document.addEventListener('submit', function (event) {
@@ -119,7 +135,7 @@
             pendingForm = form;
             lastTrigger = document.activeElement;
             titleEl.textContent = form.dataset.confirmTitle || 'Confirm action';
-            messageEl.textContent = form.dataset.confirm;
+            messageEl.textContent = form.dataset.confirm + (form.dataset.confirmEnvironment ? ' Environment: ' + form.dataset.confirmEnvironment + '.' : '');
             accept.textContent = form.dataset.confirmAccept || 'Confirm';
             accept.className = form.dataset.confirmRisk === 'high' ? 'oc-btn oc-btn-danger' : 'oc-btn oc-btn-primary';
             accept.disabled = false;
@@ -244,6 +260,60 @@
         });
     }
 
+    function initRefreshLinks() {
+        document.querySelectorAll('[data-oc-refresh]').forEach(function (link) {
+            link.addEventListener('click', function () {
+                // Keep the current tab hash and every query filter when reloading status.
+                link.href = window.location.href;
+            });
+        });
+    }
+
+    function initHealthFilter() {
+        var filter = document.querySelector('[data-oc-health-filter]');
+        if (!filter) return;
+        var items = Array.prototype.slice.call(document.querySelectorAll('[data-oc-check-item]'));
+        var groups = Array.prototype.slice.call(document.querySelectorAll('[data-oc-check-group]'));
+        var empty = document.querySelector('[data-oc-filter-empty]');
+        var count = document.querySelector('[data-oc-health-count]');
+        var params = new URLSearchParams(window.location.search);
+        var initial = params.get('check_status') || 'all';
+        if (['all', 'attention', 'critical', 'warning', 'unknown', 'healthy'].indexOf(initial) !== -1) filter.value = initial;
+
+        function apply(value) {
+            var visible = 0;
+            items.forEach(function (item) {
+                var status = item.dataset.ocStatus;
+                var show = value === 'all' || (value === 'attention' && ['critical', 'warning', 'unknown'].indexOf(status) !== -1) || value === status;
+                item.hidden = !show;
+                if (show) visible++;
+            });
+            groups.forEach(function (group) {
+                group.hidden = !group.querySelector('[data-oc-check-item]:not([hidden])');
+            });
+            if (empty) empty.hidden = visible > 0;
+            if (count) count.textContent = visible + ' health checks shown.';
+        }
+
+        filter.addEventListener('change', function () {
+            var url = new URL(window.location.href);
+            if (filter.value === 'all') url.searchParams.delete('check_status');
+            else url.searchParams.set('check_status', filter.value);
+            url.hash = 'checks';
+            window.location.assign(url.toString());
+        });
+        var reset = document.querySelector('[data-oc-health-reset]');
+        if (reset) reset.addEventListener('click', function () {
+            filter.value = 'all';
+            apply('all');
+            var url = new URL(window.location.href);
+            url.searchParams.delete('check_status');
+            url.hash = 'checks';
+            if (window.history && window.history.replaceState) window.history.replaceState(null, '', url.toString());
+        });
+        apply(filter.value);
+    }
+
     function initTabs() {
         var tablist = document.querySelector('[data-oc-tabs]');
         if (!tablist) return;
@@ -279,6 +349,7 @@
         function tabForHash(hash) {
             if (!hash || hash.length < 2) return null;
             var id = decodeURIComponent(hash.slice(1));
+            if (id === 'actions') return tabFor('operations');
             for (var i = 0; i < tabs.length; i++) {
                 if (tabs[i].dataset.ocHash === id) return tabs[i];
             }
@@ -294,10 +365,7 @@
                 other.setAttribute('aria-selected', selected ? 'true' : 'false');
                 other.tabIndex = selected ? 0 : -1;
                 panels[other.dataset.ocTab].hidden = !selected;
-            });
-            // Collapsible sections inside a panel are always expanded in tab mode.
-            panels[tab.dataset.ocTab].querySelectorAll('details.oc-section').forEach(function (details) {
-                details.open = true;
+                panels[other.dataset.ocTab].tabIndex = selected ? 0 : -1;
             });
             if (options.remember) store(tab.dataset.ocTab);
             if (options.updateHash && window.history && window.history.replaceState) {
@@ -321,13 +389,13 @@
             }
 
             var preferred = tablist.dataset.ocDefault;
-            // The server picks "actions" after an action ran and "health" when a check is critical.
-            if (preferred === 'actions' && document.querySelector('[data-oc-output]')) {
-                return tabFor('actions') || tabs[0];
+            // The server selects Operations after a command result; otherwise Overview is first.
+            if ((preferred === 'actions' || preferred === 'operations') && document.querySelector('[data-oc-output]')) {
+                return tabFor('operations') || tabs[0];
             }
             if (preferred === 'health') return tabFor('health') || tabs[0];
 
-            return tabFor(stored()) || tabFor(preferred) || tabs[0];
+            return tabFor(stored() === 'actions' ? 'operations' : stored()) || tabFor(preferred === 'actions' ? 'operations' : preferred) || tabs[0];
         }
 
         var wrap = tablist.closest('[data-oc-tabs-wrap]');
@@ -361,14 +429,6 @@
                 if (!next) return;
                 event.preventDefault();
                 activate(next, { remember: true, updateHash: true, focus: true });
-            });
-        });
-
-        // Summaries inside panels no longer collapse their section.
-        shell.querySelectorAll('[data-oc-panel] > details.oc-section > summary').forEach(function (summary) {
-            summary.addEventListener('click', function (event) {
-                if (event.target.closest('a, button')) return;
-                event.preventDefault();
             });
         });
 

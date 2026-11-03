@@ -73,6 +73,10 @@ class HealthChecks
         $sessionDriver = (string) config('session.driver');
         $ephemeralDrivers = ['array', 'null'];
         $ephemeralInProd = $production && (in_array($cacheDriver, $ephemeralDrivers, true) || in_array($sessionDriver, $ephemeralDrivers, true));
+        $dependencyAudit = app(SecurityScanner::class)->report();
+        $dependencyStatus = ($dependencyAudit['status'] ?? '') !== 'complete' || ! empty($dependencyAudit['stale'])
+            ? 'unknown'
+            : (! empty($dependencyAudit['advisories']) ? 'critical' : 'healthy');
 
         $check = fn (
             string $id,
@@ -154,10 +158,17 @@ class HealthChecks
             $check('php.opcache', 'PHP settings', 'OPcache enabled in production', ! $production || $opcacheEnabled, 'info', 'Improves PHP bytecode execution performance on web servers.', 'opcache.enable='.(ini_get('opcache.enable') ?: '0'), 'php.ini: opcache.enable=1'),
 
             // Security
+            $check('security.dependency_audit', 'Security', 'Host dependencies audited', $dependencyStatus === 'healthy', 'danger', match ($dependencyStatus) {
+                'healthy' => 'No known vulnerabilities found in the latest fresh Composer lock audit.',
+                'critical' => count($dependencyAudit['advisories']).' active dependency advisory record(s) require review.',
+                default => 'Dependency audit is not complete or its report is stale; Composer has not been run during this dashboard request.',
+            }, $dependencyAudit['scanned_at'] ?? ($dependencyAudit['status'] ?? 'Never scanned'), $dependencyStatus === 'healthy' ? null : 'php artisan opconsole:security', $dependencyStatus),
             $check('security.app_key', 'Security', 'Application key configured', filled(config('app.key')), 'danger', 'Required for encryption, signed URLs, and sessions.', null, 'php artisan key:generate'),
             $check('security.debug_mode', 'Security', 'Debug mode disabled in production', ! ($production && config('app.debug')), 'danger', 'Debug mode exposes stack traces and configuration details to visitors.', 'APP_DEBUG='.(config('app.debug') ? 'true' : 'false'), '.env: APP_DEBUG=false'),
-            $check('security.https', 'Security', 'HTTPS in production', ! $production || str_starts_with($appUrl, 'https://'), 'warning', 'Sensitive requests should use an encrypted HTTPS URL.', 'APP_URL='.$appUrl, '.env: APP_URL=https://…'),
+            $check('security.https', 'Security', 'HTTPS in production', ! $production || str_starts_with($appUrl, 'https://') || (bool) config('opconsole.security.trusted_proxy_https', false), 'warning', 'Sensitive requests should use encrypted HTTPS. Behind a TLS-terminating proxy, configure Laravel trusted proxies and explicitly confirm the edge enforces HTTPS.', 'APP_URL='.$appUrl, '.env: APP_URL=https://…'),
             $check('security.session_secure', 'Security', 'Secure session cookies', ! $production || ! str_starts_with($appUrl, 'https://') || (bool) config('session.secure'), 'warning', 'HTTPS session cookies should set the Secure attribute.', 'SESSION_SECURE_COOKIE='.(config('session.secure') ? 'true' : 'false'), '.env: SESSION_SECURE_COOKIE=true'),
+            $check('security.session_httponly', 'Security', 'HttpOnly session cookies', (bool) config('session.http_only'), 'warning', 'HttpOnly prevents browser scripts from reading the session cookie.', 'SESSION_HTTP_ONLY='.(config('session.http_only') ? 'true' : 'false'), '.env: SESSION_HTTP_ONLY=true'),
+            $check('security.session_samesite', 'Security', 'Session SameSite policy', in_array(strtolower((string) config('session.same_site')), ['lax', 'strict'], true), 'warning', 'SameSite=Lax or Strict helps reduce cross-site request forgery exposure.', 'SESSION_SAME_SITE='.config('session.same_site'), '.env: SESSION_SAME_SITE=lax'),
             $check('security.log_level', 'Security', 'Production log level', ! $production || $logLevel !== 'debug', 'info', 'Debug logging increases disk usage and sensitive payload exposure in production.', 'LOG_LEVEL='.$logLevel, '.env: LOG_LEVEL=warning'),
             $check(
                 'security.lock_store',

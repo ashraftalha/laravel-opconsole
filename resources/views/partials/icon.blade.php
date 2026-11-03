@@ -1,6 +1,12 @@
 @php($class = $class ?? 'oc-icon')
 <svg class="{{ $class }}" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
     @switch($name ?? 'info')
+        @case('home')
+            <path d="m3 10 9-7 9 7" /><path d="M5 9v12h14V9" /><path d="M9 21v-7h6v7" />
+            @break
+        @case('activity')
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            @break
         @case('arrow-left')
             <path d="M19 12H5" /><path d="m12 19-7-7 7-7" />
             @break
@@ -18,6 +24,9 @@
             @break
         @case('bug')
             <rect x="7" y="8" width="10" height="11" rx="5" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /><line x1="12" y1="11" x2="12" y2="19" /><line x1="3" y1="11" x2="7" y2="11" /><line x1="17" y1="11" x2="21" y2="11" /><line x1="4" y1="18" x2="7.5" y2="16" /><line x1="16.5" y1="16" x2="20" y2="18" />
+            @break
+        @case('shield')
+            <path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11z" /><path d="m9 12 2 2 4-4" />
             @break
         @case('alert-octagon')
             <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />

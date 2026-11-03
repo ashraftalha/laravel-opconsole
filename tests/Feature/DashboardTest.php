@@ -25,6 +25,17 @@ class DashboardTest extends TestCase
         $this->get('/admin/opconsole')->assertOk()->assertSee('Health checks');
     }
 
+    public function test_missing_readable_logs_are_reported_as_unavailable(): void
+    {
+        $this->useTemporaryLogDirectory();
+        $this->actingAsUser();
+
+        $this->get('/admin/opconsole')
+            ->assertOk()
+            ->assertSee('Errors in sampled log tail')
+            ->assertSee('No readable log file');
+    }
+
     public function test_three_tiles_are_shown(): void
     {
         $this->actingAsUser();
@@ -32,7 +43,7 @@ class DashboardTest extends TestCase
         $this->get('/admin/opconsole')
             ->assertSee('Database')
             ->assertSee('Health checks')
-            ->assertSee('Errors in the last 24 hours');
+            ->assertSee('Errors in sampled log tail');
     }
 
     public function test_back_link_is_hidden_when_not_configured(): void
@@ -60,14 +71,28 @@ class DashboardTest extends TestCase
             ->assertSee('data-oc-tabs-wrap hidden', false)
             ->assertSee('<html lang="en" dir="ltr" data-oc-theme="auto">', false);
 
-        foreach (['actions', 'health', 'history', 'logs', 'system'] as $key) {
+        foreach (['overview', 'health', 'security', 'operations', 'logs', 'history', 'system'] as $key) {
             $response->assertSee('id="oc-tab-'.$key.'"', false)
                 ->assertSee('id="oc-panel-'.$key.'"', false);
         }
 
         // Existing anchors keep working as tab targets.
         $response->assertSee('data-oc-hash="checks"', false)
-            ->assertSee('id="system-info"', false);
+            ->assertSee('id="system-info"', false)
+            ->assertSee('Application overview')
+            ->assertSee('Attention needed')
+            ->assertSee('Runtime status')
+            ->assertSee('Show checks')
+            ->assertSee('aria-modal="true"', false);
+    }
+
+    public function test_refresh_keeps_current_filters_and_operation_confirmations_name_the_environment(): void
+    {
+        $this->actingAsUser();
+
+        $response = $this->get('/admin/opconsole?check_status=unknown&log=laravel.log&q=cache')->assertOk();
+        $response->assertSee('check_status=unknown&amp;log=laravel.log&amp;q=cache', false)
+            ->assertSee('data-confirm-environment="testing"', false);
     }
 
     public function test_theme_can_be_forced_from_config(): void

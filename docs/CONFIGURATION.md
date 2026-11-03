@@ -44,6 +44,21 @@ php artisan vendor:publish --tag=opconsole-config
 | `authorization.delete_gate` | `'deleteOpConsoleLogs'` | Gate required to delete older `.log` files (delegates to `run_gate` if not explicitly defined by the host). |
 | `authorization.action_gates` | `[]` | Optional map from action keys (`clear`, `optimize`, `migrate`, `down`, `up`, `storage_link`) to independent Gate names. Missing keys inherit `run_gate`; configured but undefined/empty Gates deny access. |
 
+### Security audit (`security.*`)
+
+| Key | Environment Variable | Default | Description |
+|---|---|---|---|
+| `security.composer` | `OPCONSOLE_COMPOSER` | `composer` | Composer executable used by the CLI audit command. |
+| `security.timeout` | `OPCONSOLE_SECURITY_TIMEOUT` | `120` | Maximum audit process runtime in seconds. |
+| `security.max_age_seconds` | `OPCONSOLE_SECURITY_MAX_AGE` | `604800` | Maximum age in seconds before a successful report is shown as stale. |
+| `security.include_dev` | `OPCONSOLE_SECURITY_INCLUDE_DEV` | `false` | Include `require-dev` lock entries in the normal scan. CLI `--include-dev` enables it for one run. |
+| `security.store` | `OPCONSOLE_SECURITY_STORE` | `opconsole` | Cache store for reports and scan concurrency lock; use shared persistent locking cache across servers. |
+| `security.schedule` | `OPCONSOLE_SECURITY_SCHEDULE` | `false` | Schedule a daily `opconsole:security` scan. Laravel scheduler must be running. |
+| `security.trusted_proxy_https` | `OPCONSOLE_SECURITY_TRUSTED_PROXY_HTTPS` | `false` | Assert that correctly configured trusted proxies and the TLS edge enforce HTTPS. |
+| `security.risky_actions` | — | `['migrate', 'down']` | Enabled OpConsole actions listed as security configuration warnings. |
+
+See [Security](SECURITY.md) for Composer prerequisites, data sent to advisory sources, report freshness, and failure behavior.
+
 For example, let support staff clear caches while only administrators can migrate or change maintenance mode:
 
 ```php

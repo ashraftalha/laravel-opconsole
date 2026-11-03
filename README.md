@@ -11,7 +11,8 @@
 
 ## Features
 
-- **Health checks:** files, PHP, security, database and queues, scheduler and queue worker heartbeats, cache round trip, production caches, maintenance mode, storage link. Anything not verified shows as `unknown`, never healthy.
+- **Health and Security:** runtime configuration checks plus a separate host dependency audit of locked Composer packages, including transitive dependencies. Scans run through `php artisan opconsole:security`; the dashboard reads stored results and shows stale or failed scans as unverified.
+- **Operations overview:** application and environment status, verified issues, unverified checks, scheduler/queue/maintenance state, and the last check time in one place. Log error counts are clearly marked as a sample from the newest readable log tail.
 - **Safe actions:** clear caches, optimize, run migrations, maintenance mode on/off (with a one-time bypass URL), and an optional storage link. Per-action Gates are available, and owner-renewed locks bound long-running commands.
 - **Action-level permissions:** support staff can be granted cache clearing access while migrations and maintenance mode stay administrator-only.
 - **Optional health alerts:** scheduled CLI monitoring can notify on unhealthy transitions, worsening status, and recovery without queue workers. Required checks and unknown-status policy are configurable.
@@ -20,6 +21,8 @@
 - **Monitoring:** `php artisan opconsole:health` for CI and cron, and an optional token-protected `/health` JSON endpoint for uptime monitors.
 
 ## Requirements
+
+The optional host dependency audit requires Composer 2.4 or newer and a host `composer.lock`. Run `php artisan opconsole:security` (or `--json`) to scan production dependencies; pass `--include-dev` to include development dependencies. Configure daily scheduling with `OPCONSOLE_SECURITY_SCHEDULE=true`. See [Security documentation](docs/SECURITY.md) for scope, advisory network requests, exit codes, failure states, and remediation guidance.
 
 - PHP 8.3+
 - Laravel 12 or 13

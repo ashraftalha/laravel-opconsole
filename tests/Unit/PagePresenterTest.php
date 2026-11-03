@@ -75,11 +75,11 @@ class PagePresenterTest extends TestCase
 
         $tabs = $this->presentTabs([$this->check('Security', 'warning'), $this->check('Security', 'healthy'), $info]);
 
-        $this->assertSame(['actions', 'health', 'history', 'logs', 'system'], array_keys($tabs['items']));
+        $this->assertSame(['overview', 'health', 'security', 'operations', 'logs', 'history', 'system'], array_keys($tabs['items']));
         $this->assertSame('1', $tabs['items']['health']['badge']);
         $this->assertSame('is-warning', $tabs['items']['health']['tone']);
         $this->assertSame('1 check needs attention', $tabs['items']['health']['badgeLabel']);
-        $this->assertSame('actions', $tabs['default']);
+        $this->assertSame('overview', $tabs['default']);
     }
 
     public function test_critical_checks_open_the_health_tab_with_a_red_badge(): void
@@ -88,28 +88,28 @@ class PagePresenterTest extends TestCase
 
         $this->assertSame('2', $tabs['items']['health']['badge']);
         $this->assertSame('is-bad', $tabs['items']['health']['tone']);
-        $this->assertSame('health', $tabs['default']);
+        $this->assertSame('overview', $tabs['default']);
     }
 
     public function test_action_output_opens_the_actions_tab_even_with_critical_checks(): void
     {
         $tabs = $this->presentTabs([$this->check('Security', 'critical')], hasOutput: true);
 
-        $this->assertSame('actions', $tabs['default']);
+        $this->assertSame('operations', $tabs['default']);
     }
 
     public function test_actions_badge_shows_pending_migrations_then_a_failed_last_run(): void
     {
         $pending = $this->presentTabs(actions: ['migrate' => ['last' => null]], pending: 3);
-        $this->assertSame('3', $pending['items']['actions']['badge']);
-        $this->assertSame('3 pending migrations', $pending['items']['actions']['badgeLabel']);
+        $this->assertSame('3', $pending['items']['operations']['badge']);
+        $this->assertSame('3 pending migrations', $pending['items']['operations']['badgeLabel']);
 
         $failed = $this->presentTabs(actions: ['clear' => ['last' => ['ok' => false, 'text' => 'failed']]]);
-        $this->assertSame('!', $failed['items']['actions']['badge']);
-        $this->assertSame('is-bad', $failed['items']['actions']['tone']);
+        $this->assertSame('!', $failed['items']['operations']['badge']);
+        $this->assertSame('is-bad', $failed['items']['operations']['tone']);
 
         // Pending migrations are not counted when the migrate action is disabled.
-        $this->assertNull($this->presentTabs(pending: 3)['items']['actions']['badge']);
+        $this->assertNull($this->presentTabs(pending: 3)['items']['operations']['badge']);
     }
 
     public function test_logs_and_history_badges_and_empty_states(): void
@@ -129,8 +129,45 @@ class PagePresenterTest extends TestCase
     {
         $tabs = $this->presentTabs(actions: []);
 
-        $this->assertArrayNotHasKey('actions', $tabs['items']);
-        $this->assertSame('health', $tabs['default']);
+        $this->assertArrayNotHasKey('operations', $tabs['items']);
+        $this->assertArrayHasKey('overview', $tabs['items']);
+        $this->assertSame('overview', $tabs['default']);
+    }
+
+    public function test_overview_distinguishes_verified_issues_from_unknown_checks(): void
+    {
+        $presenter = new PagePresenter;
+        $method = new \ReflectionMethod($presenter, 'overview');
+        $checks = [
+            ['id' => 'database.connection', 'group' => 'Database and queues', 'label' => 'Database connection', 'status' => 'critical', 'severity' => 'danger', 'hint' => 'Connection failed.', 'value' => 'sqlite', 'fix' => 'Check DB_* settings.'],
+            ['id' => 'scheduler.heartbeat', 'group' => 'Scheduler and workers', 'label' => 'Scheduler heartbeat', 'status' => 'unknown', 'severity' => 'info', 'hint' => 'Scheduler has not run.', 'value' => 'no heartbeat', 'fix' => 'Run schedule:work.'],
+        ];
+        $presentedChecks = $this->presentChecks($checks);
+        $overview = $method->invoke($presenter, [
+            'app' => ['environment' => 'testing', 'down' => false],
+            'checks' => $checks,
+        ], $presentedChecks, []);
+
+        $this->assertSame('Critical issues', $overview['state']);
+        $this->assertSame(1, $overview['critical']);
+        $this->assertSame(1, $overview['unknown']);
+        $this->assertSame('Database connection', $overview['attention'][0]['label']);
+        $this->assertSame('Scheduler heartbeat', $overview['unknownItems'][0]['label']);
+        $this->assertSame('testing', $overview['environment']);
+    }
+
+    public function test_unknown_only_overview_is_partial_and_empty_checks_are_unavailable(): void
+    {
+        $presenter = new PagePresenter;
+        $method = new \ReflectionMethod($presenter, 'overview');
+        $unknown = $this->check('Scheduler and workers', 'unknown');
+        $unknownOverview = $method->invoke($presenter, ['app' => ['environment' => 'testing', 'down' => true], 'checks' => [$unknown]], $this->presentChecks([$unknown]), []);
+        $emptyOverview = $method->invoke($presenter, ['app' => ['environment' => 'testing', 'down' => false], 'checks' => []], $this->presentChecks([]), []);
+
+        $this->assertSame('Partially verified', $unknownOverview['state']);
+        $this->assertSame('is-unknown', $unknownOverview['tone']);
+        $this->assertTrue($unknownOverview['maintenance']['down']);
+        $this->assertSame('Health unavailable', $emptyOverview['state']);
     }
 
     public function test_theme_defaults_to_auto_standalone_and_light_when_embedded(): void

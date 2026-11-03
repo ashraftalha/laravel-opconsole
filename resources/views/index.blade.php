@@ -29,12 +29,12 @@
                     </a>
                 @endif
                 <div class="oc-title-row">
-                    <h1 class="oc-title">OpConsole</h1>
+                    <h1 class="oc-title">{{ $overview['appName'] }}</h1>
                     <span @class(['oc-env-badge', 'is-prod' => $environment['production'], 'is-debug' => $environment['debug'] && $environment['production']])>
                         {{ $environment['name'] }}@if ($environment['debug']) · debug @endif
                     </span>
                 </div>
-                <p class="oc-subtitle">Monitor. Diagnose. Maintain.</p>
+                <p class="oc-subtitle">Operations console <span aria-hidden="true">·</span> monitor, diagnose, maintain</p>
             </div>
             <div class="oc-header-actions">
                 @if ($themeToggle)
@@ -43,7 +43,7 @@
                         <span class="oc-theme-icon-light">@include('opconsole::partials.icon', ['name' => 'sun'])</span>
                     </button>
                 @endif
-                <a href="{{ $indexUrl }}" class="oc-btn oc-btn-soft-primary">
+                <a href="{{ $refreshUrl }}" class="oc-btn oc-btn-soft-primary" data-oc-refresh>
                     @include('opconsole::partials.icon', ['name' => 'refresh'])
                     <span>Refresh status</span>
                 </a>
@@ -68,31 +68,8 @@
                 @endforeach
             </section>
 
-            {{-- What to do next, most urgent first --}}
-            <section aria-label="Operational recommendations" class="oc-advice-list">
-                @forelse ($advice as $item)
-                    <div class="oc-advice {{ $item['class'] }}">
-                        @include('opconsole::partials.icon', ['name' => $item['icon']])
-                        <span>{{ $item['text'] }}</span>
-                        @if ($item['link'])
-                            <a href="{{ $item['link'][0] }}" class="oc-advice-link">
-                                <span>{{ $item['link'][1] }}</span>
-                                @include('opconsole::partials.icon', ['name' => 'arrow-right'])
-                            </a>
-                        @endif
-                    </div>
-                @empty
-                    @if ($checks['tone'] === 'is-ok')
-                        <div class="oc-advice oc-advice-ok">
-                            @include('opconsole::partials.icon', ['name' => 'check-circle'])
-                            <span>Everything verified looks healthy. No immediate maintenance action is needed.</span>
-                        </div>
-                    @endif
-                @endforelse
-            </section>
-
             {{-- Section tabs: progressive enhancement. Without JavaScript every panel stays visible in page order. --}}
-            @php($hasActionsTab = isset($tabs['items']['actions']))
+            @php($hasOperationsTab = isset($tabs['items']['operations']))
             <div class="oc-tabs-wrap" data-oc-tabs-wrap hidden>
                 <nav class="oc-tabs" role="tablist" aria-label="{{ __('opconsole::opconsole.tabs_label') }}" data-oc-tabs data-oc-default="{{ $tabs['default'] }}">
                     @foreach ($tabs['items'] as $key => $tab)
@@ -108,8 +85,107 @@
                 </nav>
             </div>
 
-            @if ($hasActionsTab)
-            <div class="oc-tab-panel" id="oc-panel-actions" role="tabpanel" aria-labelledby="oc-tab-actions" data-oc-panel="actions">
+            <div class="oc-tab-panel" id="oc-panel-overview" role="tabpanel" aria-labelledby="oc-tab-overview" data-oc-panel="overview">
+                <section class="oc-overview-card oc-overview-hero {{ $overview['tone'] }}" id="overview" aria-labelledby="oc-overview-title">
+                    <div class="oc-overview-main">
+                        <span class="oc-overview-eyebrow">Application overview</span>
+                        <h2 id="oc-overview-title">
+                            @include('opconsole::partials.icon', ['name' => match ($overview['tone']) { 'is-bad' => 'x-circle', 'is-warning' => 'alert-circle', 'is-unknown' => 'help-circle', default => 'check-circle' }])
+                            <span>{{ $overview['state'] }}</span>
+                        </h2>
+                        <p>{{ $overview['summary'] }}</p>
+                    </div>
+                    <div class="oc-overview-meta">
+                        <span class="oc-env-badge {{ $environment['production'] ? 'is-prod' : '' }}">{{ $environment['name'] }} environment</span>
+                        @if ($overview['lastChecked'])
+                            <time datetime="{{ $overview['lastChecked']['iso'] }}">{{ $overview['lastChecked']['text'] }}</time>
+                        @else
+                            <span>Check time unavailable</span>
+                        @endif
+                        <a href="{{ $refreshUrl }}" class="oc-inline-link" data-oc-refresh>Refresh overview</a>
+                    </div>
+                </section>
+
+                <section class="oc-overview-counts" aria-label="Health check totals">
+                    <a href="#checks" class="oc-count-item is-bad"><strong>{{ $overview['critical'] }}</strong><span>Critical</span></a>
+                    <a href="#checks" class="oc-count-item is-warning"><strong>{{ $overview['warnings'] }}</strong><span>Warnings</span></a>
+                    <a href="#checks" class="oc-count-item is-unknown"><strong>{{ $overview['unknown'] }}</strong><span>Unverified</span></a>
+                    <a href="#checks" class="oc-count-item"><strong>{{ $overview['total'] }}</strong><span>Total checks</span></a>
+                </section>
+
+                @if ($advice)
+                    <section class="oc-overview-notes" aria-label="Operational recommendations">
+                        @foreach ($advice as $item)
+                            <div class="oc-advice {{ $item['class'] }}">
+                                @include('opconsole::partials.icon', ['name' => $item['icon']])
+                                <span>{{ $item['text'] }}</span>
+                                @if ($item['link'])
+                                    <a href="{{ $item['link'][0] }}" class="oc-advice-link"><span>{{ $item['link'][1] }}</span>@include('opconsole::partials.icon', ['name' => 'arrow-right'])</a>
+                                @endif
+                            </div>
+                        @endforeach
+                    </section>
+                @endif
+
+                <div class="oc-overview-grid">
+                    <section class="oc-section oc-attention" aria-labelledby="oc-attention-title">
+                        <div class="oc-section-head">
+                            <b>@include('opconsole::partials.icon', ['name' => $overview['critical'] ? 'alert-octagon' : 'activity'])</b>
+                            <div><h2 id="oc-attention-title">Attention needed</h2><small>Verified issues first, then checks that need verification</small></div>
+                        </div>
+                        <div class="oc-section-body">
+                            @if ($overview['attention'])
+                                <ul class="oc-attention-list">
+                                    @foreach ($overview['attention'] as $item)
+                                        <li class="{{ $item['tone'] }}">
+                                            <span class="oc-status-pill {{ $item['tone'] }}">{{ $item['status'] }}</span>
+                                            <div><strong>{{ $item['label'] }}</strong><small>{{ $item['group'] }} · {{ $item['hint'] }}</small>
+                                                @if ($item['fix'])<code dir="ltr">{{ $item['fix'] }}</code>@endif
+                                            </div>
+                                            <a href="{{ $item['url'] }}" aria-label="Review {{ $item['label'] }}">Review</a>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                                @if ($overview['moreAttention'])<a class="oc-inline-link" href="#checks">View {{ $overview['moreAttention'] }} more verified issue(s)</a>@endif
+                            @else
+                                <div class="oc-inline-empty">
+                                    @include('opconsole::partials.icon', ['name' => $overview['unknown'] ? 'help-circle' : 'check-circle'])
+                                    <p>{{ $overview['unknown'] ? 'No verified failures. Some checks are unverified; review them before relying on a fully healthy result.' : ($overview['total'] ? 'No verified issues need attention.' : 'Health information is unavailable right now.') }}</p>
+                                </div>
+                            @endif
+                            @if ($overview['unknownItems'])
+                                <details class="oc-unverified">
+                                    <summary>{{ $overview['unknown'] }} unverified {{ $overview['unknown'] === 1 ? 'check' : 'checks' }}</summary>
+                                    <ul>@foreach ($overview['unknownItems'] as $item)<li><strong>{{ $item['label'] }}</strong><small>{{ $item['group'] }} · {{ $item['hint'] }}</small></li>@endforeach</ul>
+                                    <a class="oc-inline-link" href="#checks">Review health checks</a>
+                                </details>
+                            @endif
+                        </div>
+                    </section>
+
+                    <section class="oc-section" aria-labelledby="oc-runtime-title">
+                        <div class="oc-section-head"><b>@include('opconsole::partials.icon', ['name' => 'activity'])</b><div><h2 id="oc-runtime-title">Runtime status</h2><small>Scheduler, queue worker, and availability</small></div></div>
+                        <div class="oc-runtime-list">
+                            @foreach ([['Scheduler', $overview['scheduler']], ['Queue worker', $overview['queue']]] as [$label, $service])
+                                <a href="#checks" class="oc-runtime-row">
+                                    <span><strong>{{ $label }}</strong><small>{{ $service['value'] ?: $service['hint'] }}</small>
+                                        @if ($service['status'] !== 'healthy')<small class="oc-runtime-hint">{{ $service['hint'] }}</small>@endif
+                                        @if ($service['fix'])<code class="oc-runtime-fix" dir="ltr">{{ $service['fix'] }}</code>@endif
+                                    </span>
+                                    <span class="oc-status-pill {{ match ($service['status']) { 'critical' => 'is-bad', 'warning' => 'is-warning', 'healthy' => 'is-ok', default => 'is-unknown' } }}">{{ $service['label'] }}</span>
+                                </a>
+                            @endforeach
+                            <a href="{{ $overview['maintenance']['action'] }}" class="oc-runtime-row">
+                                <span><strong>Maintenance mode</strong><small>{{ $overview['maintenance']['down'] ? 'Visitors receive a 503 response.' : 'Application accepts normal traffic.' }}</small></span>
+                                <span class="oc-status-pill {{ $overview['maintenance']['down'] ? 'is-warning' : 'is-ok' }}">{{ $overview['maintenance']['down'] ? 'Enabled' : 'Off' }}</span>
+                            </a>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            @if ($hasOperationsTab)
+            <div class="oc-tab-panel" id="oc-panel-operations" role="tabpanel" aria-labelledby="oc-tab-operations" data-oc-panel="operations">
             @endif
             {{-- Maintenance actions --}}
             @if (count($actions))
@@ -136,7 +212,7 @@
                             @endif
 
                             @if ($action['disabledReason'])
-                                <small class="oc-action-disabled-note">{{ $action['disabledReason'] }}</small>
+                                <small class="oc-action-disabled-note" id="oc-action-disabled-{{ $key }}">{{ $action['disabledReason'] }}</small>
                             @endif
 
                             @if ($action['last'])
@@ -155,9 +231,10 @@
                                 data-confirm-command="{{ $action['command'] }}"
                                 data-confirm-risk="{{ $action['risk'] }}"
                                 data-confirm-risk-label="{{ $action['riskLabel'] }}"
+                                data-confirm-environment="{{ $environment['name'] }}"
                             >
                                 @csrf
-                                <button type="submit" class="oc-btn {{ $action['style'] }} oc-w-full" @disabled(! $action['enabled'])>
+                                <button type="submit" class="oc-btn {{ $action['style'] }} oc-w-full" @disabled(! $action['enabled']) @if ($action['disabledReason']) aria-describedby="oc-action-disabled-{{ $key }}" @endif>
                                     @include('opconsole::partials.icon', ['name' => $action['icon']])
                                     <span data-oc-btn-label>{{ $action['button'] }}</span>
                                 </button>
@@ -169,7 +246,7 @@
 
             {{-- Output of the last action --}}
             @if ($output)
-                <section class="oc-section" aria-label="Last operation output" data-oc-output>
+                <section class="oc-section" aria-label="Last operation output" data-oc-output role="{{ $output['ok'] ? 'status' : 'alert' }}" aria-live="{{ $output['ok'] ? 'polite' : 'assertive' }}">
                     <div class="oc-section-head">
                         <b>@include('opconsole::partials.icon', ['name' => 'terminal'])</b>
                         <div>
@@ -190,7 +267,7 @@
                 </section>
             @endif
 
-            @if ($hasActionsTab)
+            @if ($hasOperationsTab)
             </div>
             @endif
 
@@ -212,15 +289,27 @@
                     <span class="oc-check-chevron">@include('opconsole::partials.icon', ['name' => 'chevron-down'])</span>
                 </summary>
                 <div class="oc-section-body">
+                    <div class="oc-health-filter">
+                        <label for="oc-health-filter">Show checks</label>
+                        <select id="oc-health-filter" class="oc-input" data-oc-health-filter>
+                            <option value="all">All statuses</option>
+                            <option value="attention">Needs attention</option>
+                            <option value="critical">Critical</option>
+                            <option value="warning">Warnings</option>
+                            <option value="unknown">Unverified</option>
+                            <option value="healthy">Healthy</option>
+                        </select>
+                        <span class="oc-sr-only" data-oc-health-count aria-live="polite"></span>
+                    </div>
                     @foreach ($checks['groups'] as $group)
-                        <div class="oc-check-group">
+                        <div class="oc-check-group" data-oc-check-group>
                             <h3 class="oc-check-group-title">
                                 <span>{{ $group['name'] }}</span>
                                 <small>{{ $group['passed'] }}/{{ $group['total'] }} healthy @if ($group['unknown']) · {{ $group['unknown'] }} unknown @endif</small>
                             </h3>
                             <ul class="oc-checks oc-checks-grid">
                                 @foreach ($group['items'] as $check)
-                                    <li class="{{ $check['class'] }}">
+                                    <li class="{{ $check['class'] }}" data-oc-check-item data-oc-status="{{ $check['status'] }}">
                                         <span class="oc-check-icon">@include('opconsole::partials.icon', ['name' => $check['icon']])</span>
                                         <div>
                                             <div class="oc-check-title-row">
@@ -240,9 +329,46 @@
                             </ul>
                         </div>
                     @endforeach
+                    <div class="oc-empty oc-filter-empty" data-oc-filter-empty @if ($checks['groups']) hidden @endif>
+                        <p>No health checks match this filter.</p>
+                        <button type="button" class="oc-btn oc-btn-soft-secondary" data-oc-health-reset>Show all checks</button>
+                    </div>
                 </div>
             </details>
 
+            </div>
+
+            <div class="oc-tab-panel" id="oc-panel-security" role="tabpanel" aria-labelledby="oc-tab-security" data-oc-panel="security">
+                <section class="oc-section" id="security" aria-labelledby="oc-security-title">
+                    <div class="oc-section-head"><b>@include('opconsole::partials.icon', ['name' => 'shield'])</b><div><h2 id="oc-security-title">Security</h2><small>Host dependencies and runtime Laravel configuration</small></div></div>
+                    <div class="oc-section-body">
+                        @php($securityFresh = ($securityReport['status'] ?? '') === 'complete' && empty($securityReport['stale']))
+                        <p role="status" aria-live="polite"><strong>{{ $securityFresh ? 'Completed scan' : 'Scan status: '.str_replace('_', ' ', $securityReport['status'] ?? 'never scanned') }}</strong>
+                            · Scope: {{ $securityReport['scope'] ?? 'composer.lock · production dependencies' }}
+                            @if (!empty($securityReport['scanned_at'])) · <time datetime="{{ $securityReport['scanned_at'] }}">{{ $securityReport['scanned_at'] }}</time>@endif
+                        </p>
+                        @if (!empty($securityReport['manifest_changed']))<p class="oc-advice oc-advice-warning" role="alert">Dependency files changed since the last successful scan. Results are stale; run <code>php artisan opconsole:security</code>.</p>@endif
+                        @if (!empty($securityReport['stale']) && empty($securityReport['manifest_changed']))<p class="oc-advice oc-advice-warning" role="alert">The last successful scan is older than the configured freshness window. Run <code>php artisan opconsole:security</code>.</p>@endif
+                        @if (!empty($securityReport['last_failure']))<p class="oc-advice oc-advice-danger" role="alert">Latest scan failed @if(!empty($securityReport['last_failure']['at']))<time datetime="{{ $securityReport['last_failure']['at'] }}">{{ $securityReport['last_failure']['at'] }}</time>@endif: {{ $securityReport['last_failure']['message'] }}. Last successful report: {{ $securityReport['last_success_at'] ?? 'none' }}.</p>@endif
+                        @if (!empty($securityReport['version_mismatches']))<div class="oc-advice oc-advice-warning" role="status"><strong>Installed and locked dependency versions differ:</strong><ul>@foreach($securityReport['version_mismatches'] as $mismatch)<li>{{ $mismatch['package'] }} · lock {{ $mismatch['locked_version'] }}, installed {{ $mismatch['installed_version'] }}</li>@endforeach</ul></div>@endif
+                        @if ($securityFresh && empty($securityReport['advisories']))<p class="oc-advice oc-advice-info" role="status">No known vulnerabilities found in scanned dependencies.</p>@elseif (!$securityFresh)<p class="oc-advice oc-advice-warning" role="status">A clean result cannot be confirmed until a current scan completes.</p>@endif
+                        @if ($securityFresh)
+                            @php($securityCounts = collect($securityReport['advisories'] ?? [])->groupBy(fn ($advisory) => $advisory['severity'] ?? 'not supplied')->map->count())
+                            <p aria-label="Vulnerability counts by severity">Vulnerability counts — @foreach (['critical', 'high', 'medium', 'low', 'not supplied'] as $level){{ ucfirst($level) }}: {{ $securityCounts[$level] ?? 0 }}@if (!$loop->last) · @endif @endforeach</p>
+                        @endif
+                        @if (!empty($securityReport['advisories']))
+                            <div class="oc-health-filter"><label for="oc-security-search">Search advisories</label><input id="oc-security-search" class="oc-input" type="search" data-security-search aria-controls="oc-security-advisories"><label for="oc-security-severity">Filter severity</label><select id="oc-security-severity" class="oc-input" data-security-severity aria-controls="oc-security-advisories"><option value="all">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="not supplied">Not supplied</option></select></div>
+                            <div class="oc-table-wrap"><table class="oc-table" id="oc-security-advisories"><thead><tr><th>Package / scanned version</th><th>Severity</th><th>Advisory</th><th>Affected versions</th><th>Published</th><th>Remediation</th></tr></thead><tbody>
+                            @foreach ($securityReport['advisories'] as $advisory)<tr data-security-row data-security-level="{{ $advisory['severity'] ?? 'not supplied' }}"><td><code>{{ $advisory['package'] }}</code> {{ $advisory['version'] ?? 'version unavailable' }} @if($advisory['version_mismatch'] ?? false)<strong> · installed version differs</strong>@endif</td><td>{{ $advisory['severity'] ?? 'Not supplied' }}</td><td>@if($advisory['link'])<a href="{{ $advisory['link'] }}" rel="noopener noreferrer" target="_blank">{{ $advisory['title'] }}</a>@else{{ $advisory['title'] }}@endif @if($advisory['identifiers'] ?? [])<small>{{ implode(', ', $advisory['identifiers']) }}</small>@endif</td><td>{{ $advisory['affected'] ?? 'Not supplied' }}</td><td>{{ $advisory['published'] ?? 'Not supplied' }}</td><td>{{ $advisory['remediation'] ?? 'No remediation guidance supplied; review the advisory and update through your normal dependency review process.' }}</td></tr>@endforeach
+                            </tbody></table></div>
+                        @endif
+                        @if (!empty($securityReport['ignored']))<details><summary>{{ count($securityReport['ignored']) }} ignored advisory records excluded from active findings</summary><ul>@foreach($securityReport['ignored'] as $item)<li>{{ $item['package'] }}: {{ $item['title'] }} — {{ $item['ignored_reason'] ?? 'Composer reports this advisory as ignored; reason not supplied.' }}</li>@endforeach</ul></details>@endif
+                        @if (!empty($securityReport['abandoned']))<h3>Abandoned packages (not confirmed vulnerabilities)</h3><ul>@foreach($securityReport['abandoned'] as $item)<li>{{ $item['package'] }}@if($item['replacement']) · suggested replacement: {{ $item['replacement'] }}@endif</li>@endforeach</ul>@endif
+                        @if (!empty($securityReport['config_warnings']))<h3>Laravel configuration warnings</h3><ul>@foreach($securityReport['config_warnings'] as $warning)<li><strong>{{ $warning['message'] }}</strong> {{ $warning['fix'] }}</li>@endforeach</ul>@endif
+                        <p><small>Advisory data source: {{ $securityReport['source'] ?? 'Composer repositories (Packagist by default)' }}. Composer sends package names and locked versions to configured advisory repositories; credentials are not included in this report.</small></p>
+                        <p>Run scans with <code>php artisan opconsole:security</code>; include development dependencies with <code>--include-dev</code>. Review recommended updates in your normal development and deployment process.</p>
+                    </div>
+                </section>
             </div>
 
             <div class="oc-tab-panel" id="oc-panel-history" role="tabpanel" aria-labelledby="oc-tab-history" data-oc-panel="history">
@@ -300,7 +426,13 @@
                                                 @endif
                                             </td>
                                             <td dir="ltr">{{ $run['duration'] }}</td>
-                                            <td class="oc-table-details"><bdi>{{ $run['details'] }}</bdi></td>
+                                            <td class="oc-table-details">
+                                                @if ($run['details'] !== '—')
+                                                    <details class="oc-history-detail"><summary>View details</summary><p><bdi>{{ $run['details'] }}</bdi></p></details>
+                                                @else
+                                                    —
+                                                @endif
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>

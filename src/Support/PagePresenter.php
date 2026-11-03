@@ -76,19 +76,22 @@ class PagePresenter
         $actions = $this->actions($status, $canRun, $actionPermissions);
         $checks = $this->checks($status['checks']) + ['lastChecked' => $this->lastChecked($status['checkedAt'] ?? null)];
         $history = $this->history($status['history']);
+        $overview = $this->overview($status, $checks, $actions);
 
         return [
             'assets' => $this->assets(),
             'indexUrl' => route($this->routeName('index')),
+            'refreshUrl' => request()->fullUrl(),
             'environment' => [
                 'name' => $status['app']['environment'],
                 'production' => $status['app']['production'],
                 'debug' => $status['app']['debug'],
             ],
-            'tiles' => $this->tiles($status, $actions),
+            'tiles' => $this->tiles($status, $actions, $logFiles !== []),
             'advice' => $this->advice($status['advice'], $actions),
             'actions' => $actions,
             'checks' => $checks,
+            'overview' => $overview,
             'history' => $history,
             'tabs' => $this->tabs($status, $actions, $history, $output !== null),
             'theme' => $this->theme(),
@@ -111,8 +114,8 @@ class PagePresenter
     }
 
     /**
-     * Section tabs with attention badges, plus the tab that opens first: Actions right after an
-     * operation ran (so its output is visible), Health when a check is critical, otherwise the first tab.
+     * Section navigation with attention badges; show Operations first after a command result,
+     * otherwise start at Overview where the full readiness summary is visible.
      *
      * @return array{items: array<string, array{label: string, icon: string, hash: string, badge: ?string, badgeLabel: ?string, tone: string}>, default: string}
      */
@@ -138,25 +141,92 @@ class PagePresenter
                 : ['badge' => null, 'badgeLabel' => null, 'tone' => '']);
 
         $items = array_filter([
-            'actions' => ($actions !== [] || $hasOutput)
-                ? ['label' => __('opconsole::opconsole.tab_actions'), 'icon' => 'terminal', 'hash' => 'actions'] + $actionsBadge
-                : null,
+            'overview' => ['label' => __('opconsole::opconsole.tab_overview'), 'icon' => 'home', 'hash' => 'overview', 'tone' => '', 'badge' => null, 'badgeLabel' => null],
             'health' => ['label' => __('opconsole::opconsole.tab_health'), 'icon' => 'heart-rate', 'hash' => 'checks', 'tone' => $critical ? 'is-bad' : 'is-warning']
                 + $badge($problems, 'tab_badge_health'),
-            'history' => ['label' => __('opconsole::opconsole.tab_history'), 'icon' => 'clock', 'hash' => 'history', 'tone' => 'is-neutral']
-                + $badge($historyCount, 'tab_badge_history'),
+            'security' => ['label' => 'Security', 'icon' => 'shield', 'hash' => 'security', 'tone' => 'is-warning', 'badge' => null, 'badgeLabel' => null],
+            'operations' => ($actions !== [] || $hasOutput)
+                ? ['label' => __('opconsole::opconsole.tab_actions'), 'icon' => 'terminal', 'hash' => 'operations'] + $actionsBadge
+                : null,
             'logs' => ['label' => __('opconsole::opconsole.tab_logs'), 'icon' => 'file-text', 'hash' => 'logs', 'tone' => 'is-bad']
                 + $badge($errors, 'tab_badge_errors'),
+            'history' => ['label' => __('opconsole::opconsole.tab_history'), 'icon' => 'clock', 'hash' => 'history', 'tone' => 'is-neutral']
+                + $badge($historyCount, 'tab_badge_history'),
             'system' => ['label' => __('opconsole::opconsole.tab_system'), 'icon' => 'info', 'hash' => 'system-info', 'tone' => '', 'badge' => null, 'badgeLabel' => null],
         ]);
 
         $default = match (true) {
-            $hasOutput && isset($items['actions']) => 'actions',
-            $critical > 0 => 'health',
-            default => (string) array_key_first($items),
+            $hasOutput && isset($items['operations']) => 'operations',
+            default => 'overview',
         };
 
         return ['items' => $items, 'default' => $default];
+    }
+
+    /** Build the first-screen summary from checks and facts already gathered by ConsoleStatus. */
+    private function overview(array $status, array $checks, array $actions): array
+    {
+        $all = collect($status['checks']);
+        $critical = $all->where('status', 'critical')->count();
+        $warnings = $all->filter(fn (array $check) => $check['status'] === 'warning' && $check['severity'] !== 'info')->count();
+        $unknown = $all->where('status', 'unknown')->count();
+        $healthy = $all->where('status', 'healthy')->count();
+        $total = $all->count();
+        $tone = $critical > 0 ? 'is-bad' : ($warnings > 0 ? 'is-warning' : ($unknown > 0 || $total === 0 ? 'is-unknown' : 'is-ok'));
+        $state = $critical > 0 ? 'Critical issues' : ($warnings > 0 ? 'Attention needed' : ($unknown > 0 ? 'Partially verified' : ($total === 0 ? 'Health unavailable' : 'All checks healthy')));
+
+        $priority = ['critical' => 0, 'warning' => 1];
+        $attention = $all->filter(fn (array $check) => isset($priority[$check['status']]) && ! ($check['status'] === 'warning' && $check['severity'] === 'info'))
+            ->sortBy(fn (array $check) => $priority[$check['status']])
+            ->map(fn (array $check) => [
+                'label' => $check['label'],
+                'group' => $check['group'],
+                'status' => ucfirst($check['status']),
+                'tone' => $check['status'] === 'critical' ? 'is-bad' : 'is-warning',
+                'hint' => $check['hint'],
+                'fix' => $check['fix'],
+                'url' => '#checks',
+            ])->values()->all();
+
+        $unknownItems = $all->where('status', 'unknown')->map(fn (array $check) => [
+            'label' => $check['label'],
+            'group' => $check['group'],
+            'hint' => $check['hint'],
+        ])->take(3)->values()->all();
+
+        $service = function (string $id, string $fallback) use ($all): array {
+            $check = $all->firstWhere('id', $id);
+
+            return [
+                'status' => $check['status'] ?? 'unknown',
+                'label' => $check ? ucfirst($check['status']) : 'Not configured',
+                'value' => $check['value'] ?? $fallback,
+                'hint' => $check['hint'] ?? 'This service check is disabled or unavailable.',
+                'fix' => $check['fix'] ?? null,
+            ];
+        };
+
+        return [
+            'appName' => (string) config('app.name', 'Laravel'),
+            'environment' => (string) ($status['app']['environment'] ?? 'unknown'),
+            'state' => $state,
+            'tone' => $tone,
+            'summary' => $total === 0 ? 'No health checks are available.' : $healthy.' of '.$total.' checks verified healthy'.($unknown ? '; '.$unknown.' unverified' : ''),
+            'critical' => $critical,
+            'warnings' => $warnings,
+            'unknown' => $unknown,
+            'total' => $total,
+            'attention' => array_slice($attention, 0, 4),
+            'moreAttention' => max(0, count($attention) - 4),
+            'unknownItems' => $unknownItems,
+            'lastChecked' => $checks['lastChecked'] ?? null,
+            'scheduler' => $service('scheduler.heartbeat', 'No scheduler check'),
+            'queue' => $service('queue.worker_heartbeat', 'No worker check'),
+            'maintenance' => [
+                'down' => (bool) ($status['app']['down'] ?? false),
+                'action' => isset($actions['up']) && $actions['up']['enabled'] ? '#action-up' : '#checks',
+            ],
+        ];
     }
 
     /** The visitor's toggle choice (plain cookie written by opconsole.js) wins over the configured default. */
@@ -199,11 +269,12 @@ class PagePresenter
         return config('opconsole.route.name_prefix', 'opconsole.').$suffix;
     }
 
-    private function tiles(array $status, array $actions): array
+    private function tiles(array $status, array $actions, bool $hasReadableLog): array
     {
         ['database' => $db, 'checks' => $checks, 'errors' => $errors] = $status;
         $pending = count($db['pending']);
         $allChecks = collect($checks);
+        $checkCount = $allChecks->count();
         $failed = $allChecks->filter(fn (array $c) => $c['status'] === 'critical' || ($c['status'] === 'warning' && $c['severity'] !== 'info'));
         $unknown = $allChecks->filter(fn (array $c) => $c['status'] === 'unknown')->count();
 
@@ -220,20 +291,20 @@ class PagePresenter
             ],
             [
                 'label' => 'Health checks',
-                'value' => $failed->isEmpty() ? 'Healthy' : $failed->count().' '.($failed->count() === 1 ? 'alert' : 'alerts'),
+                'value' => $failed->isNotEmpty() ? $failed->count().' '.($failed->count() === 1 ? 'alert' : 'alerts') : ($checkCount === 0 ? 'Unavailable' : ($unknown ? 'Partially verified' : 'Healthy')),
                 'sub' => $checksSub,
                 'icon' => 'heart-rate',
                 'tone' => $failed->contains(fn (array $c) => $c['status'] === 'critical')
                     ? 'is-bad'
-                    : ($failed->isEmpty() ? 'is-ok' : 'is-warning'),
+                    : ($failed->isNotEmpty() ? 'is-warning' : ($unknown || $checkCount === 0 ? 'is-unknown' : 'is-ok')),
                 'link' => '#checks',
             ],
             [
-                'label' => 'Errors in the last 24 hours',
-                'value' => $errors['count'] ? $errors['count'].' '.($errors['count'] === 1 ? 'error' : 'errors') : 'None',
-                'sub' => $errors['last'] ? 'Latest: '.$errors['last'] : 'Environment: '.$status['app']['environment'],
+                'label' => 'Errors in sampled log tail',
+                'value' => ! $hasReadableLog ? 'Unavailable' : ($errors['count'] ? $errors['count'].' '.($errors['count'] === 1 ? 'error' : 'errors') : 'No sampled errors'),
+                'sub' => ! $hasReadableLog ? 'No readable log file' : ($errors['last'] ? 'Newest readable log · latest '.$errors['last'] : 'Newest readable log · last 24 hours'),
                 'icon' => 'bug',
-                'tone' => $errors['count'] ? 'is-bad' : 'is-ok',
+                'tone' => ! $hasReadableLog ? 'is-unknown' : ($errors['count'] ? 'is-bad' : 'is-ok'),
                 'link' => '#logs',
             ],
         ];

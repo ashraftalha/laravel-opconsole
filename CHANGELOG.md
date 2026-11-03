@@ -4,6 +4,10 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+### Added
+- Host Composer dependency security audit (`opconsole:security`) using bounded Composer JSON audit subprocesses, stored reports, manifest freshness, ignored/abandoned advisory handling, and optional daily scheduling.
+- Security dashboard tab with advisory details and Laravel runtime configuration warnings for app key, debug, session cookies, HTTPS, and OpConsole authorization/actions.
+
 ## [1.6.0] - 2026-11-03
 
 ### Added

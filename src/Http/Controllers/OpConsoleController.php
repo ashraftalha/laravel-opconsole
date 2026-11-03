@@ -6,6 +6,7 @@ use AshrafTalha\OpConsole\Support\ActionRunner;
 use AshrafTalha\OpConsole\Support\ConsoleStatus;
 use AshrafTalha\OpConsole\Support\LogViewer;
 use AshrafTalha\OpConsole\Support\PagePresenter;
+use AshrafTalha\OpConsole\Support\SecurityScanner;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -36,6 +37,7 @@ class OpConsoleController extends Controller
         private LogViewer $logs,
         private PagePresenter $presenter,
         private ActionRunner $actions,
+        private SecurityScanner $security,
     ) {}
 
     public function index(Request $request): View
@@ -48,7 +50,7 @@ class OpConsoleController extends Controller
             $this->log($request, $files),
             session('opconsole_output'),
             $request->user(),
-        ) + ['layout' => config('opconsole.layout')]);
+        ) + ['layout' => config('opconsole.layout'), 'securityReport' => $this->security->report()]);
     }
 
     public function asset(string $asset): BinaryFileResponse
