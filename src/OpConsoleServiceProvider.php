@@ -3,6 +3,7 @@
 namespace AshrafTalha\OpConsole;
 
 use AshrafTalha\OpConsole\Http\Middleware\AuthorizeOpConsole;
+use AshrafTalha\OpConsole\Jobs\OpConsoleHeartbeatJob;
 use AshrafTalha\OpConsole\Support\Heartbeat;
 use AshrafTalha\OpConsole\Support\LogViewer;
 use Illuminate\Console\Scheduling\Schedule;
@@ -68,13 +69,24 @@ class OpConsoleServiceProvider extends ServiceProvider
     private function registerHeartbeats(): void
     {
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
-            if (! config('opconsole.heartbeats.scheduler', true)) {
-                return;
+            if (config('opconsole.heartbeats.scheduler', true)) {
+                $schedule->call(fn () => app(Heartbeat::class)->beat(Heartbeat::SCHEDULER))
+                    ->everyMinute()
+                    ->name('opconsole:heartbeat:scheduler');
             }
 
-            $schedule->call(fn () => app(Heartbeat::class)->beat(Heartbeat::SCHEDULER))
-                ->everyMinute()
-                ->name('opconsole:heartbeat:scheduler');
+            if (config('opconsole.heartbeats.queue', true)) {
+                $schedule->call(function () {
+                    $heartbeat = app(Heartbeat::class);
+                    $heartbeat->beatOnce(Heartbeat::QUEUE_DISPATCHED);
+
+                    OpConsoleHeartbeatJob::dispatch()
+                        ->onConnection($heartbeat->queueConnection())
+                        ->onQueue($heartbeat->queueName());
+                })
+                    ->everyMinute()
+                    ->name('opconsole:heartbeat:queue');
+            }
         });
     }
 

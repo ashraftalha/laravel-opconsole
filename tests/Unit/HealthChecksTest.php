@@ -3,11 +3,13 @@
 namespace AshrafTalha\OpConsole\Tests\Unit;
 
 use AshrafTalha\OpConsole\Contracts\HealthCheck;
+use AshrafTalha\OpConsole\Jobs\OpConsoleHeartbeatJob;
 use AshrafTalha\OpConsole\Support\HealthChecks;
 use AshrafTalha\OpConsole\Support\Heartbeat;
 use AshrafTalha\OpConsole\Tests\TestCase;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 
 class HealthChecksTest extends TestCase
@@ -233,6 +235,112 @@ class HealthChecksTest extends TestCase
         $event->run($this->app);
 
         $this->assertNotNull(app(Heartbeat::class)->last(Heartbeat::SCHEDULER)['at']);
+    }
+
+    private function beatAt(string $name, int $minutesAgo): void
+    {
+        $this->travelTo(now()->subMinutes($minutesAgo));
+        app(Heartbeat::class)->beat($name);
+        $this->travelBack();
+    }
+
+    private function useWorkerQueue(): void
+    {
+        config(['queue.default' => 'redis', 'queue.connections.redis' => ['driver' => 'redis', 'queue' => 'default']]);
+    }
+
+    public function test_queue_worker_heartbeat_is_skipped_for_sync_driver(): void
+    {
+        config(['queue.default' => 'sync']);
+
+        $check = $this->checkById('queue.worker_heartbeat');
+
+        $this->assertSame('healthy', $check['status']);
+        $this->assertSame('info', $check['severity']);
+        $this->assertStringContainsString('sync', (string) $check['value']);
+    }
+
+    public function test_queue_worker_heartbeat_is_unknown_when_scheduler_is_not_running(): void
+    {
+        $this->useWorkerQueue();
+
+        $this->assertSame('unknown', $this->checkById('queue.worker_heartbeat')['status']);
+    }
+
+    public function test_fresh_queue_worker_heartbeat_is_healthy_for_external_brokers(): void
+    {
+        $this->useWorkerQueue();
+        app(Heartbeat::class)->beat(Heartbeat::SCHEDULER);
+        $this->beatAt(Heartbeat::QUEUE, 2);
+
+        $check = $this->checkById('queue.worker_heartbeat');
+
+        $this->assertSame('healthy', $check['status']);
+        $this->assertStringContainsString('2 minutes ago', (string) $check['value']);
+    }
+
+    public function test_queue_worker_heartbeat_waits_for_the_first_job_after_install(): void
+    {
+        $this->useWorkerQueue();
+        app(Heartbeat::class)->beat(Heartbeat::SCHEDULER);
+        $this->beatAt(Heartbeat::QUEUE_DISPATCHED, 1);
+
+        $this->assertSame('unknown', $this->checkById('queue.worker_heartbeat')['status']);
+    }
+
+    public function test_stale_queue_worker_heartbeat_warns_locally_and_is_critical_in_production(): void
+    {
+        $this->useWorkerQueue();
+        config(['opconsole.heartbeats.queue_name' => 'ops']);
+        app(Heartbeat::class)->beat(Heartbeat::SCHEDULER);
+        $this->beatAt(Heartbeat::QUEUE_DISPATCHED, 30);
+        $this->beatAt(Heartbeat::QUEUE, 10);
+
+        $check = $this->checkById('queue.worker_heartbeat');
+        $this->assertSame('warning', $check['status']);
+        $this->assertSame('php artisan queue:work --queue=ops', $check['fix']);
+
+        $this->app['env'] = 'production';
+        $this->assertSame('critical', $this->checkById('queue.worker_heartbeat')['status']);
+    }
+
+    public function test_queue_worker_heartbeat_threshold_is_configurable(): void
+    {
+        $this->useWorkerQueue();
+        config(['opconsole.heartbeats.queue_max_age' => 900]);
+        app(Heartbeat::class)->beat(Heartbeat::SCHEDULER);
+        $this->beatAt(Heartbeat::QUEUE, 10);
+
+        $this->assertSame('healthy', $this->checkById('queue.worker_heartbeat')['status']);
+    }
+
+    public function test_queue_worker_heartbeat_check_is_omitted_when_disabled(): void
+    {
+        config(['opconsole.heartbeats.queue' => false]);
+
+        $this->assertNull($this->checkById('queue.worker_heartbeat'));
+    }
+
+    public function test_scheduler_dispatches_the_heartbeat_job_on_the_configured_queue(): void
+    {
+        Queue::fake();
+        config(['opconsole.heartbeats.queue_connection' => 'redis', 'opconsole.heartbeats.queue_name' => 'ops']);
+
+        $event = collect($this->app->make(Schedule::class)->events())
+            ->first(fn ($event) => $event->description === 'opconsole:heartbeat:queue');
+        $this->assertNotNull($event);
+
+        $event->run($this->app);
+
+        Queue::assertPushed(OpConsoleHeartbeatJob::class, fn (OpConsoleHeartbeatJob $job) => $job->connection === 'redis' && $job->queue === 'ops');
+        $this->assertNotNull(app(Heartbeat::class)->last(Heartbeat::QUEUE_DISPATCHED)['at']);
+    }
+
+    public function test_heartbeat_job_writes_the_queue_heartbeat(): void
+    {
+        app()->call([new OpConsoleHeartbeatJob, 'handle']);
+
+        $this->assertNotNull(app(Heartbeat::class)->last(Heartbeat::QUEUE)['at']);
     }
 
     public function test_scheduler_heartbeat_is_not_scheduled_when_disabled(): void

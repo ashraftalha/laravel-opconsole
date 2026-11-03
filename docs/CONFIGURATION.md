@@ -60,8 +60,13 @@ php artisan vendor:publish --tag=opconsole-config
 | `heartbeats.store` | `OPCONSOLE_HEARTBEAT_STORE` | `null` | Cache store for heartbeat timestamps (`null` uses `cache.default`). Must be shared by every server. |
 | `heartbeats.scheduler` | `OPCONSOLE_HEARTBEAT_SCHEDULER` | `true` | Registers a scheduled callback that writes `opconsole:heartbeat:scheduler` every minute and enables the `scheduler.heartbeat` check. |
 | `heartbeats.scheduler_max_age` | `OPCONSOLE_HEARTBEAT_SCHEDULER_MAX_AGE` | `120` | Seconds before the scheduler heartbeat counts as stale (enforced minimum: `60`). Stale is a warning outside production and critical in production. |
+| `heartbeats.queue` | `OPCONSOLE_HEARTBEAT_QUEUE` | `true` | The scheduler dispatches `OpConsoleHeartbeatJob` every minute; a worker processing it writes `opconsole:heartbeat:queue` and enables the `queue.worker_heartbeat` check. Works with any driver, including Redis and SQS. |
+| `heartbeats.queue_max_age` | `OPCONSOLE_HEARTBEAT_QUEUE_MAX_AGE` | `300` | Seconds before the queue heartbeat counts as stale (enforced minimum: `60`). |
+| `heartbeats.queue_connection` | `OPCONSOLE_HEARTBEAT_QUEUE_CONNECTION` | `null` | Queue connection for the heartbeat job (`null` uses `queue.default`). Skipped with an info status when its driver is `sync` or `null`. |
+| `heartbeats.queue_name` | `OPCONSOLE_HEARTBEAT_QUEUE_NAME` | `null` | Queue name for the heartbeat job (`null` uses the connection's default queue). |
 
 - `optimize:clear` flushes `cache.default`, so with the default store the heartbeat checks read `unknown` for up to a minute afterwards.
+- `queue.worker_heartbeat` reads `unknown` while the scheduler heartbeat is missing or stale (no job can be expected) and for the first `queue_max_age` seconds after the first dispatch.
 - Array and null cache drivers never persist between processes, so the checks stay `unknown` with those drivers.
 
 ### Allow-Listed Artisan Actions (`actions.*`)

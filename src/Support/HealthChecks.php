@@ -354,26 +354,44 @@ class HealthChecks
      */
     private function workerChecks(bool $production, \Closure $check): array
     {
-        if (! config('opconsole.heartbeats.scheduler', true)) {
-            return [];
+        $checks = [];
+        $schedulerFresh = false;
+
+        if (config('opconsole.heartbeats.scheduler', true)) {
+            $schedulerCheck = $this->schedulerCheck($production, $check);
+            $schedulerFresh = $schedulerCheck['status'] === 'healthy';
+            $checks[] = $schedulerCheck;
         }
 
+        if (config('opconsole.heartbeats.queue', true)) {
+            $checks[] = $this->queueWorkerCheck($production, $schedulerFresh, $check);
+        }
+
+        return $checks;
+    }
+
+    /**
+     * @param  \Closure(string, string, string, bool, string, string, ?string=, ?string=, ?string=): array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}  $check
+     * @return array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}
+     */
+    private function schedulerCheck(bool $production, \Closure $check): array
+    {
         $label = 'Scheduler is running';
         $fix = app()->environment('local') ? 'php artisan schedule:work' : '* * * * * cd /path && php artisan schedule:run';
         $beat = $this->heartbeat->last(Heartbeat::SCHEDULER);
 
         if ($beat['error'] !== null) {
-            return [$check('scheduler.heartbeat', self::WORKERS_GROUP, $label, true, 'info', 'Heartbeat store could not be read.', 'store='.$this->heartbeat->storeName(), null, 'unknown')];
+            return $check('scheduler.heartbeat', self::WORKERS_GROUP, $label, true, 'info', 'Heartbeat store could not be read.', 'store='.$this->heartbeat->storeName(), null, 'unknown');
         }
 
         if ($beat['at'] === null) {
-            return [$check('scheduler.heartbeat', self::WORKERS_GROUP, $label, true, 'info', 'Scheduler has not run yet.', 'no heartbeat', $fix, 'unknown')];
+            return $check('scheduler.heartbeat', self::WORKERS_GROUP, $label, true, 'info', 'Scheduler has not run yet.', 'no heartbeat', $fix, 'unknown');
         }
 
         $maxAge = max(60, (int) config('opconsole.heartbeats.scheduler_max_age', 120));
         $fresh = now()->getTimestamp() - $beat['at'] <= $maxAge;
 
-        return [$check(
+        return $check(
             'scheduler.heartbeat',
             self::WORKERS_GROUP,
             $label,
@@ -382,7 +400,59 @@ class HealthChecks
             'schedule:run should fire every minute; checked through a cache heartbeat.',
             'last run '.$this->ago($beat['at']),
             $fresh ? null : $fix,
-        )];
+        );
+    }
+
+    /**
+     * Driver-agnostic (works for Redis/SQS too): a worker processed the job the scheduler dispatched.
+     *
+     * @param  \Closure(string, string, string, bool, string, string, ?string=, ?string=, ?string=): array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}  $check
+     * @return array{id: string, group: string, label: string, ok: bool, status: 'healthy'|'warning'|'critical'|'unknown', severity: 'danger'|'warning'|'info', hint: string, value: ?string, fix: ?string}
+     */
+    private function queueWorkerCheck(bool $production, bool $schedulerFresh, \Closure $check): array
+    {
+        $label = 'Queue worker is processing jobs';
+        $connection = $this->heartbeat->queueConnection();
+        $driver = (string) (config("queue.connections.{$connection}.driver") ?? $connection);
+
+        if (in_array($driver, ['sync', 'null'], true)) {
+            return $check('queue.worker_heartbeat', self::WORKERS_GROUP, $label, true, 'info', 'The '.$driver.' queue driver does not use a background worker.', 'connection='.$connection.' ('.$driver.')');
+        }
+
+        $queueName = $this->heartbeat->queueName();
+        $fix = 'php artisan queue:work'.($connection !== config('queue.default') ? ' '.$connection : '').($queueName !== null ? ' --queue='.$queueName : '');
+        $beat = $this->heartbeat->last(Heartbeat::QUEUE);
+        $dispatched = $this->heartbeat->last(Heartbeat::QUEUE_DISPATCHED);
+
+        if ($beat['error'] !== null || $dispatched['error'] !== null) {
+            return $check('queue.worker_heartbeat', self::WORKERS_GROUP, $label, true, 'info', 'Heartbeat store could not be read.', 'store='.$this->heartbeat->storeName(), null, 'unknown');
+        }
+
+        $maxAge = max(60, (int) config('opconsole.heartbeats.queue_max_age', 300));
+        $now = now()->getTimestamp();
+
+        if ($beat['at'] !== null && $now - $beat['at'] <= $maxAge) {
+            return $check('queue.worker_heartbeat', self::WORKERS_GROUP, $label, true, 'warning', 'A worker processed the heartbeat job the scheduler dispatches every minute.', 'last processed '.$this->ago($beat['at']));
+        }
+
+        if (! $schedulerFresh) {
+            return $check('queue.worker_heartbeat', self::WORKERS_GROUP, $label, true, 'info', 'Heartbeat jobs are dispatched by the scheduler, which is not confirmed running.', $beat['at'] !== null ? 'last processed '.$this->ago($beat['at']) : 'no heartbeat', null, 'unknown');
+        }
+
+        if ($beat['at'] === null && ($dispatched['at'] === null || $now - $dispatched['at'] <= $maxAge)) {
+            return $check('queue.worker_heartbeat', self::WORKERS_GROUP, $label, true, 'info', 'Waiting for a worker to process the first heartbeat job.', 'no heartbeat yet', $fix, 'unknown');
+        }
+
+        return $check(
+            'queue.worker_heartbeat',
+            self::WORKERS_GROUP,
+            $label,
+            false,
+            $production ? 'danger' : 'warning',
+            'Heartbeat jobs are being dispatched but no worker has processed one recently.',
+            $beat['at'] !== null ? 'last processed '.$this->ago($beat['at']) : 'never processed',
+            $fix,
+        );
     }
 
     private function ago(int $timestamp): string

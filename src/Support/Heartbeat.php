@@ -13,6 +13,9 @@ class Heartbeat
 
     public const QUEUE = 'queue';
 
+    /** First time the scheduler dispatched the queue heartbeat job; separates "worker down" from "just installed". */
+    public const QUEUE_DISPATCHED = 'queue_dispatched';
+
     public function key(string $name): string
     {
         return 'opconsole:heartbeat:'.$name;
@@ -21,6 +24,12 @@ class Heartbeat
     public function beat(string $name): void
     {
         $this->store()->forever($this->key($name), now()->getTimestamp());
+    }
+
+    /** Writes the timestamp only if none exists yet. */
+    public function beatOnce(string $name): void
+    {
+        $this->store()->add($this->key($name), now()->getTimestamp());
     }
 
     /**
@@ -44,6 +53,20 @@ class Heartbeat
         $store = config('opconsole.heartbeats.store');
 
         return is_string($store) && $store !== '' ? $store : (string) config('cache.default');
+    }
+
+    public function queueConnection(): string
+    {
+        $connection = config('opconsole.heartbeats.queue_connection');
+
+        return is_string($connection) && $connection !== '' ? $connection : (string) config('queue.default');
+    }
+
+    public function queueName(): ?string
+    {
+        $queue = config('opconsole.heartbeats.queue_name');
+
+        return is_string($queue) && $queue !== '' ? $queue : null;
     }
 
     private function store(): Repository

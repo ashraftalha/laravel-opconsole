@@ -82,7 +82,8 @@ return [
     | Heartbeats
     |--------------------------------------------------------------------------
     | The scheduler writes a timestamp every minute so the dashboard can tell
-    | whether `schedule:run` is actually firing. The store must be shared by
+    | whether `schedule:run` is actually firing (and dispatches a queued job
+    | whose worker writes another). The store must be shared by
     | every server (null uses cache.default); `optimize:clear` flushes
     | cache.default, so the check reads "unknown" for up to a minute after it.
     | Max ages are in seconds.
@@ -91,6 +92,11 @@ return [
         'store' => env('OPCONSOLE_HEARTBEAT_STORE'),
         'scheduler' => (bool) env('OPCONSOLE_HEARTBEAT_SCHEDULER', true),
         'scheduler_max_age' => (int) env('OPCONSOLE_HEARTBEAT_SCHEDULER_MAX_AGE', 120),
+        // The scheduler dispatches a tiny job every minute; a worker processing it proves the queue is consumed.
+        'queue' => (bool) env('OPCONSOLE_HEARTBEAT_QUEUE', true),
+        'queue_max_age' => (int) env('OPCONSOLE_HEARTBEAT_QUEUE_MAX_AGE', 300),
+        'queue_connection' => env('OPCONSOLE_HEARTBEAT_QUEUE_CONNECTION'),
+        'queue_name' => env('OPCONSOLE_HEARTBEAT_QUEUE_NAME'),
     ],
 
     /*
