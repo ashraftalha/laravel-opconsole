@@ -70,6 +70,35 @@ Gate::define('runOpConsoleActions', fn ($user) => $user->email === 'you@example.
 
 Done.
 
+## Updating
+
+**Step 1. Update the package**
+
+```bash
+composer update ashraftalha/laravel-opconsole
+```
+
+**Step 2. Run new migrations**
+
+```bash
+php artisan migrate
+```
+
+**Step 3. Clear cached config**
+
+```bash
+php artisan config:clear
+```
+
+**Step 4. Refresh published files (only if you published them)**
+
+Composer never changes files in your app. If you ran `vendor:publish` before:
+
+- **Styles:** `php artisan vendor:publish --tag=opconsole-assets --force`
+- **Config:** compare your `config/opconsole.php` with the [latest one](config/opconsole.php) and copy over any new keys (for example new `actions` entries). Re-publishing with `--force` also works, but it overwrites your changes.
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+
 ## Custom Health Checks (optional)
 
 Create a class:
