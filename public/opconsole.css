@@ -161,7 +161,7 @@ body.oc-standalone {
 .oc-tile.is-bad .oc-tile-icon { background: #fee2e2; }
 .oc-tile-icon .oc-icon { width: 1.35rem; height: 1.35rem; }
 .oc-tile strong { display: block; font-size: 1.4rem; line-height: 1.15; font-weight: 800; color: var(--oc-text); }
-.oc-tile span { display: block; margin-top: 0.15rem; font-size: 0.81rem; color: var(--oc-muted); overflow-wrap: anywhere; line-height: 1.35; }
+.oc-tile > div > span { display: block; margin-top: 0.15rem; font-size: 0.81rem; color: var(--oc-muted); overflow-wrap: anywhere; line-height: 1.35; }
 .oc-tile > div { min-width: 0; }
 .oc-tile-link { display: block; height: 100%; color: inherit; text-decoration: none; border-radius: var(--oc-radius); }
 .oc-tile-link:hover .oc-tile { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08); }
