@@ -83,6 +83,37 @@
                 @endforelse
             </section>
 
+            {{-- Section tabs: progressive enhancement. Without JavaScript every panel stays visible in page order. --}}
+            @php
+                $hasActionsTab = count($actions) > 0 || $output;
+                $healthProblems = collect($checks['groups'])->flatMap(fn ($group) => $group['items'])
+                    ->whereIn('status', ['warning', 'critical'])->count();
+                $healthCritical = collect($checks['groups'])->flatMap(fn ($group) => $group['items'])
+                    ->where('status', 'critical')->count();
+                $tabs = array_filter([
+                    'actions' => $hasActionsTab ? ['label' => 'Actions', 'icon' => 'terminal', 'hash' => 'actions', 'badge' => null, 'tone' => ''] : null,
+                    'health' => ['label' => 'Health', 'icon' => 'heart-rate', 'hash' => 'checks', 'badge' => $healthProblems ?: null, 'tone' => $healthCritical ? 'is-bad' : ($healthProblems ? 'is-warning' : '')],
+                    'history' => ['label' => 'History', 'icon' => 'clock', 'hash' => 'history', 'badge' => $history['available'] && count($history['items']) ? count($history['items']) : null, 'tone' => 'is-neutral'],
+                    'logs' => ['label' => 'Logs', 'icon' => 'file-text', 'hash' => 'logs', 'badge' => null, 'tone' => ''],
+                    'system' => ['label' => 'System', 'icon' => 'info', 'hash' => 'system-info', 'badge' => null, 'tone' => ''],
+                ]);
+                $defaultTab = $output ? 'actions' : ($healthCritical ? 'health' : array_key_first($tabs));
+            @endphp
+            <nav class="oc-tabs" role="tablist" aria-label="OpConsole sections" data-oc-tabs data-oc-default="{{ $defaultTab }}" hidden>
+                @foreach ($tabs as $key => $tab)
+                    <button type="button" class="oc-tab" role="tab" id="oc-tab-{{ $key }}" aria-controls="oc-panel-{{ $key }}" aria-selected="false" tabindex="-1" data-oc-tab="{{ $key }}" data-oc-hash="{{ $tab['hash'] }}">
+                        @include('opconsole::partials.icon', ['name' => $tab['icon']])
+                        <span>{{ $tab['label'] }}</span>
+                        @if ($tab['badge'])
+                            <span class="oc-tab-badge {{ $tab['tone'] }}">{{ $tab['badge'] }}</span>
+                        @endif
+                    </button>
+                @endforeach
+            </nav>
+
+            @if ($hasActionsTab)
+            <div class="oc-tab-panel" id="oc-panel-actions" role="tabpanel" aria-labelledby="oc-tab-actions" data-oc-panel="actions">
+            @endif
             {{-- Maintenance actions --}}
             @if (count($actions))
                 <section aria-label="Maintenance operations" class="oc-grid-3">
@@ -162,6 +193,11 @@
                 </section>
             @endif
 
+            @if ($hasActionsTab)
+            </div>
+            @endif
+
+            <div class="oc-tab-panel" id="oc-panel-health" role="tabpanel" aria-labelledby="oc-tab-health" data-oc-panel="health">
             {{-- Health checks: critical problems first, auto-expanded when problems exist --}}
             <details class="oc-section oc-check-details" id="checks"{{ $checks['hasProblems'] ? ' open' : '' }}>
                 <summary class="oc-section-head oc-check-toggle">
@@ -210,6 +246,9 @@
                 </div>
             </details>
 
+            </div>
+
+            <div class="oc-tab-panel" id="oc-panel-history" role="tabpanel" aria-labelledby="oc-tab-history" data-oc-panel="history">
             {{-- Audit history --}}
             <details class="oc-section oc-history-details" id="history"{{ count($history['items']) > 0 ? ' open' : '' }}>
                 <summary class="oc-section-head oc-check-toggle">
@@ -274,8 +313,11 @@
                 </div>
             </details>
 
+            </div>
+
+            <div class="oc-tab-panel" id="oc-panel-system" role="tabpanel" aria-labelledby="oc-tab-system" data-oc-panel="system">
             {{-- System info, grouped; copyable for support --}}
-            <details class="oc-section oc-system-info">
+            <details class="oc-section oc-system-info" id="system-info">
                 <summary class="oc-system-toggle">
                     <span class="oc-inline-flex">@include('opconsole::partials.icon', ['name' => 'info']) <span>System information</span></span>
                     <span class="oc-inline-flex"><span>View details</span> <span class="oc-check-chevron">@include('opconsole::partials.icon', ['name' => 'chevron-down'])</span></span>
@@ -305,6 +347,9 @@
                 </div>
             </details>
 
+            </div>
+
+            <div class="oc-tab-panel" id="oc-panel-logs" role="tabpanel" aria-labelledby="oc-tab-logs" data-oc-panel="logs">
             {{-- Log files --}}
             <section class="oc-section" id="logs" aria-labelledby="oc-logs-heading">
                 <div class="oc-section-head">
@@ -449,6 +494,7 @@
                     @endif
                 </div>
             </section>
+            </div>
         </div>
 
         @if ($layout)

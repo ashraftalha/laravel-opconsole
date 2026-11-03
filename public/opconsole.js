@@ -7,6 +7,7 @@
         initCopyButtons();
         initAlertDismiss();
         initHashReveal();
+        initTabs();
     });
 
     function initConfirmDialog() {
@@ -202,6 +203,143 @@
             link.addEventListener('click', function () {
                 revealTarget(link.getAttribute('href'));
             });
+        });
+    }
+
+    function initTabs() {
+        var tablist = document.querySelector('[data-oc-tabs]');
+        if (!tablist) return;
+
+        var tabs = Array.prototype.slice.call(tablist.querySelectorAll('[data-oc-tab]'));
+        var panels = {};
+        tabs.forEach(function (tab) {
+            var panel = document.getElementById(tab.getAttribute('aria-controls'));
+            if (panel) panels[tab.dataset.ocTab] = panel;
+        });
+        tabs = tabs.filter(function (tab) { return panels[tab.dataset.ocTab]; });
+        if (!tabs.length) return;
+
+        var shell = tablist.closest('.oc-embedded-shell') || document.body;
+        var storageKey = 'opconsole:tab';
+
+        function store(key) {
+            try { window.localStorage.setItem(storageKey, key); } catch (e) { /* storage unavailable */ }
+        }
+
+        function stored() {
+            try { return window.localStorage.getItem(storageKey); } catch (e) { return null; }
+        }
+
+        function tabFor(key) {
+            for (var i = 0; i < tabs.length; i++) {
+                if (tabs[i].dataset.ocTab === key) return tabs[i];
+            }
+            return null;
+        }
+
+        // A hash can name a tab (#checks) or any element inside a panel (#action-migrate).
+        function tabForHash(hash) {
+            if (!hash || hash.length < 2) return null;
+            var id = decodeURIComponent(hash.slice(1));
+            for (var i = 0; i < tabs.length; i++) {
+                if (tabs[i].dataset.ocHash === id) return tabs[i];
+            }
+            var target = document.getElementById(id);
+            var panel = target && target.closest('[data-oc-panel]');
+            return panel ? tabFor(panel.dataset.ocPanel) : null;
+        }
+
+        function activate(tab, options) {
+            options = options || {};
+            tabs.forEach(function (other) {
+                var selected = other === tab;
+                other.setAttribute('aria-selected', selected ? 'true' : 'false');
+                other.tabIndex = selected ? 0 : -1;
+                panels[other.dataset.ocTab].hidden = !selected;
+            });
+            // Collapsible sections inside a panel are always expanded in tab mode.
+            panels[tab.dataset.ocTab].querySelectorAll('details.oc-section').forEach(function (details) {
+                details.open = true;
+            });
+            if (options.remember) store(tab.dataset.ocTab);
+            if (options.updateHash && window.history && window.history.replaceState) {
+                window.history.replaceState(null, '', '#' + tab.dataset.ocHash);
+            }
+            if (options.focus) tab.focus();
+            if (typeof tab.scrollIntoView === 'function') {
+                tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }
+        }
+
+        function initialTab() {
+            var fromHash = tabForHash(window.location.hash);
+            if (fromHash) return fromHash;
+
+            // Log filters and pagination reload the page with query parameters.
+            var params = new URLSearchParams(window.location.search);
+            if (['log', 'level', 'env', 'q', 'limit'].some(function (key) { return params.has(key); })) {
+                var logs = tabFor('logs');
+                if (logs) return logs;
+            }
+
+            var preferred = tablist.dataset.ocDefault;
+            // The server picks "actions" after an action ran and "health" when a check is critical.
+            if (preferred === 'actions' && document.querySelector('[aria-label="Last operation output"]')) {
+                return tabFor('actions') || tabs[0];
+            }
+            if (preferred === 'health') return tabFor('health') || tabs[0];
+
+            return tabFor(stored()) || tabFor(preferred) || tabs[0];
+        }
+
+        shell.classList.add('oc-tabbed');
+        tablist.hidden = false;
+        activate(initialTab());
+
+        tabs.forEach(function (tab, index) {
+            tab.addEventListener('click', function () {
+                activate(tab, { remember: true, updateHash: true });
+            });
+
+            tab.addEventListener('keydown', function (event) {
+                var next = null;
+                if (event.key === 'ArrowRight') next = tabs[(index + 1) % tabs.length];
+                else if (event.key === 'ArrowLeft') next = tabs[(index - 1 + tabs.length) % tabs.length];
+                else if (event.key === 'Home') next = tabs[0];
+                else if (event.key === 'End') next = tabs[tabs.length - 1];
+                if (!next) return;
+                event.preventDefault();
+                activate(next, { remember: true, updateHash: true, focus: true });
+            });
+        });
+
+        // Summaries inside panels no longer collapse their section.
+        shell.querySelectorAll('[data-oc-panel] > details.oc-section > summary').forEach(function (summary) {
+            summary.addEventListener('click', function (event) {
+                if (event.target.closest('a, button')) return;
+                event.preventDefault();
+            });
+        });
+
+        // Tile and advice links (#checks, #logs, #action-migrate, ...) switch to the right tab.
+        function followHash() {
+            var tab = tabForHash(window.location.hash);
+            if (!tab) return;
+            activate(tab, { remember: true });
+            var target = document.getElementById(decodeURIComponent(window.location.hash.slice(1)));
+            if (target && !target.hasAttribute('data-oc-panel') && typeof target.scrollIntoView === 'function') {
+                target.scrollIntoView({ block: 'start' });
+            }
+        }
+
+        window.addEventListener('hashchange', followHash);
+        document.addEventListener('click', function (event) {
+            var link = event.target.closest && event.target.closest('a[href^="#"]');
+            if (!link || link.closest('[data-oc-tabs]')) return;
+            if (link.getAttribute('href') === window.location.hash) {
+                // hashchange will not fire for the current hash, so switch explicitly.
+                setTimeout(followHash, 0);
+            }
         });
     }
 })();
