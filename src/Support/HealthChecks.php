@@ -65,7 +65,7 @@ class HealthChecks
         $missing = array_values(array_filter($extensions, fn ($extension) => ! extension_loaded($extension)));
         $appUrl = (string) config('app.url');
         $appHost = parse_url($appUrl, PHP_URL_HOST);
-        $free = @disk_free_space(storage_path());
+        ['free' => $free, 'total' => $total] = $this->diskSpace();
         $logLevel = $this->effectiveLogLevel();
         $lockValidation = $this->actionRunner->validateLockStore();
         $cacheDriver = (string) config('cache.default');
@@ -120,15 +120,20 @@ class HealthChecks
                 'critical',
             );
         } else {
+            $minPercent = max(0.0, min(100.0, (float) config('opconsole.disk.min_free_percent', 10)));
+            $percent = $total !== false && $total > 0 ? $free / $total * 100 : null;
+            $lowAbsolute = $free < 1024 ** 3;
+            $lowPercent = $percent !== null && $percent < $minPercent;
+
             $diskCheck = $check(
                 'files.disk_space',
                 'Files and folders',
                 'Sufficient disk space',
-                $free >= 1024 ** 3,
+                ! $lowAbsolute && ! $lowPercent,
                 'warning',
-                'Warns when less than 1 GB is available.',
-                Number::fileSize($free, 1).' free',
-                $free < 1024 ** 3 ? 'Free at least 1 GB on the storage volume' : null,
+                'Warns when less than 1 GB or '.rtrim(rtrim(number_format($minPercent, 1), '0'), '.').'% of the volume is free.',
+                Number::fileSize($free, 1).' free'.($percent !== null ? ' ('.round($percent, 1).'%)' : ''),
+                ($lowAbsolute || $lowPercent) ? 'Rotate or archive old logs and temporary files' : null,
             );
         }
 
@@ -572,6 +577,16 @@ class HealthChecks
         } catch (\Throwable) {
             return [$check('files.storage_link', 'Files and folders', $label, true, 'info', 'The storage link could not be inspected.', null, null, 'unknown')];
         }
+    }
+
+    /**
+     * Free and total bytes on the storage volume; false when PHP cannot query them.
+     *
+     * @return array{free: float|false, total: float|false}
+     */
+    protected function diskSpace(): array
+    {
+        return ['free' => @disk_free_space(storage_path()), 'total' => @disk_total_space(storage_path())];
     }
 
     private function ago(int $timestamp): string

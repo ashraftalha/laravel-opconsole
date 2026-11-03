@@ -195,4 +195,11 @@ class DashboardTest extends TestCase
             ->assertSee('Actor 3')
             ->assertDontSee('Actor 2');
     }
+
+    public function test_health_checks_panel_shows_when_checks_last_ran(): void
+    {
+        $this->actingAsUser();
+
+        $this->get('/admin/opconsole')->assertOk()->assertSee('Last checked');
+    }
 }

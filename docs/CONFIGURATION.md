@@ -69,6 +69,12 @@ php artisan vendor:publish --tag=opconsole-config
 - `queue.worker_heartbeat` reads `unknown` while the scheduler heartbeat is missing or stale (no job can be expected) and for the first `queue_max_age` seconds after the first dispatch.
 - Array and null cache drivers never persist between processes, so the checks stay `unknown` with those drivers.
 
+### Disk Space (`disk.*`)
+
+| Key | Environment Variable | Default | Description |
+|---|---|---|---|
+| `disk.min_free_percent` | `OPCONSOLE_DISK_MIN_FREE_PERCENT` | `10` | `files.disk_space` warns when free space drops below this share of the volume, in addition to the absolute limits (warning under 1 GB, critical under 256 MB). |
+
 ### Health Endpoint (`health_endpoint.*`)
 
 | Key | Environment Variable | Default | Description |

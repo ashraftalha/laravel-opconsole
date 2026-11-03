@@ -101,6 +101,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Disk space
+    |--------------------------------------------------------------------------
+    | files.disk_space warns below 1 GB free or below this share of the volume,
+    | and is critical below 256 MB.
+    */
+    'disk' => [
+        'min_free_percent' => (float) env('OPCONSOLE_DISK_MIN_FREE_PERCENT', 10),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Health endpoint
     |--------------------------------------------------------------------------
     | GET {prefix}/health for uptime monitors. Off by default and also off

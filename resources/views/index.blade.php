@@ -168,7 +168,12 @@
                     <b>@include('opconsole::partials.icon', ['name' => 'heart-rate'])</b>
                     <div>
                         <h2>Health checks</h2>
-                        <small>Application and environment diagnostics, critical issues listed first</small>
+                        <small>
+                            Application and environment diagnostics, critical issues listed first
+                            @if ($checks['lastChecked'])
+                                · <time datetime="{{ $checks['lastChecked']['iso'] }}">{{ $checks['lastChecked']['text'] }}</time>
+                            @endif
+                        </small>
                     </div>
                     <span class="oc-checks-summary {{ $checks['tone'] }} oc-ms-auto">{{ $checks['summary'] }}</span>
                     <span class="oc-check-chevron">@include('opconsole::partials.icon', ['name' => 'chevron-down'])</span>

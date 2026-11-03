@@ -471,6 +471,53 @@ class HealthChecksTest extends TestCase
         return [$root.'/public', $root.'/storage'];
     }
 
+    private function diskCheck(float $free, float $total): array
+    {
+        $checks = new class($free, $total) extends HealthChecks
+        {
+            public function __construct(private float $free, private float $total)
+            {
+                parent::__construct();
+            }
+
+            protected function diskSpace(): array
+            {
+                return ['free' => $this->free, 'total' => $this->total];
+            }
+        };
+
+        return collect($checks->run($this->database, null))->firstWhere('id', 'files.disk_space');
+    }
+
+    public function test_disk_space_warns_below_the_free_percentage_even_with_plenty_of_bytes(): void
+    {
+        $check = $this->diskCheck(50 * 1024 ** 3, 1000 * 1024 ** 3);
+
+        $this->assertSame('warning', $check['status']);
+        $this->assertStringContainsString('(5%)', (string) $check['value']);
+        $this->assertNotNull($check['fix']);
+    }
+
+    public function test_disk_space_is_healthy_above_both_limits(): void
+    {
+        $check = $this->diskCheck(50 * 1024 ** 3, 100 * 1024 ** 3);
+
+        $this->assertSame('healthy', $check['status']);
+        $this->assertStringContainsString('(50%)', (string) $check['value']);
+    }
+
+    public function test_disk_space_percentage_threshold_is_configurable(): void
+    {
+        config(['opconsole.disk.min_free_percent' => 3]);
+
+        $this->assertSame('healthy', $this->diskCheck(50 * 1024 ** 3, 1000 * 1024 ** 3)['status']);
+    }
+
+    public function test_disk_space_is_still_critical_below_256_mb(): void
+    {
+        $this->assertSame('critical', $this->diskCheck(100 * 1024 ** 2, 1000 * 1024 ** 3)['status']);
+    }
+
     public function test_scheduler_heartbeat_is_not_scheduled_when_disabled(): void
     {
         config(['opconsole.heartbeats.scheduler' => false]);

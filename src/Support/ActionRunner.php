@@ -117,7 +117,7 @@ class ActionRunner
             // must never be reported back to the user as the action itself having failed.
             if ($bypassSecret !== null && $ok) {
                 // Only ever shown in the one-time output flash; never logged or written to the audit row.
-                $output = trim($output."\n\nBypass URL (shown once): ".url($bypassSecret));
+                $output = trim($output."\n\n".__('opconsole::opconsole.bypass_url', ['url' => url($bypassSecret)]));
             }
 
             $durationMs = (int) round((hrtime(true) - $startedAt) / 1_000_000);

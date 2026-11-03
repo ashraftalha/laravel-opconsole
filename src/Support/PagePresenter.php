@@ -30,6 +30,17 @@ class PagePresenter
         'checks' => ['#checks', 'Review checks'],
     ];
 
+    /** Built-in groups, most operationally urgent first; custom groups follow in the order they appear. */
+    private const GROUP_ORDER = [
+        'Security',
+        'Database and queues',
+        'Scheduler and workers',
+        'Cache and performance',
+        'Files and folders',
+        'PHP settings',
+        'URL and email',
+    ];
+
     private const LEVEL_STYLES = [
         'emergency' => 'is-danger',
         'alert' => 'is-danger',
@@ -59,7 +70,7 @@ class PagePresenter
         $canDelete = $user !== null ? AuthorizeOpConsole::allows('delete', $user) : true;
 
         $actions = $this->actions($status, $canRun);
-        $checks = $this->checks($status['checks']);
+        $checks = $this->checks($status['checks']) + ['lastChecked' => $this->lastChecked($status['checkedAt'] ?? null)];
 
         return [
             'assets' => $this->assets(),
@@ -202,6 +213,7 @@ class PagePresenter
                 'unknown' => $groupUnknown,
                 'total' => $group->count(),
                 'priority' => $groupCritical > 0 ? 0 : ($groupWarning > 0 ? 1 : 2),
+                'rank' => $this->groupRank((string) $name),
                 'items' => $group->sortBy($order)->map(function (array $check) use ($style) {
                     [$cls, $icon, $badge] = $style($check);
 
@@ -212,13 +224,38 @@ class PagePresenter
                     ];
                 })->values()->all(),
             ];
-        })->sortBy('priority')->values()->all();
+        })->sortBy([
+            ['priority', 'asc'],
+            ['rank', 'asc'],
+        ])->values()->all();
 
         return [
             'summary' => implode(' · ', $summaryParts),
             'tone' => $criticalCount > 0 ? 'is-bad' : ($warningCount > 0 ? 'is-warning' : 'is-ok'),
             'hasProblems' => $problems > 0,
             'groups' => $groups,
+        ];
+    }
+
+    private function groupRank(string $name): int
+    {
+        $index = array_search($name, self::GROUP_ORDER, true);
+
+        return $index === false ? count(self::GROUP_ORDER) : $index;
+    }
+
+    /** @return ?array{text: string, iso: string} */
+    private function lastChecked(?string $checkedAt): ?array
+    {
+        if ($checkedAt === null) {
+            return null;
+        }
+
+        $time = Carbon::parse($checkedAt)->setTimezone((string) config('app.timezone', 'UTC'));
+
+        return [
+            'text' => __('opconsole::opconsole.last_checked', ['time' => $time->format('H:i:s T')]),
+            'iso' => $checkedAt,
         ];
     }
 

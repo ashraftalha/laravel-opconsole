@@ -18,6 +18,42 @@ class PagePresenterTest extends TestCase
         return $method->invoke($presenter, $text, $search);
     }
 
+    private function presentChecks(array $checks): array
+    {
+        $presenter = new PagePresenter;
+        $method = new \ReflectionMethod($presenter, 'checks');
+
+        return $method->invoke($presenter, $checks);
+    }
+
+    private function check(string $group, string $status = 'healthy'): array
+    {
+        return ['id' => strtolower(str_replace(' ', '.', $group)).'.'.uniqid(), 'group' => $group, 'label' => $group.' check', 'ok' => $status === 'healthy', 'status' => $status, 'severity' => 'warning', 'hint' => 'Hint.', 'value' => null, 'fix' => null];
+    }
+
+    public function test_check_groups_follow_the_fixed_order_with_custom_groups_last(): void
+    {
+        $groups = $this->presentChecks([
+            $this->check('URL and email'),
+            $this->check('Custom'),
+            $this->check('Files and folders'),
+            $this->check('Scheduler and workers'),
+            $this->check('Security'),
+        ])['groups'];
+
+        $this->assertSame(['Security', 'Scheduler and workers', 'Files and folders', 'URL and email', 'Custom'], array_column($groups, 'name'));
+    }
+
+    public function test_groups_with_problems_still_come_first(): void
+    {
+        $groups = $this->presentChecks([
+            $this->check('Security'),
+            $this->check('URL and email', 'critical'),
+        ])['groups'];
+
+        $this->assertSame('URL and email', $groups[0]['name']);
+    }
+
     public function test_plain_text_is_escaped(): void
     {
         $this->assertSame('&lt;script&gt;', $this->highlight('<script>', ''));

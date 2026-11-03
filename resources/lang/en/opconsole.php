@@ -18,5 +18,7 @@ return [
     'log_delete_failed' => 'Could not delete log file :file. Check filesystem permissions.',
     'audit_unavailable' => 'The operation finished, but its audit record could not be saved. Verify database connectivity and run migrations.',
     'lock_busy' => 'Another operation is already running. Try again shortly.',
+    'bypass_url' => 'Bypass URL (shown once): :url',
+    'last_checked' => 'Last checked :time',
     'lock_unavailable' => 'Operation blocked: action lock store [:store] is unsafe or unavailable (:reason).',
 ];
