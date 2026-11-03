@@ -26,9 +26,12 @@ class HealthNotifier
             $cache = Cache::store($store);
             $backend = $cache->getStore();
             if (! $backend instanceof LockProvider) {
+                Log::warning('OpConsole: health notifications are enabled but the state store does not support locks; nothing was sent', ['store' => (string) $store]);
+
                 return;
             }
-            $lock = $backend->lock('opconsole:health-notifications', 30);
+            // Covers sequential delivery to several destinations (each bounded by HealthWebhookChannel timeouts).
+            $lock = $backend->lock('opconsole:health-notifications', 120);
             if (! $lock->get()) {
                 return;
             }
@@ -47,12 +50,29 @@ class HealthNotifier
             if ($event !== null && ! ($sameEvent && $now - (int) ($previous['sent_at'] ?? 0) < $cooldown)) {
                 $channels = is_array($config['channels'] ?? null) ? $config['channels'] : [];
                 $notification = new HealthTransitionNotification($event, $report);
+                $attempts = [];
                 if (! empty($channels['email'])) {
-                    Notification::route('mail', $channels['email'])->notify($notification);
+                    $attempts['mail'] = fn () => Notification::sendNow(Notification::route('mail', $channels['email']), $notification, ['mail']);
                 }
                 if (! empty($channels['webhooks']) || ! empty($channels['slack'])) {
-                    Notification::route(HealthWebhookChannel::class, $channels)
-                        ->notify($notification);
+                    $attempts['webhook'] = fn () => Notification::sendNow(Notification::route(HealthWebhookChannel::class, $channels), $notification, [HealthWebhookChannel::class]);
+                }
+
+                // Channels are isolated: a failing mailer must not suppress the webhooks, or vice versa.
+                $delivered = 0;
+                foreach ($attempts as $channel => $send) {
+                    try {
+                        $send();
+                        $delivered++;
+                    } catch (Throwable $e) {
+                        // Class only: transport messages can embed the destination URL, and webhook URLs are credentials.
+                        Log::warning('OpConsole: health notification channel failed', ['channel' => $channel, 'error' => class_basename($e)]);
+                    }
+                }
+
+                // If every channel failed nobody was told: keep the old status so the next run sees the transition again.
+                if ($delivered === 0 && $attempts !== []) {
+                    return;
                 }
                 $previous['event'] = $event;
                 $previous['sent_at'] = $now;
@@ -60,7 +80,7 @@ class HealthNotifier
             $previous['status'] = $current;
             $cache->put($key, $previous, max(86400, $cooldown * 2));
         } catch (Throwable $e) {
-            Log::warning('OpConsole: health notification could not be delivered', ['error' => ActionRunner::sanitizeText($e->getMessage())]);
+            Log::warning('OpConsole: health notification could not be evaluated', ['error' => class_basename($e)]);
         } finally {
             try {
                 $lock?->release();
