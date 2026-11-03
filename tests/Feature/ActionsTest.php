@@ -450,12 +450,49 @@ class ActionsTest extends TestCase
         $this->assertLessThanOrEqual(255, mb_strlen((string) $run->user_label));
         $this->assertLessThanOrEqual(255, mb_strlen((string) $run->error));
     }
+
+    public function test_action_duration_is_measured_in_milliseconds(): void
+    {
+        $fake = $this->fakeArtisan();
+        $fake->sleepMs = 50;
+        $this->actingAsUser();
+
+        $this->post('/admin/opconsole/clear')->assertRedirect();
+
+        $run = OpConsoleRun::query()->latest('id')->first();
+        $this->assertNotNull($run);
+        $this->assertGreaterThanOrEqual(45, $run->duration_ms);
+
+        $this->get('/admin/opconsole')->assertOk()->assertDontSee('>0 ms<', false);
+    }
+
+    public function test_instant_operations_store_zero_duration(): void
+    {
+        app(ActionRunner::class)->record('log.download', null, true, 'laravel.log');
+
+        $this->assertSame(0, OpConsoleRun::query()->latest('id')->first()?->duration_ms);
+    }
+
+    public function test_history_falls_back_to_timestamps_for_rows_without_duration(): void
+    {
+        OpConsoleRun::query()->create([
+            'action' => 'clear',
+            'status' => 'succeeded',
+            'started_at' => now()->subSeconds(3),
+            'finished_at' => now(),
+        ]);
+        $this->actingAsUser();
+
+        $this->get('/admin/opconsole')->assertOk()->assertSee('3.00 s');
+    }
 }
 
 /** Records call()/output() without touching the framework's real (final) console kernel. */
 class FakeArtisanKernel implements KernelContract
 {
     public array $calls = [];
+
+    public int $sleepMs = 0;
 
     public function __construct(
         private int $exitCode = 0,
@@ -471,6 +508,10 @@ class FakeArtisanKernel implements KernelContract
     public function call($command, array $parameters = [], $outputBuffer = null)
     {
         $this->calls[] = [$command, $parameters];
+
+        if ($this->sleepMs > 0) {
+            usleep($this->sleepMs * 1000);
+        }
 
         if ($this->throwOnCall !== null) {
             throw $this->throwOnCall;

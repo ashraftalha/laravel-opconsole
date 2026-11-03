@@ -182,7 +182,7 @@ class ConsoleStatus
             $recentRows = OpConsoleRun::query()
                 ->latest('id')
                 ->limit(min(100, max(1, (int) config('opconsole.history_limit', 15))))
-                ->get(['id', 'action', 'status', 'user_id', 'user_label', 'exit_code', 'subject', 'error', 'started_at', 'finished_at', 'created_at']);
+                ->get(); // all columns: duration_ms may not exist until the host migrates
 
             $available = true;
         } catch (Throwable) {
@@ -214,9 +214,12 @@ class ConsoleStatus
                 default => 'unknown',
             };
 
-            $durationMs = ($startedAt !== null && $finishedAt !== null)
-                ? max(0, (int) round($startedAt->diffInMilliseconds($finishedAt)))
-                : null;
+            // Second-precision timestamps only bound older rows recorded before duration_ms existed.
+            $durationMs = $row->duration_ms !== null
+                ? max(0, (int) $row->duration_ms)
+                : (($startedAt !== null && $finishedAt !== null)
+                    ? max(0, (int) round($startedAt->diffInMilliseconds($finishedAt)))
+                    : null);
 
             return [
                 'action' => (string) $row->action,

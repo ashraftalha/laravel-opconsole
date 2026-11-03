@@ -2,7 +2,12 @@
 
 All notable changes to Laravel OpConsole are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] (Recommended: `0.2.0`)
+## [Unreleased]
+
+### Fixed
+- **Accurate action durations:** Operation history showed `0 ms` because `started_at`/`finished_at` are second-precision. A new migration adds a nullable `duration_ms` column; `ActionRunner` measures Artisan calls with `hrtime(true)` and stores `0` for instant operations. Older rows fall back to the timestamp difference, and audit writes keep working until the host runs the new migration.
+
+## [1.0.0] - 2026-11-03
 
 ### Security
 - **Configured authentication guard enforcement:** `AuthorizeOpConsole` enforces `config('opconsole.authentication.guard')` end-to-end via `Auth::shouldUse($guardName)` and `Gate::forUser($guard->user())`, attributing `OpConsoleRun` audit rows to the configured guard's user and failing closed (`403`) on invalid guard names.

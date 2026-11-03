@@ -37,6 +37,8 @@ class ActionRunner
 
     private const MAX_OUTPUT_CHARS = 16000;
 
+    private ?bool $hasDurationColumn = null;
+
     /** @return array{ok: bool, output: string, busy: bool, lock_error?: bool, audited?: bool} */
     public function run(string $action, ?Authenticatable $user): array
     {
@@ -81,6 +83,7 @@ class ActionRunner
         try {
             $run = $this->recordStart($action, $user);
             [$command, $options] = self::ACTIONS[$action];
+            $startedAt = hrtime(true);
 
             try {
                 $exitCode = Artisan::call($command, $options);
@@ -104,7 +107,8 @@ class ActionRunner
 
             // The command has already run by this point: a failure to persist the audit row
             // must never be reported back to the user as the action itself having failed.
-            $audited = $this->recordFinish($run, $ok, $exitCode, $error);
+            $durationMs = (int) round((hrtime(true) - $startedAt) / 1_000_000);
+            $audited = $this->recordFinish($run, $ok, $exitCode, $error, $durationMs);
             Log::info("OpConsole: {$command}", ['user_id' => $user?->getAuthIdentifier(), 'exit_code' => $exitCode]);
 
             return [
@@ -251,6 +255,7 @@ class ActionRunner
                 'error' => $this->limitNullable($error !== null ? self::sanitizeText($error) : null),
                 'started_at' => now(),
                 'finished_at' => now(),
+                ...$this->durationAttributes(0),
             ]);
 
             return true;
@@ -301,7 +306,15 @@ class ActionRunner
         ];
     }
 
-    private function recordFinish(?OpConsoleRun $run, bool $ok, int $exitCode, ?string $error = null): bool
+    /** @return array{duration_ms?: int} */
+    private function durationAttributes(int $durationMs): array
+    {
+        $this->hasDurationColumn ??= OpConsoleRun::hasDurationColumn();
+
+        return $this->hasDurationColumn ? ['duration_ms' => max(0, $durationMs)] : [];
+    }
+
+    private function recordFinish(?OpConsoleRun $run, bool $ok, int $exitCode, ?string $error = null, int $durationMs = 0): bool
     {
         if ($run === null) {
             return false;
@@ -313,6 +326,7 @@ class ActionRunner
                 'exit_code' => $exitCode,
                 'error' => $this->limitNullable($error !== null ? self::sanitizeText($error) : null),
                 'finished_at' => now(),
+                ...$this->durationAttributes($durationMs),
             ]);
 
             return true;
