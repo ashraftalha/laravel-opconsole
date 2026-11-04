@@ -34,7 +34,8 @@
     "autoload-dev": {
         "psr-4": {
             "AshrafTalha\\OpConsole\\Tests\\": "tests/"
-        }
+        },
+        "exclude-from-classmap": ["tests/Stubs/"]
     },
     "extra": {
         "laravel": {
