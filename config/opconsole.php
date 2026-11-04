@@ -78,6 +78,7 @@ return [
         'lock_store' => env('OPCONSOLE_LOCK_STORE', 'opconsole'),
         // Must exceed max_runtime_seconds; expiry recovers a lock after process death.
         'lock_seconds' => (int) env('OPCONSOLE_LOCK_SECONDS', 1800),
+        // Enforced with pcntl. Runtimes without pcntl (common on PHP-FPM) refuse every action except security_scan.
         'max_runtime_seconds' => (int) env('OPCONSOLE_MAX_RUNTIME_SECONDS', 1500),
     ],
 
@@ -244,5 +245,21 @@ return [
     'table' => env('OPCONSOLE_TABLE', 'opconsole_runs'),
     'connection' => env('OPCONSOLE_CONNECTION'),
     'history_limit' => (int) env('OPCONSOLE_HISTORY_LIMIT', 15),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Audit policy
+    |--------------------------------------------------------------------------
+    | best_effort: an unavailable audit table never blocks an operation; the
+    |              result shows a warning instead.
+    | required:    Artisan actions, log deletion, and log download are refused
+    |              unless their audit row is written first. Any other value
+    |              is treated as "required".
+    | Either way, a command that already ran keeps its real outcome when only
+    | the final audit update fails.
+    */
+    'audit' => [
+        'policy' => env('OPCONSOLE_AUDIT_POLICY', 'best_effort'),
+    ],
 
 ];

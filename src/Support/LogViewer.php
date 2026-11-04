@@ -196,11 +196,14 @@ class LogViewer
             return 'not_found';
         }
 
-        if ($name === ($this->files()[0]['name'] ?? null)) {
+        // Compared by resolved path: a symlink alias of the active file is the active file.
+        $newest = $this->files()[0]['name'] ?? null;
+        if ($newest !== null && $this->path($newest) === $path) {
             return 'latest_blocked';
         }
 
-        if (! @unlink($path)) {
+        // Unlink the entry the operator named, never a symlink's target.
+        if (! @unlink($this->directory().DIRECTORY_SEPARATOR.$name)) {
             return 'failed';
         }
 

@@ -26,6 +26,7 @@ The optional host dependency audit requires Composer 2.4 or newer and a host `co
 
 - PHP 8.3+
 - Laravel 12 or 13
+- To run maintenance actions from the browser, the web PHP runtime needs the `pcntl` functions, which enforce the action timeout. Many PHP-FPM builds disable them. Without them the dashboard, health checks, logs, and security scan work normally, and the other actions are disabled with an explanation. See [Execution environments](docs/CONFIGURATION.md#execution-environments).
 
 ## Quick Start
 

@@ -183,6 +183,34 @@ class LogsTest extends TestCase
         ]);
     }
 
+    /** Regression: deleting through an alias used to unlink the symlink's target instead of the link. */
+    public function test_deleting_a_symlink_alias_removes_only_the_link_never_its_target(): void
+    {
+        $this->writeLog('laravel.log', 'current');
+        $this->writeLog('old.log', 'old');
+        touch($this->logDir.'/old.log', time() - 3600);
+        symlink($this->logDir.'/old.log', $this->logDir.'/alias.log');
+        $this->actingAsUser();
+
+        $this->delete('/admin/opconsole/logs/alias.log')->assertRedirect()->assertSessionHas('opconsole_success');
+
+        $this->assertFalse(is_link($this->logDir.'/alias.log'));
+        $this->assertFileExists($this->logDir.'/old.log');
+    }
+
+    /** Regression: an alias sorting first by name used to unlock deleting the real active file. */
+    public function test_a_symlink_alias_cannot_bypass_active_log_protection(): void
+    {
+        $this->writeLog('laravel.log', 'current');
+        symlink($this->logDir.'/laravel.log', $this->logDir.'/zzz-current.log');
+        $this->actingAsUser();
+
+        $this->delete('/admin/opconsole/logs/laravel.log')->assertRedirect()->assertSessionHas('opconsole_error');
+        $this->delete('/admin/opconsole/logs/zzz-current.log')->assertRedirect()->assertSessionHas('opconsole_error');
+
+        $this->assertFileExists($this->logDir.'/laravel.log');
+    }
+
     public function test_deleting_nonexistent_log_returns_404_instead_of_newest_file_message(): void
     {
         $this->writeLog('laravel.log', "[2026-01-01 00:00:00] testing.INFO: current\n");

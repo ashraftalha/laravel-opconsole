@@ -87,6 +87,23 @@ class MaintenanceTest extends TestCase
         }
     }
 
+    /** Regression: an empty prefix used to register "/*", exempting every route of the host application. */
+    public function test_empty_route_prefix_does_not_exempt_the_whole_application_from_maintenance_mode(): void
+    {
+        PreventRequestsDuringMaintenance::flushState();
+        static::$configOverrides = ['opconsole.route.prefix' => ''];
+        $this->refreshApplication();
+        $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
+
+        try {
+            Artisan::call('down');
+
+            $this->get('/login')->assertStatus(503);
+        } finally {
+            PreventRequestsDuringMaintenance::flushState();
+        }
+    }
+
     public function test_maintenance_mode_check_warns_while_down(): void
     {
         $database = ['ok' => true, 'driver' => 'sqlite', 'name' => ':memory:', 'ran' => 0, 'pending' => [], 'error' => null];

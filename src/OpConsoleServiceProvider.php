@@ -50,8 +50,9 @@ class OpConsoleServiceProvider extends ServiceProvider
             // Written by opconsole.js, so it can never carry Laravel's encryption.
             EncryptCookies::except([PagePresenter::THEME_COOKIE]);
 
-            if (config('opconsole.maintenance.allow_console', true)) {
-                $prefix = trim((string) config('opconsole.route.prefix', 'admin/opconsole'), '/');
+            $prefix = trim((string) config('opconsole.route.prefix', 'admin/opconsole'), '/');
+            // An empty prefix would register "/*", exempting the whole application from maintenance mode.
+            if (config('opconsole.maintenance.allow_console', true) && $prefix !== '') {
                 PreventRequestsDuringMaintenance::except([$prefix, $prefix.'/*']);
             }
         }

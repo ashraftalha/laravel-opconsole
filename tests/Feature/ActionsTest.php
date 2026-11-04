@@ -174,7 +174,7 @@ class ActionsTest extends TestCase
         $runner = $this->app->make(ActionRunner::class);
         $method = new \ReflectionMethod($runner, 'lock');
         $method->setAccessible(true);
-        $lock = $method->invoke($runner);
+        $lock = $method->invoke($runner, 'clear');
         $this->assertTrue($lock->get());
 
         // Simulate exactly what `optimize:clear` really does mid-action: flush the default store.

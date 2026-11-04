@@ -37,11 +37,22 @@ class ActionRunner
         'security_scan' => ['opconsole:security', []],
     ];
 
+    /**
+     * Actions whose runtime is bounded by their own subprocess timeouts (Composer probe + audit),
+     * so they stay safe without pcntl as long as the lease covers that bound.
+     */
+    private const SELF_BOUNDED = ['security_scan'];
+
     private const LOCK_KEY = 'opconsole:action-lock';
 
     private const MAX_OUTPUT_CHARS = 16000;
 
     private ?bool $hasDurationColumn = null;
+
+    /** @var array{run: ?OpConsoleRun, lock: Lock}|null set only while an Artisan command is executing */
+    private ?array $inFlight = null;
+
+    private bool $shutdownHookRegistered = false;
 
     private SecurityScanner $security;
 
@@ -50,15 +61,37 @@ class ActionRunner
         $this->security = $security ?? app(SecurityScanner::class);
     }
 
-    /** @return array{ok: bool, output: string, busy: bool, lock_error?: bool, audited?: bool} */
+    /**
+     * `blocked` means the command was refused before it started (unsupported runtime or required audit unavailable).
+     *
+     * @return array{ok: bool, output: string, busy: bool, lock_error?: bool, blocked?: bool, audited?: bool}
+     */
     public function run(string $action, ?Authenticatable $user): array
     {
         if (! array_key_exists($action, self::ACTIONS) || ! config("opconsole.actions.{$action}")) {
             throw new \InvalidArgumentException("Action [$action] is not enabled.");
         }
 
+        // Checked before the lock and the audit row: nothing may start that this runtime cannot bound.
+        $unsupported = $this->unsupportedRuntimeReason($action);
+        if ($unsupported !== null) {
+            Log::error('OpConsole: action blocked because this PHP runtime cannot enforce the execution timeout', [
+                'action' => $action,
+                'sapi' => PHP_SAPI,
+            ]);
+
+            return [
+                'ok' => false,
+                'output' => $unsupported,
+                'busy' => false,
+                'lock_error' => false,
+                'blocked' => true,
+                'audited' => $this->record($action, $user, false, null, 'Blocked: PHP runtime cannot enforce the execution timeout'),
+            ];
+        }
+
         try {
-            $lock = $this->lock();
+            $lock = $this->lock($action);
             $acquired = $lock->get();
         } catch (Throwable $e) {
             $store = (string) (config('opconsole.concurrency.lock_store') ?: 'null');
@@ -93,6 +126,19 @@ class ActionRunner
 
         try {
             $run = $this->recordStart($action, $user);
+            if ($run === null && $this->auditRequired()) {
+                Log::error('OpConsole: action refused because audit.policy is "required" and the audit row could not be written', ['action' => $action]);
+
+                return [
+                    'ok' => false,
+                    'output' => __('opconsole::opconsole.audit_required'),
+                    'busy' => false,
+                    'lock_error' => false,
+                    'blocked' => true,
+                    'audited' => false,
+                ];
+            }
+
             [$command, $options] = self::ACTIONS[$action];
             $bypassSecret = null;
             if ($action === 'down') {
@@ -101,8 +147,14 @@ class ActionRunner
             }
             $startedAt = hrtime(true);
 
+            $this->inFlight = ['run' => $run, 'lock' => $lock];
+            if (! $this->shutdownHookRegistered) {
+                register_shutdown_function($this->abandonInFlight(...));
+                $this->shutdownHookRegistered = true;
+            }
+
             try {
-                $exitCode = $this->callArtisanWithLease($command, $options, $lock);
+                $exitCode = $this->callArtisanWithLease($command, $options, $lock, $action);
                 $output = $this->cleanOutput($this->safeArtisanOutput());
                 $ok = $exitCode === 0;
                 $firstLine = strtok($output, "\n");
@@ -147,7 +199,10 @@ class ActionRunner
                 'audited' => $audited,
             ];
         } finally {
+            $this->inFlight = null;
+
             try {
+                // Owner-checked by every Laravel lock driver: never releases another process's lock.
                 $lock->release();
             } catch (Throwable $e) {
                 Log::warning('OpConsole: failed to release action lock cleanly', [
@@ -269,14 +324,14 @@ class ActionRunner
      * `optimize:clear` runs `cache:clear`, which flushes the default store.
      * Never falls back to cache.default when the configured lock store is unsafe or unavailable.
      */
-    private function lock(): Lock
+    private function lock(string $action): Lock
     {
         $validation = $this->validateLockStore();
         if (! $validation['ok']) {
             throw new \RuntimeException($validation['reason'] ?? 'Lock store configuration is unsafe.');
         }
 
-        $seconds = $this->leaseSeconds();
+        $seconds = $this->leaseSeconds($action);
         $underlyingStore = Cache::store($validation['store'])->getStore();
 
         if (! $underlyingStore instanceof LockProvider) {
@@ -291,29 +346,118 @@ class ActionRunner
         return $lock;
     }
 
-    /** Renew the owner-bound cache lease while blocking, and interrupt an over-budget command. */
-    private function callArtisanWithLease(string $command, array $options, Lock $lock): int
+    /**
+     * Shutdown hook. A fatal error (memory exhaustion, engine time limit) skips `finally`, so this
+     * closes the audit row and releases the lock instead of leaving both stuck until the lease expires.
+     * A no-op once run() has finished normally.
+     *
+     * @internal
+     */
+    public function abandonInFlight(): void
     {
-        $timeout = max(5, (int) config('opconsole.concurrency.max_runtime_seconds', 1500));
-        if (! function_exists('pcntl_signal') || ! function_exists('pcntl_alarm') || ! function_exists('pcntl_async_signals')) {
-            // Without an interruptible execution budget, a lease could expire while Artisan is still running.
-            throw new \RuntimeException('Safe action timeout requires the PHP pcntl extension.');
+        if ($this->inFlight === null) {
+            return;
+        }
+        ['run' => $run, 'lock' => $lock] = $this->inFlight;
+        $this->inFlight = null;
+
+        $fatal = error_get_last();
+        $this->recordFinish($run, false, 1, 'Process terminated before completion; the command may have partially applied. '.($fatal['message'] ?? ''));
+        try {
+            $lock->release();
+        } catch (Throwable) {
+        }
+    }
+
+    /**
+     * Null when this PHP runtime can run the action safely; otherwise an actionable reason.
+     * Timer-bound actions need pcntl (CLI, or PHP-FPM with pcntl enabled) to interrupt an
+     * over-budget command; without it a command could outlive its lock lease.
+     */
+    public function unsupportedRuntimeReason(string $action): ?string
+    {
+        if (in_array($action, self::SELF_BOUNDED, true) || $this->canEnforceTimeout()) {
+            return null;
         }
 
+        return __('opconsole::opconsole.runtime_unsupported', [
+            'sapi' => PHP_SAPI,
+            'command' => 'php artisan '.self::ACTIONS[$action][0],
+        ]);
+    }
+
+    /** Signals are only interruptible with pcntl; hosts often disable these functions for PHP-FPM. */
+    protected function canEnforceTimeout(): bool
+    {
+        foreach (['pcntl_signal', 'pcntl_alarm', 'pcntl_async_signals', 'pcntl_signal_get_handler'] as $function) {
+            if (! function_exists($function)) {
+                return false;
+            }
+        }
+
+        return defined('SIGALRM');
+    }
+
+    protected function maxRuntimeSeconds(): int
+    {
+        return max(5, (int) config('opconsole.concurrency.max_runtime_seconds', 1500));
+    }
+
+    /** Seconds between lease renewals (and timeout checks) while an action blocks. */
+    protected function renewIntervalSeconds(): int
+    {
+        return 10;
+    }
+
+    /**
+     * Interrupt an over-budget command, renewing the owner-bound lease while it blocks.
+     * The lease always exceeds the runtime budget, so renewal is a safety margin rather than a
+     * requirement: drivers without refresh() (Laravel < 12.63 / < 13.16) still run safely.
+     */
+    private function callArtisanWithLease(string $command, array $options, Lock $lock, string $action): int
+    {
+        if (in_array($action, self::SELF_BOUNDED, true) && ! $this->canEnforceTimeout()) {
+            return Artisan::call($command, $options);
+        }
+
+        $timeout = $this->maxRuntimeSeconds();
+        $renew = self::renewer($lock);
         $started = hrtime(true);
+        $remaining = fn (): float => $timeout - (hrtime(true) - $started) / 1_000_000_000;
+        $interval = $this->renewIntervalSeconds();
+        $nextAlarm = fn (): int => max(1, (int) ceil(min($interval, $remaining())));
+
+        // Never lower an existing limit; raise PHP's own limit so this budget, not a fatal error, ends the command.
+        $phpLimit = (int) ini_get('max_execution_time');
+        if ($phpLimit > 0 && $phpLimit < $timeout + 30 && function_exists('set_time_limit')) {
+            @set_time_limit($timeout + 30);
+        }
+        if (function_exists('ignore_user_abort')) {
+            ignore_user_abort(true); // a browser or proxy disconnect must not abort a migration halfway
+        }
+
         $previousAsync = pcntl_async_signals();
         $previousHandler = pcntl_signal_get_handler(SIGALRM);
         pcntl_async_signals(true);
-        pcntl_signal(SIGALRM, function () use ($lock, $started, $timeout): void {
-            if ((hrtime(true) - $started) / 1_000_000_000 >= $timeout) {
-                throw new \RuntimeException("Artisan operation exceeded the {$timeout}-second timeout.");
+        pcntl_signal(SIGALRM, function () use ($timeout, $renew, $remaining, $nextAlarm, $action): void {
+            if ($remaining() <= 0) {
+                throw new \RuntimeException("Artisan operation exceeded the {$timeout}-second timeout and was interrupted; it may have partially completed.");
             }
-            if (! method_exists($lock, 'refresh') || ! $lock->refresh($this->leaseSeconds())) {
-                throw new \RuntimeException('Action lock ownership could not be renewed safely.');
+            if ($renew !== null) {
+                try {
+                    $owned = $renew($this->leaseSeconds($action));
+                } catch (Throwable $e) {
+                    // A transient store error is not ownership loss: the current lease still outlasts the budget.
+                    $owned = true;
+                    Log::warning('OpConsole: action lock renewal failed; continuing on the existing lease', ['error' => self::sanitizeText($e->getMessage())]);
+                }
+                if (! $owned) {
+                    throw new \RuntimeException('Action lock ownership was lost; the operation was interrupted to prevent concurrent execution.');
+                }
             }
-            pcntl_alarm(10);
+            pcntl_alarm($nextAlarm());
         });
-        pcntl_alarm(10);
+        pcntl_alarm($nextAlarm());
 
         try {
             return Artisan::call($command, $options);
@@ -324,12 +468,41 @@ class ActionRunner
         }
     }
 
-    private function leaseSeconds(): int
+    /**
+     * Owner-bound renewal, or null when the driver cannot renew. refresh() is not on the Lock contract,
+     * and the base Illuminate\Cache\Lock::refresh() (Laravel 12.63+ / 13.16+) only throws.
+     *
+     * @return (\Closure(int): bool)|null
+     */
+    private static function renewer(Lock $lock): ?\Closure
+    {
+        if (! method_exists($lock, 'refresh')
+            || (new \ReflectionMethod($lock, 'refresh'))->getDeclaringClass()->getName() === \Illuminate\Cache\Lock::class) {
+            return null;
+        }
+
+        return fn (int $seconds): bool => (bool) $lock->refresh($seconds);
+    }
+
+    private function leaseSeconds(string $action): int
     {
         $configured = max(5, (int) config('opconsole.concurrency.lock_seconds', 1800));
-        $runtime = max(5, (int) config('opconsole.concurrency.max_runtime_seconds', 1500));
+        $lease = max($configured, $this->maxRuntimeSeconds() + 60);
 
-        return max($configured, $runtime + 60);
+        if (in_array($action, self::SELF_BOUNDED, true)) {
+            // SecurityScanner: 10 s Composer version probe plus the audit process timeout.
+            $lease = max($lease, max(10, (int) config('opconsole.security.timeout', 120)) + 10 + 60);
+        }
+
+        return $lease;
+    }
+
+    /** Anything other than an unset value or "best_effort" (including typos) fails closed as "required". */
+    public function auditRequired(): bool
+    {
+        $policy = config('opconsole.audit.policy', 'best_effort');
+
+        return ! in_array($policy, [null, '', 'best_effort'], true);
     }
 
     /** Audit entry for an instantaneous operation that isn't an Artisan call (log delete/download) or a blocked lock. */
@@ -371,13 +544,15 @@ class ActionRunner
         return trim($clean);
     }
 
-    private function recordStart(string $action, ?Authenticatable $user): ?OpConsoleRun
+    /** Writes the "started" audit row before a destructive operation; null when the audit store is unavailable. */
+    public function recordStart(string $action, ?Authenticatable $user, ?string $subject = null): ?OpConsoleRun
     {
         try {
             return OpConsoleRun::query()->create([
                 'action' => Str::limit($action, 32, ''),
                 'status' => 'started',
                 ...$this->actorAttributes($user),
+                'subject' => $this->limitNullable($subject),
                 'started_at' => now(),
             ]);
         } catch (Throwable $e) {
@@ -404,7 +579,8 @@ class ActionRunner
         return $this->hasDurationColumn ? ['duration_ms' => max(0, $durationMs)] : [];
     }
 
-    private function recordFinish(?OpConsoleRun $run, bool $ok, int $exitCode, ?string $error = null, int $durationMs = 0): bool
+    /** Closes a row from recordStart(); false when there is no row or it could not be updated. */
+    public function recordFinish(?OpConsoleRun $run, bool $ok, ?int $exitCode, ?string $error = null, int $durationMs = 0): bool
     {
         if ($run === null) {
             return false;

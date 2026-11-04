@@ -73,6 +73,26 @@ class ConsoleStatus
         }
         unset($check);
 
+        // Custom checks always run, so a required custom ID missing from the report means the check
+        // threw (its fallback row carries a class-derived ID) or is misnamed: never report that as healthy.
+        // Built-in IDs are exempt because several only appear conditionally (e.g. database.connection).
+        $reported = array_column($checks, 'id');
+        foreach ($required as $id) {
+            if (is_string($id) && str_starts_with($id, 'custom.') && ! in_array($id, $reported, true)) {
+                $checks[] = [
+                    'id' => $id,
+                    'group' => 'Custom checks',
+                    'label' => 'Required check '.$id,
+                    'ok' => false,
+                    'status' => 'critical',
+                    'severity' => 'danger',
+                    'hint' => 'This required check did not report a result; it failed to run or is not registered under this ID.',
+                    'value' => 'not reported',
+                    'fix' => 'Check config(\'opconsole.checks\') and the application log',
+                ];
+            }
+        }
+
         return [
             'status' => self::overallStatus($checks),
             'checked_at' => now()->toIso8601String(),

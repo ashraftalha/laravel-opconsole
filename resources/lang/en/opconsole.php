@@ -35,4 +35,6 @@ return [
     'tab_badge_history' => '{1} :count recent operation|[2,*] :count recent operations',
     'tab_badge_errors' => '{1} :count error in the last 24 hours|[2,*] :count errors in the last 24 hours',
     'lock_unavailable' => 'Operation blocked: action lock store [:store] is unsafe or unavailable (:reason).',
+    'runtime_unsupported' => 'Operation blocked: this PHP runtime (:sapi) cannot enforce the action timeout because the pcntl functions are unavailable or disabled. Enable pcntl for this runtime, or run `:command` from the command line.',
+    'audit_required' => 'Operation refused: the audit policy is "required" and the audit record could not be written. Verify database connectivity and run migrations.',
 ];

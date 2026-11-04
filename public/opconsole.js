@@ -23,7 +23,42 @@
         initTabs();
         initRefreshLinks();
         initThemeToggle();
+        initScrollFades();
     });
+
+    var reducedMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+
+    // Fade the edges of scroll containers that hide more content; each fade grows with the hidden distance.
+    function initScrollFades() {
+        var MAX_FADE = 28;
+        document.querySelectorAll('[data-oc-scroll-fade]').forEach(function (el) {
+            var horizontal = el.dataset.ocScrollFade === 'x';
+            var frame = 0;
+            function update() {
+                var range = horizontal ? el.scrollWidth - el.clientWidth : el.scrollHeight - el.clientHeight;
+                var pos = horizontal ? Math.abs(el.scrollLeft) : el.scrollTop; // scrollLeft is negative in RTL
+                el.style.setProperty('--oc-fade-start', Math.min(MAX_FADE, Math.max(0, pos)) + 'px');
+                el.style.setProperty('--oc-fade-end', Math.min(MAX_FADE, Math.max(0, range - pos)) + 'px');
+            }
+            function schedule() {
+                cancelAnimationFrame(frame);
+                frame = requestAnimationFrame(update);
+            }
+            el.addEventListener('scroll', schedule, { passive: true });
+            if (window.ResizeObserver) new ResizeObserver(schedule).observe(el);
+            else window.addEventListener('resize', schedule);
+            el.classList.add('has-scroll-fade');
+            update();
+        });
+    }
+
+    // Swap a short label with a quick vertical slide (skipped for reduced motion by CSS).
+    function swapLabel(label, text) {
+        label.textContent = text;
+        label.classList.remove('oc-swap');
+        void label.offsetWidth; // restart the animation
+        label.classList.add('oc-swap');
+    }
 
     function initThemeToggle() {
         var button = document.querySelector('[data-oc-theme-toggle]');
@@ -50,6 +85,11 @@
 
         button.addEventListener('click', function () {
             var next = effective() === 'dark' ? 'light' : 'dark';
+            // Brief cross-fade of surface colors only while switching; never applied to ordinary interaction.
+            if (!(reducedMotion && reducedMotion.matches)) {
+                root.classList.add('oc-theme-switching');
+                setTimeout(function () { root.classList.remove('oc-theme-switching'); }, 260);
+            }
             if (shell) shell.setAttribute('data-oc-theme', next);
             if (root.hasAttribute('data-oc-theme')) root.setAttribute('data-oc-theme', next);
             document.cookie = 'opconsole_theme=' + next + '; path=/; max-age=31536000; SameSite=Lax';
@@ -71,8 +111,70 @@
         var messageEl = document.getElementById('opconsole-confirm-message');
         var commandEl = document.getElementById('opconsole-confirm-command');
         var riskEl = document.getElementById('opconsole-confirm-risk');
+        var envEl = document.getElementById('opconsole-confirm-env');
+        var hintEl = document.getElementById('opconsole-confirm-hint');
+        var liveRegion = document.getElementById('opconsole-live-region');
         var pendingForm = null;
         var lastTrigger = null;
+
+        // High-risk confirmation: press and hold, or press twice. Submission is driven by this timer,
+        // never by an animation event, and only ever after the dialog was explicitly opened.
+        var HOLD_MS = 1200;
+        var ARM_MS = 5000;
+        var holdMode = false;
+        var holdTimer = null;
+        var holdStarted = 0;
+        var armedUntil = 0;
+        var acceptText = 'Confirm';
+
+        function setAcceptLabel(text) {
+            if (!accept) return;
+            var label = accept.querySelector('[data-oc-accept-label]');
+            var fill = accept.querySelector('[data-oc-accept-fill-label]');
+            if (label) label.textContent = text; else accept.textContent = text;
+            if (fill) fill.textContent = text;
+        }
+
+        function resetHold() {
+            if (holdTimer) clearTimeout(holdTimer);
+            holdTimer = null;
+            armedUntil = 0;
+            if (!accept) return;
+            accept.classList.remove('is-holding', 'is-armed', 'is-confirmed');
+            accept.removeAttribute('aria-busy');
+            setAcceptLabel(holdMode ? 'Hold to ' + acceptText.charAt(0).toLowerCase() + acceptText.slice(1) : acceptText);
+        }
+
+        function startHold() {
+            if (!holdMode || holdTimer || !pendingForm) return;
+            holdStarted = Date.now();
+            accept.classList.add('is-holding');
+            accept.setAttribute('aria-busy', 'true');
+            holdTimer = setTimeout(function () {
+                holdTimer = null;
+                if (Date.now() - holdStarted >= HOLD_MS - 50) confirmNow();
+            }, HOLD_MS);
+        }
+
+        function cancelHold() {
+            if (!holdTimer) return;
+            clearTimeout(holdTimer);
+            holdTimer = null;
+            accept.classList.remove('is-holding');
+            accept.removeAttribute('aria-busy');
+        }
+
+        function confirmNow() {
+            if (!pendingForm) return;
+            var form = pendingForm;
+            accept.classList.remove('is-holding');
+            accept.classList.add('is-confirmed');
+            accept.disabled = true;
+            closeDialog(false);
+            form.dataset.ocConfirmed = 'true';
+            markRunning(form);
+            form.submit();
+        }
 
         function openDialog() {
             if (!dialog) return;
@@ -94,6 +196,8 @@
                 dialog.removeAttribute('data-fallback-open');
             }
             pendingForm = null;
+            if (holdTimer) clearTimeout(holdTimer);
+            holdTimer = null;
             if (restoreFocus && lastTrigger && typeof lastTrigger.focus === 'function') {
                 lastTrigger.focus();
             }
@@ -104,9 +208,13 @@
             if (!submitBtn) return;
             submitBtn.disabled = true;
             submitBtn.setAttribute('aria-busy', 'true');
+            submitBtn.classList.add('is-running');
             var label = submitBtn.querySelector('[data-oc-btn-label]');
             if (label) label.textContent = 'Running…';
-            var liveRegion = document.getElementById('opconsole-live-region');
+            // The page is about to navigate; stop a second operation from being queued meanwhile.
+            document.querySelectorAll('form[data-confirm] button[type="submit"]').forEach(function (other) {
+                if (other !== submitBtn) other.disabled = true;
+            });
             if (liveRegion) liveRegion.textContent = 'Operation started: ' + (form.dataset.confirmTitle || 'maintenance action') + '.';
         }
 
@@ -135,10 +243,21 @@
             pendingForm = form;
             lastTrigger = document.activeElement;
             titleEl.textContent = form.dataset.confirmTitle || 'Confirm action';
-            messageEl.textContent = form.dataset.confirm + (form.dataset.confirmEnvironment ? ' Environment: ' + form.dataset.confirmEnvironment + '.' : '');
-            accept.textContent = form.dataset.confirmAccept || 'Confirm';
-            accept.className = form.dataset.confirmRisk === 'high' ? 'oc-btn oc-btn-danger' : 'oc-btn oc-btn-primary';
+            messageEl.textContent = form.dataset.confirm;
+            if (envEl) {
+                envEl.textContent = form.dataset.confirmEnvironment ? 'Environment: ' + form.dataset.confirmEnvironment : '';
+                envEl.hidden = !form.dataset.confirmEnvironment;
+                envEl.classList.toggle('is-prod', form.dataset.confirmEnvironment === 'production');
+            }
+            holdMode = form.dataset.confirmRisk === 'high';
+            acceptText = form.dataset.confirmAccept || 'Confirm';
+            accept.className = holdMode ? 'oc-btn oc-btn-danger oc-hold' : 'oc-btn oc-btn-primary';
             accept.disabled = false;
+            resetHold();
+            if (hintEl) {
+                hintEl.textContent = holdMode ? 'High-risk action: press and hold the button (or hold Space or Enter) for a moment, or press it twice.' : '';
+                hintEl.hidden = !holdMode;
+            }
 
             if (commandEl) {
                 if (form.dataset.confirmCommand) {
@@ -184,14 +303,47 @@
             }
         });
 
+        accept.style.setProperty('--oc-hold-ms', HOLD_MS + 'ms');
+
+        accept.addEventListener('pointerdown', function (event) {
+            if (!holdMode || event.button !== 0) return;
+            if (accept.setPointerCapture) accept.setPointerCapture(event.pointerId);
+            startHold();
+        });
+        ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (type) {
+            accept.addEventListener(type, cancelHold);
+        });
+
+        // Holding a key works like holding the pointer; default activation is suppressed so a tap does nothing.
+        accept.addEventListener('keydown', function (event) {
+            if (!holdMode || (event.key !== ' ' && event.key !== 'Enter')) return;
+            event.preventDefault();
+            if (!event.repeat) startHold();
+        });
+        accept.addEventListener('keyup', function (event) {
+            if (!holdMode || (event.key !== ' ' && event.key !== 'Enter')) return;
+            event.preventDefault();
+            cancelHold();
+        });
+
         accept.addEventListener('click', function () {
             if (!pendingForm) return;
-            var form = pendingForm;
-            accept.disabled = true;
-            closeDialog(false);
-            form.dataset.ocConfirmed = 'true';
-            markRunning(form);
-            form.submit();
+            if (!holdMode) {
+                confirmNow();
+                return;
+            }
+            // Alternative to holding (assistive technology, switch access): a second deliberate press.
+            if (Date.now() < armedUntil) {
+                confirmNow();
+                return;
+            }
+            armedUntil = Date.now() + ARM_MS;
+            accept.classList.add('is-armed');
+            setAcceptLabel('Press again to confirm');
+            if (liveRegion) liveRegion.textContent = 'Press the button again within five seconds to confirm.';
+            setTimeout(function () {
+                if (pendingForm && Date.now() >= armedUntil) resetHold();
+            }, ARM_MS + 50);
         });
     }
 
@@ -205,8 +357,12 @@
 
                 var done = function () {
                     if (label && originalText !== null) {
-                        label.textContent = 'Copied';
-                        setTimeout(function () { label.textContent = originalText; }, 1600);
+                        btn.classList.add('is-done');
+                        swapLabel(label, 'Copied');
+                        setTimeout(function () {
+                            btn.classList.remove('is-done');
+                            swapLabel(label, originalText);
+                        }, 1600);
                     }
                     if (liveRegion) {
                         liveRegion.textContent = 'Copied to clipboard.';
