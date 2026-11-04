@@ -281,6 +281,42 @@ class PagePresenter
 
         $checksSub = count($checks).' checks'.($unknown ? ' · '.$unknown.' unverified' : '');
 
+        // Service tiles summarise checks that already ran; a check that is absent (disabled) gets no tile.
+        $fromCheck = function (string $id, string $label, string $icon, string $link = '#checks') use ($allChecks): ?array {
+            $check = $allChecks->firstWhere('id', $id);
+            if ($check === null) {
+                return null;
+            }
+            $advisory = $check['status'] === 'warning' && $check['severity'] === 'info';
+
+            return [
+                'label' => $label,
+                'value' => $advisory ? 'Advisory' : match ($check['status']) {
+                    'healthy' => 'Healthy',
+                    'warning' => 'Warning',
+                    'critical' => 'Critical',
+                    default => 'Unverified',
+                },
+                'sub' => (string) ($check['value'] ?? $check['hint']),
+                'icon' => $icon,
+                'tone' => $advisory ? 'is-info' : match ($check['status']) {
+                    'healthy' => 'is-ok',
+                    'warning' => 'is-warning',
+                    'critical' => 'is-bad',
+                    default => 'is-unknown',
+                },
+                'link' => $link,
+            ];
+        };
+
+        $serviceTiles = array_values(array_filter([
+            $fromCheck('cache.round_trip', 'Cache', 'zap'),
+            $fromCheck('queue.worker_heartbeat', 'Queue worker', 'layers'),
+            $fromCheck('scheduler.heartbeat', 'Scheduler', 'clock'),
+            $fromCheck('files.disk_space', 'Disk space', 'hard-drive'),
+            $fromCheck('security.dependency_audit', 'Security audit', 'shield', '#security'),
+        ]));
+
         return [
             [
                 'label' => 'Database',
@@ -308,6 +344,7 @@ class PagePresenter
                 'tone' => ! $hasReadableLog ? 'is-unknown' : ($errors['count'] ? 'is-bad' : 'is-ok'),
                 'link' => '#logs',
             ],
+            ...$serviceTiles,
         ];
     }
 
