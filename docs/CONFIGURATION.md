@@ -195,6 +195,21 @@ Delivery is isolated per channel and per destination. A failing mailer does not 
 | `actions.up` | `true` | `php artisan up` |
 | `actions.storage_link` | `false` (`OPCONSOLE_ACTION_STORAGE_LINK`) | `php artisan storage:link` (optional, low risk; disabled while the link is already correct). |
 | `actions.security_scan` | `true` (`OPCONSOLE_ACTION_SECURITY_SCAN`) | `php artisan opconsole:security` (read-only; findings do not mark the action as failed, see the Security tab). |
+| `actions.octane_reload` | `true` (`OPCONSOLE_ACTION_OCTANE_RELOAD`) | `php artisan octane:reload` (only shown when Laravel Octane is installed; disabled while no Octane server is running). |
+
+### Laravel Octane (`octane.*`)
+
+When Laravel Octane is installed, the Health tab gains an **Octane and runtime** group, System information gains an **Octane** card, Runtime status gains an **Octane server** row, and Operations gains **Reload Octane workers**. Apps without Octane see none of this.
+
+| Key | Env | Default | Description |
+| --- | --- | --- | --- |
+| `octane.checks` | `OPCONSOLE_OCTANE_CHECKS` | `auto` | `auto` runs the Octane checks only when Octane is installed; `false` turns them off. |
+| `octane.expected_in_production` | `OPCONSOLE_OCTANE_EXPECTED` | `false` | When `true`, a production request not served by Octane is a warning and a stopped Octane server is critical. Otherwise both are advisories. |
+| `octane.allow_actions_in_swoole` | `OPCONSOLE_OCTANE_ALLOW_ACTIONS` | `false` | Timed operations enforce their limit with `SIGALRM`, which inside a Swoole worker would interrupt the worker itself. They are refused there by default with an explanation; the short, self-bounded security scan and Octane reload still run. RoadRunner and FrankenPHP are not affected. |
+
+**Checks:** server dependency installed (Swoole/OpenSwoole extension, `rr` or `frankenphp` binary), requests served by Octane, server process running (via Octane's own process inspector), `octane.garbage` below `memory_limit`, `octane.https` matching an `https` `APP_URL`, and `opcache.enable_cli` for workers. With the `swoole` server also: `package_max_length` at least as large as PHP's upload limits (Swoole ignores `upload_max_filesize` and `post_max_size`), worker count against CPU cores, Xdebug loaded alongside Swoole, and a writable Swoole log file.
+
+After **Clear caches**, **Optimize** or **Run migrations**, the output panel reminds you to reload Octane workers, because they keep the old configuration in memory.
 
 ### Maintenance Mode (`maintenance.*`)
 

@@ -195,7 +195,7 @@
                                 <div><h2 id="oc-runtime-title">Runtime status</h2><small>Scheduler, queue worker, and availability</small></div>
                             </div>
                             <div class="oc-runtime">
-                                @foreach ([['Scheduler', 'clock', $overview['scheduler']], ['Queue worker', 'layers', $overview['queue']]] as [$label, $icon, $service])
+                                @foreach (array_filter([['Scheduler', 'clock', $overview['scheduler']], ['Queue worker', 'layers', $overview['queue']], $overview['octane'] ? ['Octane server', 'zap', $overview['octane']] : null]) as [$label, $icon, $service])
                                     <a href="#checks" class="oc-runtime-row {{ $ocToneOf($service['status']) }}">
                                         <span class="oc-runtime-icon">@include('opconsole::partials.icon', ['name' => $icon])</span>
                                         <span class="oc-runtime-text"><strong>{{ $label }}</strong><small>{{ $service['value'] ?: $service['hint'] }}</small>
@@ -254,6 +254,9 @@
                         </button>
                     </div>
                     <pre class="oc-output" dir="ltr">{{ $output['text'] }}</pre>
+                    @if ($output['hint'] ?? null)
+                        <div class="oc-terminal-hint">@include('opconsole::partials.icon', ['name' => 'alert-triangle'])<span>{{ $output['hint'] }}</span>@if (isset($actions['octane_reload']))<a href="#action-octane_reload" class="oc-advice-link"><span>Reload workers</span>@include('opconsole::partials.icon', ['name' => 'arrow-right'])</a>@endif</div>
+                    @endif
                 </section>
             @endif
 

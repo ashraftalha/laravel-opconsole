@@ -146,6 +146,26 @@ return [
         'up' => true,
         'storage_link' => (bool) env('OPCONSOLE_ACTION_STORAGE_LINK', false),
         'security_scan' => (bool) env('OPCONSOLE_ACTION_SECURITY_SCAN', true),
+        // Only shown when Laravel Octane is installed.
+        'octane_reload' => (bool) env('OPCONSOLE_ACTION_OCTANE_RELOAD', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Laravel Octane
+    |--------------------------------------------------------------------------
+    | checks: 'auto' adds the "Octane and runtime" health checks only when Octane
+    | is installed; false turns them off.
+    | expected_in_production: production requests not served by Octane (or a
+    | stopped Octane server) become warnings/critical instead of advisories.
+    | allow_actions_in_swoole: timed operations use SIGALRM, which inside a Swoole
+    | worker would interrupt the worker itself, so they are refused there by
+    | default. Short self-bounded operations (security scan, Octane reload) still run.
+    */
+    'octane' => [
+        'checks' => env('OPCONSOLE_OCTANE_CHECKS', 'auto'),
+        'expected_in_production' => (bool) env('OPCONSOLE_OCTANE_EXPECTED', false),
+        'allow_actions_in_swoole' => (bool) env('OPCONSOLE_OCTANE_ALLOW_ACTIONS', false),
     ],
 
     /*

@@ -586,6 +586,8 @@ a.oc-kpi:hover { border-color: var(--oc-tone-line); transform: translateY(-1px);
 .oc-terminal { border-radius: var(--oc-radius); background: var(--oc-code-bg); color: var(--oc-code-text); overflow: hidden; box-shadow: var(--oc-shadow-2); min-width: 0; }
 .oc-terminal-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.6rem 0.9rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
 .oc-terminal-head h2 { font-size: var(--oc-fs-sm); font-weight: 600; color: var(--oc-code-text); font-family: var(--oc-mono); }
+.oc-terminal-hint { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.6rem 0.9rem; border-top: 1px solid rgba(255, 255, 255, 0.08); color: #f7d58a; font-size: var(--oc-fs-sm); }
+.oc-terminal-hint .oc-advice-link { color: var(--oc-code-accent); margin-inline-start: auto; }
 .oc-output { margin: 0; padding: 0.9rem 1rem; max-height: 28rem; overflow: auto; background: var(--oc-code-bg); color: var(--oc-code-text); font-family: var(--oc-mono); font-size: 0.76rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 0; }
 
 /* ---- Chips, inputs, toolbars ---- */

@@ -29,7 +29,8 @@ This release redesigns the dashboard around the OpConsole logo (brand colours, h
 - [ ] Custom `authentication.guard` governs both Gate evaluation (`Gate::forUser`) and audit attribution (`OpConsoleRun`), failing closed (`403`) on invalid guard names.
 - [ ] Overriding `route.middleware` (even to `[]`) preserves `web` session and CSRF protection (`419` on forged POST/DELETE).
 - [ ] The asset route serves only `opconsole.css`, `opconsole.js` and `opconsole.svg`, behind the view Gate.
-- [ ] `ActionRunner` exposes only the seven documented actions (`optimize:clear`, `optimize`, `migrate --force --isolated`, `down`, `up`, optional `storage:link`, and `opconsole:security`) with zero user-supplied arguments.
+- [ ] `ActionRunner` exposes only the eight documented actions (`optimize:clear`, `optimize`, `migrate --force --isolated`, `down`, `up`, optional `storage:link`, `opconsole:security`, and `octane:reload`) with zero user-supplied arguments. The only parameterised operation is failed-job retry, whose ID must match `FailedJobs::ID_PATTERN` and exist in the failed-job store.
+- [ ] Inside a Swoole worker (Octane), timed actions are refused unless `octane.allow_actions_in_swoole` is true.
 - [ ] Unsafe lock stores (`null`, `array` outside unit tests, `lock_store === cache.default` without separate lock storage, overlapping `file` lock directories, missing stores) fail closed without executing Artisan.
 - [ ] `LogViewer::files()` and `LogViewer::path()` reject path traversal, invalid filenames, and external symlinks.
 - [ ] Rendered HTML escapes all log messages, stack traces, search highlights, and command outputs; standalone views emit zero inline `<script>` blocks, zero inline `style=` attributes, and zero mandatory CDN requests.

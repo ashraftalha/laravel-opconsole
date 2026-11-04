@@ -188,6 +188,42 @@ class ConsoleStatus
     }
 
     /** Grouped facts for the "System information" panel. */
+    /** @return array<string, array<string, string>> An "Octane" group, or nothing when Octane is not installed. */
+    private function octaneInfo(): array
+    {
+        $runtime = app(Runtime::class);
+        if (! $runtime->octaneInstalled()) {
+            return [];
+        }
+
+        $server = $runtime->octaneServer() ?? 'not set';
+        $running = $runtime->servingViaOctane() ? true : $runtime->octaneServerRunning();
+        $options = config('octane.swoole.options', []);
+        $options = is_array($options) ? $options : [];
+        $swoole = null;
+        foreach (['swoole', 'openswoole'] as $extension) {
+            if ($swoole === null && $runtime->extensionLoaded($extension)) {
+                $swoole = $extension.' '.($runtime->extensionVersion($extension) ?? '');
+            }
+        }
+
+        return ['Octane' => array_filter([
+            'Version' => class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('laravel/octane')
+                ? (string) InstalledVersions::getPrettyVersion('laravel/octane')
+                : 'installed',
+            'Server' => $server,
+            'Server process' => match ($running) {
+                true => 'Running', false => 'Stopped', default => 'Unknown'
+            },
+            'This request' => $runtime->servingViaOctane() ? 'Served by Octane' : 'Served by '.PHP_SAPI,
+            'Swoole extension' => $server === 'swoole' ? ($swoole ?? 'Not loaded') : null,
+            'Workers' => $server === 'swoole' ? (isset($options['worker_num']) ? (string) $options['worker_num'] : 'auto') : null,
+            'Garbage threshold' => (int) config('octane.garbage', 50).' MB',
+            'Max execution time' => ((int) config('octane.max_execution_time', 30)) ? (int) config('octane.max_execution_time', 30).'s' : 'Unlimited',
+            'HTTPS' => config('octane.https', false) ? 'On' : 'Off',
+        ], fn ($value) => $value !== null)];
+    }
+
     private function info(array $database, array $caches): array
     {
         $yes = fn (bool $value) => $value ? 'Yes' : 'No';
@@ -280,6 +316,7 @@ class ConsoleStatus
                 'Log channel' => (string) config('logging.default', '—'),
                 'Broadcasting' => (string) config('broadcasting.default', '—'),
             ],
+            ...$this->octaneInfo(),
             'Cache' => [
                 'Configuration' => $yes($caches['config']),
                 'Routes' => $yes($caches['routes']),

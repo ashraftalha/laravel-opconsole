@@ -28,6 +28,7 @@ class OpConsoleController extends Controller
         'up' => ['up_ok', 'up_error'],
         'storage_link' => ['storage_link_ok', 'storage_link_error'],
         'security_scan' => ['security_scan_ok', 'security_scan_error'],
+        'octane_reload' => ['octane_reload_ok', 'octane_reload_error'],
     ];
 
     private const ASSETS = [

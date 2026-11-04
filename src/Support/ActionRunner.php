@@ -35,13 +35,14 @@ class ActionRunner
         'up' => ['up', []],
         'storage_link' => ['storage:link', []],
         'security_scan' => ['opconsole:security', []],
+        'octane_reload' => ['octane:reload', []], // signals the running Octane server to restart its workers gracefully
     ];
 
     /**
      * Actions whose runtime is bounded by their own subprocess timeouts (Composer probe + audit),
      * so they stay safe without pcntl as long as the lease covers that bound.
      */
-    private const SELF_BOUNDED = ['security_scan'];
+    private const SELF_BOUNDED = ['security_scan', 'octane_reload'];
 
     private const LOCK_KEY = 'opconsole:action-lock';
 
@@ -380,6 +381,10 @@ class ActionRunner
             return null;
         }
 
+        if ($this->insideUnsafeSwooleWorker()) {
+            return __('opconsole::opconsole.runtime_swoole', ['command' => 'php artisan '.self::ACTIONS[$action][0]]);
+        }
+
         return __('opconsole::opconsole.runtime_unsupported', [
             'sapi' => PHP_SAPI,
             'command' => 'php artisan '.self::ACTIONS[$action][0],
@@ -389,6 +394,11 @@ class ActionRunner
     /** Signals are only interruptible with pcntl; hosts often disable these functions for PHP-FPM. */
     protected function canEnforceTimeout(): bool
     {
+        // Inside a Swoole worker SIGALRM would interrupt the worker process itself, not just the command.
+        if ($this->insideUnsafeSwooleWorker()) {
+            return false;
+        }
+
         foreach (['pcntl_signal', 'pcntl_alarm', 'pcntl_async_signals', 'pcntl_signal_get_handler'] as $function) {
             if (! function_exists($function)) {
                 return false;
@@ -396,6 +406,12 @@ class ActionRunner
         }
 
         return defined('SIGALRM');
+    }
+
+    /** Serving this request from a Swoole worker under Octane, without the explicit opt-in to run timed actions there. */
+    protected function insideUnsafeSwooleWorker(): bool
+    {
+        return ! config('opconsole.octane.allow_actions_in_swoole', false) && app(Runtime::class)->insideSwooleWorker();
     }
 
     protected function maxRuntimeSeconds(): int

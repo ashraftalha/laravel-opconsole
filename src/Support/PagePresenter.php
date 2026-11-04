@@ -35,6 +35,7 @@ class PagePresenter
         'Security',
         'Database and queues',
         'Scheduler and workers',
+        'Octane and runtime',
         'Cache and performance',
         'Files and folders',
         'PHP settings',
@@ -60,6 +61,7 @@ class PagePresenter
         'up' => ['Bring application online', 'up'],
         'storage_link' => ['Create storage link', 'storage:link'],
         'security_scan' => ['Run security scan', 'opconsole:security'],
+        'octane_reload' => ['Reload Octane workers', 'octane:reload'],
         'log.download' => ['Download log', 'log.download'],
         'log.delete' => ['Delete log', 'log.delete'],
         'queue.retry' => ['Retry failed job', 'queue:retry'],
@@ -108,6 +110,9 @@ class PagePresenter
                 'title' => $actions[$output['action']]['title'] ?? (self::ACTION_LABELS[$output['action']][0] ?? $output['action']),
                 'text' => $output['text'] ?: '(No output)',
                 'ok' => $output['ok'],
+                'hint' => $output['ok'] && in_array($output['action'], ['clear', 'optimize', 'migrate'], true) && isset($actions['octane_reload'])
+                    ? 'Octane workers still hold the old configuration in memory. Reload them so this change takes effect.'
+                    : null,
             ] : null,
             'logFiles' => $this->files($logFiles, $log, $canDelete),
             'log' => $log ? $this->log($log, $status['app']['environment'], $canDownload) : null,
@@ -233,6 +238,7 @@ class PagePresenter
             'lastChecked' => $checks['lastChecked'] ?? null,
             'scheduler' => $service('scheduler.heartbeat', 'No scheduler check'),
             'queue' => $service('queue.worker_heartbeat', 'No worker check'),
+            'octane' => $all->firstWhere('id', 'octane.running') ? $service('octane.running', 'Octane') : null,
             'maintenance' => [
                 'down' => (bool) ($status['app']['down'] ?? false),
                 'action' => isset($actions['up']) && $actions['up']['enabled'] ? '#action-up' : '#checks',
@@ -649,6 +655,32 @@ class PagePresenter
                 'last' => $last('security_scan'),
             ],
         ];
+
+        // Octane reload: only offered when Octane is installed, and only usable while its server runs.
+        $runtime = app(Runtime::class);
+        if ($runtime->octaneInstalled()) {
+            $octaneRunning = $runtime->servingViaOctane() ? true : $runtime->octaneServerRunning();
+            $all['octane_reload'] = [
+                'icon' => 'refresh',
+                'title' => 'Reload Octane workers',
+                'command' => 'php artisan octane:reload',
+                'risk' => 'low',
+                'riskLabel' => 'Low risk · Graceful restart',
+                'button' => 'Reload workers',
+                'style' => 'oc-btn-accent',
+                'url' => route($this->routeName('run'), 'octane_reload'),
+                'text' => 'Workers keep code and configuration in memory. Reload them after a deploy, .env change, or clearing caches; each finishes its current request first.',
+                'confirmTitle' => 'Reload Octane workers',
+                'confirm' => 'Gracefully restart every Octane worker for ['.$status['app']['environment'].']? In-flight requests finish first.',
+                'confirmAccept' => 'Reload workers',
+                'enabled' => (bool) ($enabledActions['octane_reload'] ?? false) && ($actionPermissions['octane_reload'] ?? $canRun) && $octaneRunning !== false,
+                'disabledReason' => ! ($actionPermissions['octane_reload'] ?? $canRun)
+                    ? ($canRun ? 'Your account cannot reload Octane workers.' : $readOnlyNote)
+                    : ($octaneRunning === false ? 'No Octane server is running for this application.' : null),
+                'pending' => [],
+                'last' => $last('octane_reload'),
+            ];
+        }
 
         // Surface the runtime limitation before the click instead of only after a refused request.
         $runner = app(ActionRunner::class);

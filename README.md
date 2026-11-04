@@ -22,6 +22,7 @@ OpConsole adds one page to your app, `/admin/opconsole` by default. It answers "
 - [Quick start](#quick-start)
 - [Access control](#access-control)
 - [Operations](#operations)
+- [Laravel Octane and Swoole](#laravel-octane-and-swoole)
 - [Monitoring and alerts](#monitoring-and-alerts)
 - [Security audit](#security-audit)
 - [Custom health checks](#custom-health-checks)
@@ -166,6 +167,7 @@ Users without run permission see the console in read-only mode, and each button 
 | Storage link | `storage:link` | Low | No (`OPCONSOLE_ACTION_STORAGE_LINK=true`) |
 | Maintenance mode | `down --secret=…` | Medium | Yes |
 | Run migrations | `migrate --force --isolated` | High | Yes |
+| Reload Octane workers | `octane:reload` | Low | Yes, when Laravel Octane is installed |
 | Retry a failed job | `queue:retry {id}` | Medium | Yes (`OPCONSOLE_FAILED_JOBS_RETRY`), from the **Failed jobs** tab |
 
 **Safety rules:**
@@ -178,6 +180,14 @@ Users without run permission see the console in read-only mode, and each button 
 - Migrations only ever run forward. There are no resets and no rollbacks.
 
 The list is a closed allow-list. You can disable entries in `config/opconsole.php` under `actions`, but you can't add arbitrary commands.
+
+## Laravel Octane and Swoole
+
+When [Laravel Octane](https://laravel.com/docs/octane) is installed, OpConsole adds an **Octane and runtime** health group, an **Octane** card in System information and a **Reload Octane workers** operation. Without Octane nothing changes.
+
+It checks that the configured server (Swoole, RoadRunner or FrankenPHP) is installed and running, that requests are served by Octane, that `octane.garbage` stays below `memory_limit`, that `octane.https` matches your `APP_URL`, and that OPcache is on for workers. With Swoole it also checks that `package_max_length` covers your upload size (Swoole ignores `upload_max_filesize`), worker count against CPU cores, Xdebug, and the Swoole log file.
+
+After clearing caches, optimizing or migrating, the console reminds you to reload workers, since they keep the old configuration in memory. Inside a Swoole worker, operations that rely on a `SIGALRM` timeout are refused by default because the signal would hit the worker itself; set `OPCONSOLE_OCTANE_ALLOW_ACTIONS=true` to override. See [Configuration](docs/CONFIGURATION.md#laravel-octane-octane).
 
 ## Monitoring and alerts
 
@@ -334,7 +344,8 @@ composer pint     # code style
 - [x] Host dependency security audit
 - [x] Execution safety: bounded runtimes, isolated locks, `audit.policy`
 - [x] Dashboard redesign: logo-based brand, health score, command palette, log timeline
-- [ ] Laravel Octane and Swoole checks
+- [x] Failed jobs with per-job retry
+- [x] Laravel Octane and Swoole checks, and a Reload Octane workers operation
 
 ## Contributing
 

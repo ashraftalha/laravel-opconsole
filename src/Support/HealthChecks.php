@@ -199,6 +199,9 @@ class HealthChecks
             // Scheduler and workers
             ...$this->workerChecks($production, $check),
 
+            // Laravel Octane and Swoole (only when Octane is installed)
+            ...app(OctaneChecks::class)->run($production, $check),
+
             // Cache and performance
             $this->cacheRoundTripCheck($production, $check),
             $this->cachesBuiltCheck($production, $check),
