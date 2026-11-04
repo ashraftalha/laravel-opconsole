@@ -19,7 +19,7 @@
             <p class="oc-dialog-hint" id="opconsole-confirm-hint" hidden></p>
         </div>
         <div class="oc-dialog-foot">
-            <button type="button" class="oc-btn oc-btn-soft-secondary" id="opconsole-confirm-dismiss">Cancel</button>
+            <button type="button" class="oc-btn oc-btn-secondary" id="opconsole-confirm-dismiss">Cancel</button>
             <button type="button" class="oc-btn oc-btn-danger" id="opconsole-confirm-accept">
                 <span class="oc-hold-label" data-oc-accept-label>Confirm</span>
                 <span class="oc-hold-fill" aria-hidden="true"><span data-oc-accept-fill-label>Confirm</span></span>

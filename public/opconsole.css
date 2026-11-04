@@ -275,13 +275,13 @@ body.oc-standalone {
 .oc-btn-danger:hover:not(:disabled) { --oc-btn-face: var(--oc-danger-hover); }
 [data-oc-theme="dark"] :is(.oc-btn-primary, .oc-btn-danger) { --oc-btn-ink: #0b0e13; }
 @media (prefers-color-scheme: dark) { [data-oc-theme="auto"] :is(.oc-btn-primary, .oc-btn-danger) { --oc-btn-ink: #0b0e13; } }
-.oc-btn-soft-primary { --oc-btn-face: var(--oc-primary-soft); --oc-btn-ink: var(--oc-primary-ink); --oc-btn-line: var(--oc-primary-line); box-shadow: none; }
-.oc-btn-soft-primary:hover:not(:disabled) { --oc-btn-face: var(--oc-primary-soft-2); --oc-btn-ink: var(--oc-primary-deep); }
-.oc-btn-soft-success { --oc-btn-face: var(--oc-ok-soft); --oc-btn-ink: var(--oc-ok-ink); --oc-btn-line: var(--oc-ok-line); box-shadow: none; }
-.oc-btn-soft-success:hover:not(:disabled) { --oc-btn-face: var(--oc-ok-soft-2); }
-.oc-btn-soft-warning { --oc-btn-face: var(--oc-warning-soft); --oc-btn-ink: var(--oc-warning-ink); --oc-btn-line: var(--oc-warning-line); box-shadow: none; }
-.oc-btn-soft-warning:hover:not(:disabled) { --oc-btn-face: var(--oc-warning-soft-2); --oc-btn-ink: var(--oc-warning-deep); }
-.oc-btn-soft-secondary:hover:not(:disabled) { --oc-btn-face: var(--oc-surface-2); --oc-btn-ink: var(--oc-text); --oc-btn-line: var(--oc-faint); }
+.oc-btn-accent { --oc-btn-face: var(--oc-primary-soft); --oc-btn-ink: var(--oc-primary-ink); --oc-btn-line: var(--oc-primary-line); box-shadow: none; }
+.oc-btn-accent:hover:not(:disabled) { --oc-btn-face: var(--oc-primary-soft-2); --oc-btn-ink: var(--oc-primary-deep); }
+.oc-btn-success { --oc-btn-face: var(--oc-ok-soft); --oc-btn-ink: var(--oc-ok-ink); --oc-btn-line: var(--oc-ok-line); box-shadow: none; }
+.oc-btn-success:hover:not(:disabled) { --oc-btn-face: var(--oc-ok-soft-2); }
+.oc-btn-warning { --oc-btn-face: var(--oc-warning-soft); --oc-btn-ink: var(--oc-warning-ink); --oc-btn-line: var(--oc-warning-line); box-shadow: none; }
+.oc-btn-warning:hover:not(:disabled) { --oc-btn-face: var(--oc-warning-soft-2); --oc-btn-ink: var(--oc-warning-deep); }
+.oc-btn-secondary:hover:not(:disabled) { --oc-btn-face: var(--oc-surface-2); --oc-btn-ink: var(--oc-text); --oc-btn-line: var(--oc-faint); }
 .oc-btn-ghost-dark { --oc-btn-face: transparent; --oc-btn-ink: var(--oc-code-text); --oc-btn-line: rgba(255, 255, 255, 0.18); box-shadow: none; }
 .oc-btn-ghost-dark:hover:not(:disabled) { --oc-btn-face: rgba(255, 255, 255, 0.08); }
 .oc-btn.is-done { --oc-btn-ink: var(--oc-ok); }
@@ -348,8 +348,8 @@ body.oc-standalone {
 .oc-card-head-tools { flex-wrap: wrap; justify-content: space-between; }
 .oc-card-icon { display: grid; place-items: center; width: 2rem; height: 2rem; flex-shrink: 0; border-radius: 8px; background: var(--oc-primary-soft); color: var(--oc-primary-ink); }
 .oc-card-icon .oc-icon { width: 1rem; height: 1rem; }
-.oc-card-body { padding: 1rem; display: grid; gap: 0.85rem; min-width: 0; }
-.oc-card-body.oc-flush { padding: 0; gap: 0; }
+.oc-card-content { padding: 1rem; display: grid; gap: 0.85rem; min-width: 0; }
+.oc-card-content.oc-flush { padding: 0; gap: 0; }
 .oc-card-foot { padding: 0.65rem 1rem; border-top: 1px solid var(--oc-line); }
 .oc-collapsible > summary { cursor: pointer; }
 .oc-collapsible:not([open]) > summary { border-bottom: 0; }
@@ -552,7 +552,7 @@ a.oc-kpi:hover { border-color: var(--oc-tone-line); transform: translateY(-1px);
 .oc-sev.oc-sev-critical strong, .oc-sev.oc-sev-high strong { color: var(--oc-danger); }
 .oc-sev.oc-sev-medium strong { color: var(--oc-warning); }
 .oc-sev.oc-sev-low strong { color: var(--oc-unk); }
-.oc-security-status .oc-card-body > strong { font-size: var(--oc-fs-base); }
+.oc-security-status .oc-card-content > strong { font-size: var(--oc-fs-base); }
 .oc-security-facts { display: grid; gap: 0.3rem; font-size: var(--oc-fs-xs); }
 .oc-security-facts div { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .oc-security-facts dt { color: var(--oc-muted); min-width: 4.5rem; }

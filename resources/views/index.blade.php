@@ -60,13 +60,13 @@
                     </div>
                 </div>
                 <div class="oc-header-actions">
-                    <button type="button" class="oc-btn oc-btn-soft-secondary oc-palette-btn" data-oc-palette-open hidden aria-label="Search or jump to (Ctrl K)" title="Search or jump to">
+                    <button type="button" class="oc-btn oc-btn-secondary oc-palette-btn" data-oc-palette-open hidden aria-label="Search or jump to (Ctrl K)" title="Search or jump to">
                         @include('opconsole::partials.icon', ['name' => 'search'])
                         <span class="oc-palette-btn-label">Search or jump to…</span>
                         <kbd class="oc-kbd" data-oc-palette-kbd>Ctrl K</kbd>
                     </button>
                     @if ($themeToggle)
-                        <button type="button" class="oc-btn oc-btn-soft-secondary oc-theme-toggle" data-oc-theme-toggle hidden aria-label="Switch theme" title="Switch theme">
+                        <button type="button" class="oc-btn oc-btn-secondary oc-theme-toggle" data-oc-theme-toggle hidden aria-label="Switch theme" title="Switch theme">
                             <span class="oc-theme-icon-dark">@include('opconsole::partials.icon', ['name' => 'moon'])</span>
                             <span class="oc-theme-icon-light">@include('opconsole::partials.icon', ['name' => 'sun'])</span>
                         </button>
@@ -168,7 +168,7 @@
                                                 <div class="oc-fix"><code dir="ltr">{{ $item['fix'] }}</code><button type="button" class="oc-fix-copy" data-copy="{{ $item['fix'] }}" aria-label="Copy fix for {{ $item['label'] }}">@include('opconsole::partials.icon', ['name' => 'copy'])<span data-oc-copy-label>Copy</span></button></div>
                                             @endif
                                         </div>
-                                        <a href="{{ $item['url'] }}" class="oc-btn oc-btn-sm oc-btn-soft-secondary" aria-label="Review {{ $item['label'] }}">Review</a>
+                                        <a href="{{ $item['url'] }}" class="oc-btn oc-btn-sm oc-btn-secondary" aria-label="Review {{ $item['label'] }}">Review</a>
                                     </li>
                                 @endforeach
                             </ul>
@@ -218,7 +218,7 @@
                                 <div class="oc-card-head">
                                     <span class="oc-card-icon">@include('opconsole::partials.icon', ['name' => 'clock'])</span>
                                     <div><h2 id="oc-recent-title">Recent activity</h2><small>Latest audited operations</small></div>
-                                    <a href="#history" class="oc-btn oc-btn-sm oc-btn-soft-secondary oc-ms-auto">All history</a>
+                                    <a href="#history" class="oc-btn oc-btn-sm oc-btn-secondary oc-ms-auto">All history</a>
                                 </div>
                                 <ul class="oc-feed">
                                     @foreach (array_slice($history['items'], 0, 4) as $run)
@@ -344,7 +344,7 @@
                         <span class="oc-checks-summary {{ $checks['tone'] }} oc-ms-auto">{{ $checks['summary'] }}</span>
                         <span class="oc-chevron">@include('opconsole::partials.icon', ['name' => 'chevron-down'])</span>
                     </summary>
-                    <div class="oc-card-body">
+                    <div class="oc-card-content">
                         @if ($overview['total'])
                             @include('opconsole::partials.segbar', ['counts' => $overview, 'label' => $checks['summary'], 'class' => 'oc-segbar-lg'])
                         @endif
@@ -421,7 +421,7 @@
                         </div>
                         <div class="oc-empty oc-filter-empty" data-oc-filter-empty @if ($checks['groups']) hidden @endif>
                             <p>No health checks match this filter.</p>
-                            <button type="button" class="oc-btn oc-btn-soft-secondary" data-oc-health-reset>Show all checks</button>
+                            <button type="button" class="oc-btn oc-btn-secondary" data-oc-health-reset>Show all checks</button>
                         </div>
                     </div>
                 </details>
@@ -445,7 +445,7 @@
                                     <span>{{ $securityFresh ? (empty($securityReport['advisories']) ? 'No known vulnerabilities' : count($securityReport['advisories']).' active '.(count($securityReport['advisories']) === 1 ? 'advisory' : 'advisories')) : ($securityStatus === 'complete' ? 'Stale report' : ucfirst(str_replace('_', ' ', $securityStatus))) }}</span>
                                 </span>
                             </div>
-                            <div class="oc-card-body">
+                            <div class="oc-card-content">
                                 @if ($securityFresh)
                                     @php($securityCounts = collect($securityReport['advisories'] ?? [])->groupBy(fn ($advisory) => $advisory['severity'] ?? 'not supplied')->map->count())
                                     <ul class="oc-severity-stats" aria-label="Vulnerability counts by severity">
@@ -459,7 +459,7 @@
                             </div>
                         </div>
                         <div class="oc-card oc-security-status" role="status" aria-live="polite">
-                            <div class="oc-card-body">
+                            <div class="oc-card-content">
                                 <strong>{{ $securityFresh ? 'Completed scan' : 'Scan status: '.str_replace('_', ' ', $securityReport['status'] ?? 'never scanned') }}</strong>
                                 @if ($securityAge !== null)
                                     @php($securityAgePct = min(100, (int) round(100 * $securityAge / $securityMaxAge)))
@@ -536,7 +536,7 @@
                     @if (!empty($securityReport['abandoned']))
                         <section class="oc-card" aria-labelledby="oc-abandoned-title">
                             <div class="oc-card-head"><span class="oc-card-icon">@include('opconsole::partials.icon', ['name' => 'layers'])</span><div><h3 id="oc-abandoned-title">Abandoned packages (not confirmed vulnerabilities)</h3></div></div>
-                            <ul class="oc-plain-list oc-card-body">@foreach($securityReport['abandoned'] as $item)<li><code>{{ $item['package'] }}</code>@if($item['replacement']) · suggested replacement: <code>{{ $item['replacement'] }}</code>@endif</li>@endforeach</ul>
+                            <ul class="oc-plain-list oc-card-content">@foreach($securityReport['abandoned'] as $item)<li><code>{{ $item['package'] }}</code>@if($item['replacement']) · suggested replacement: <code>{{ $item['replacement'] }}</code>@endif</li>@endforeach</ul>
                         </section>
                     @endif
 
@@ -567,7 +567,7 @@
                         </span>
                         <span class="oc-chevron">@include('opconsole::partials.icon', ['name' => 'chevron-down'])</span>
                     </summary>
-                    <div class="oc-card-body oc-flush">
+                    <div class="oc-card-content oc-flush">
                         @if (! $history['available'])
                             @include('opconsole::partials.empty-state', ['message' => 'The opconsole_runs audit table has not been migrated yet. Run migrations to persist operation history.'])
                         @elseif (! count($history['items']))
@@ -637,7 +637,7 @@
                             <input id="oc-system-search" class="oc-input" type="search" placeholder="Find a setting…" data-oc-system-search autocomplete="off">
                         </label>
                         <span class="oc-muted-text">Runtime and service configuration summary (contains no raw secrets)</span>
-                        <button type="button" class="oc-btn oc-btn-soft-primary oc-ms-auto" data-copy="{{ $infoText }}" title="Copy system summary">
+                        <button type="button" class="oc-btn oc-btn-accent oc-ms-auto" data-copy="{{ $infoText }}" title="Copy system summary">
                             @include('opconsole::partials.icon', ['name' => 'copy'])
                             <span data-oc-copy-label>Copy summary for support</span>
                         </button>
@@ -713,7 +713,7 @@
 
                             <div class="oc-log-main">
                                 @if ($log['timeline'])
-                                    <div class="oc-card oc-card-body oc-histogram-card">
+                                    <div class="oc-card oc-card-content oc-histogram-card">
                                         <div class="oc-histogram-head"><strong>Entries per hour</strong><small>24 hours up to the newest entry · <span class="oc-legend is-bad">errors</span> <span class="oc-legend is-warning">warnings</span> <span class="oc-legend is-other">other</span></small></div>
                                         <svg class="oc-histogram" viewBox="0 0 {{ count($log['timeline']) * 10 }} 64" preserveAspectRatio="none" role="img" aria-label="Log entries per hour for the last 24 hours of this file" focusable="false">
                                             @foreach ($log['timeline'] as $i => $hour)
@@ -768,17 +768,17 @@
                                                 <span class="oc-sr-only">Search logs</span>
                                                 <input id="oc-log-search-input" type="search" aria-label="Search logs" name="q" value="{{ $log['search'] }}" class="oc-input" placeholder="Search messages and stack traces…" maxlength="200" dir="auto">
                                             </label>
-                                            <button type="submit" class="oc-btn oc-btn-soft-primary" aria-label="Search" title="Search">
+                                            <button type="submit" class="oc-btn oc-btn-accent" aria-label="Search" title="Search">
                                                 @include('opconsole::partials.icon', ['name' => 'search'])
                                             </button>
                                             @if ($log['search'] !== '')
-                                                <a href="{{ $log['clearSearchUrl'] }}" class="oc-btn oc-btn-soft-secondary" aria-label="Clear search" title="Clear search">
+                                                <a href="{{ $log['clearSearchUrl'] }}" class="oc-btn oc-btn-secondary" aria-label="Clear search" title="Clear search">
                                                     @include('opconsole::partials.icon', ['name' => 'x'])
                                                 </a>
                                             @endif
                                         </form>
                                         @if ($log['downloadUrl'])
-                                            <a href="{{ $log['downloadUrl'] }}" class="oc-btn oc-btn-soft-secondary">
+                                            <a href="{{ $log['downloadUrl'] }}" class="oc-btn oc-btn-secondary">
                                                 @include('opconsole::partials.icon', ['name' => 'download'])
                                                 <span>Download file</span>
                                             </a>
@@ -848,7 +848,7 @@
                                 @endif
 
                                 @if ($log['moreUrl'])
-                                    <a href="{{ $log['moreUrl'] }}" class="oc-btn oc-btn-soft-primary oc-w-full">
+                                    <a href="{{ $log['moreUrl'] }}" class="oc-btn oc-btn-accent oc-w-full">
                                         @include('opconsole::partials.icon', ['name' => 'chevron-down'])
                                         <span>Show more entries</span>
                                     </a>
