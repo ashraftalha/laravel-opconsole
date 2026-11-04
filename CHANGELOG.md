@@ -4,6 +4,16 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+### Added
+- **Failed jobs** tab: the newest failed queue jobs (name, connection, queue, failure time, first line of the sanitised exception; payloads are never shown), a filter, a tab badge with the count, and a **Retry** button per job that runs `queue:retry {id}`. Retrying needs the run Gate or a `queue_retry` action Gate, is confirmed, rate limited and audited as `queue.retry`. New `failed_jobs.enabled`, `failed_jobs.limit` and `failed_jobs.allow_retry` options.
+- System information: new **Performance** (OPcache, JIT, realpath cache, Xdebug, peak memory), **PHP extensions** (loaded and missing common extensions as chips) and **Database** (driver, server version, applied and pending migrations) groups, plus locale, maintenance mode, Composer package count, SAPI, `max_input_vars`, `display_errors`, `date.timezone`, architecture, session lifetime, failed-jobs store, filesystem disk, log channel and broadcasting. Production-risk flags for `display_errors`, OPcache, Xdebug and pending migrations.
+
+### Fixed
+- The Health tab (and History) could open empty: when every check was healthy the server rendered the panel closed, and in tab mode its header cannot be clicked. Panels are now always open while tabs are active.
+
+### Changed
+- Operations shows four cards per row on wide screens (two on tablets, one on phones).
+
 ## [1.10.0] - 2026-11-04
 
 ### Added

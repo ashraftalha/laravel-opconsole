@@ -62,9 +62,10 @@ class PagePresenter
         'security_scan' => ['Run security scan', 'opconsole:security'],
         'log.download' => ['Download log', 'log.download'],
         'log.delete' => ['Delete log', 'log.delete'],
+        'queue.retry' => ['Retry failed job', 'queue:retry'],
     ];
 
-    public function page(array $status, array $logFiles, ?array $log, ?array $output, ?Authenticatable $user = null): array
+    public function page(array $status, array $logFiles, ?array $log, ?array $output, ?Authenticatable $user = null, ?array $failedJobs = null): array
     {
         $canRun = $user !== null ? AuthorizeOpConsole::allows('run', $user) : true;
         $actionPermissions = [];
@@ -94,7 +95,8 @@ class PagePresenter
             'checks' => $checks,
             'overview' => $overview,
             'history' => $history,
-            'tabs' => $this->tabs($status, $actions, $history, $output !== null),
+            'tabs' => $this->tabs($status, $actions, $history, $output !== null, $failedJobs),
+            'failedJobs' => $failedJobs === null ? null : $this->failedJobs($failedJobs, $user === null || AuthorizeOpConsole::allowsAction('queue_retry', $user)),
             'theme' => $this->theme(),
             'themeToggle' => (bool) config('opconsole.theme_toggle', true),
             'info' => $status['info'],
@@ -120,7 +122,7 @@ class PagePresenter
      *
      * @return array{items: array<string, array{label: string, icon: string, hash: string, badge: ?string, badgeLabel: ?string, tone: string}>, default: string}
      */
-    private function tabs(array $status, array $actions, array $history, bool $hasOutput): array
+    private function tabs(array $status, array $actions, array $history, bool $hasOutput, ?array $failedJobs = null): array
     {
         $checks = collect($status['checks']);
         $critical = $checks->where('status', 'critical')->count();
@@ -149,6 +151,9 @@ class PagePresenter
             'operations' => ($actions !== [] || $hasOutput)
                 ? ['label' => __('opconsole::opconsole.tab_actions'), 'icon' => 'terminal', 'hash' => 'operations'] + $actionsBadge
                 : null,
+            'jobs' => $failedJobs === null ? null
+                : ['label' => __('opconsole::opconsole.tab_failed_jobs'), 'icon' => 'layers', 'hash' => 'failed-jobs', 'tone' => 'is-bad']
+                    + $badge((int) $failedJobs['total'], 'tab_badge_failed_jobs'),
             'history' => ['label' => __('opconsole::opconsole.tab_history'), 'icon' => 'clock', 'hash' => 'history', 'tone' => 'is-neutral']
                 + $badge($historyCount, 'tab_badge_history'),
             'system' => ['label' => __('opconsole::opconsole.tab_system'), 'icon' => 'info', 'hash' => 'system-info', 'tone' => '', 'badge' => null, 'badgeLabel' => null],
@@ -656,6 +661,30 @@ class PagePresenter
         }
 
         return array_filter($all, fn ($action, $key) => $enabledActions[$key] ?? false, ARRAY_FILTER_USE_BOTH);
+    }
+
+    /** Failed queue jobs for the Failed jobs tab; retry URLs only when retrying is allowed for this user. */
+    private function failedJobs(array $list, bool $canRetry): array
+    {
+        $canRetry = $canRetry && (bool) config('opconsole.failed_jobs.allow_retry', true);
+
+        return [
+            'available' => $list['available'],
+            'total' => $list['total'],
+            'shown' => count($list['items']),
+            'error' => $list['error'],
+            'canRetry' => $canRetry,
+            'driver' => (string) (config('queue.failed.driver') ?? 'null'),
+            'items' => array_map(function (array $job) use ($canRetry): array {
+                $at = $job['failedAt'] ? Carbon::parse($job['failedAt']) : null;
+
+                return $job + [
+                    'failedRelative' => $at ? $at->locale('en')->diffForHumans() : '—',
+                    'failedExact' => $at ? $at->copy()->utc()->format('Y-m-d H:i:s \U\T\C') : null,
+                    'retryUrl' => $canRetry ? route($this->routeName('failed_jobs.retry'), $job['id']) : null,
+                ];
+            }, $list['items']),
+        ];
     }
 
     private function history(array $history): array

@@ -3,6 +3,7 @@
 namespace AshrafTalha\OpConsole\Support;
 
 use AshrafTalha\OpConsole\Models\OpConsoleRun;
+use Composer\InstalledVersions;
 use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Number;
@@ -191,6 +192,36 @@ class ConsoleStatus
     {
         $yes = fn (bool $value) => $value ? 'Yes' : 'No';
         $disk = [@disk_free_space(storage_path()), @disk_total_space(storage_path())];
+        $ini = fn (string $key, string $fallback = '—') => ($value = ini_get($key)) === false || $value === '' ? $fallback : (string) $value;
+        $on = fn (string $key) => filter_var(ini_get($key), FILTER_VALIDATE_BOOLEAN) ? 'On' : 'Off';
+
+        $opcache = 'Not installed';
+        if (function_exists('opcache_get_status')) {
+            $status = @opcache_get_status(false);
+            $opcache = is_array($status) && ($status['opcache_enabled'] ?? false)
+                ? 'Enabled · '.Number::fileSize((int) ($status['memory_usage']['used_memory'] ?? 0), 1).' used'
+                : 'Installed, disabled for '.PHP_SAPI;
+        }
+        $jit = function_exists('opcache_get_status') && is_array($jitStatus = @opcache_get_status(false)) && ($jitStatus['jit']['on'] ?? false)
+            ? 'On · '.$ini('opcache.jit', 'tracing')
+            : 'Off';
+
+        $extensions = ['intl', 'mbstring', 'bcmath', 'gd', 'imagick', 'redis', 'pdo_mysql', 'pdo_pgsql', 'pdo_sqlite', 'pcntl', 'posix', 'sodium', 'zip', 'curl', 'openssl', 'fileinfo', 'exif'];
+        $loaded = array_values(array_filter($extensions, 'extension_loaded'));
+        $missing = array_values(array_diff($extensions, $loaded));
+
+        $serverVersion = '—';
+        if ($database['ok']) {
+            try {
+                $serverVersion = (string) DB::connection()->getPdo()->getAttribute(\PDO::ATTR_SERVER_VERSION);
+            } catch (Throwable) {
+                $serverVersion = 'Unavailable';
+            }
+        }
+
+        $packages = class_exists(InstalledVersions::class)
+            ? count(InstalledVersions::getInstalledPackages())
+            : null;
 
         return [
             'Application' => [
@@ -198,27 +229,56 @@ class ConsoleStatus
                 'Environment' => app()->environment(),
                 'URL' => config('app.url'),
                 'Timezone' => config('app.timezone'),
+                'Locale' => app()->getLocale().' (fallback '.config('app.fallback_locale', '—').')',
+                'Maintenance mode' => $yes(app()->isDownForMaintenance()),
+                'Composer packages' => $packages === null ? '—' : $packages.' installed',
             ],
             'PHP' => [
                 'Version' => PHP_VERSION,
+                'SAPI' => PHP_SAPI,
                 'memory_limit' => ini_get('memory_limit'),
                 'upload_max_filesize' => ini_get('upload_max_filesize'),
                 'post_max_size' => ini_get('post_max_size'),
                 'max_execution_time' => (int) ini_get('max_execution_time') ? ini_get('max_execution_time').'s' : 'Unlimited',
+                'max_input_vars' => $ini('max_input_vars'),
+                'display_errors' => $on('display_errors'),
+                'date.timezone' => $ini('date.timezone', 'not set'),
+            ],
+            'Performance' => [
+                'OPcache' => $opcache,
+                'JIT' => $jit,
+                'realpath_cache_size' => $ini('realpath_cache_size'),
+                'Xdebug' => extension_loaded('xdebug') ? 'Loaded' : 'Not loaded',
+                'Peak memory (this request)' => Number::fileSize(memory_get_peak_usage(true), 1),
+            ],
+            'PHP extensions' => [
+                'Loaded' => $loaded ? implode(', ', $loaded) : 'none of the common ones',
+                'Not loaded' => $missing ? implode(', ', $missing) : 'none',
             ],
             'Server' => [
                 'Operating system' => PHP_OS_FAMILY.' '.php_uname('r'),
+                'Architecture' => php_uname('m'),
                 'Web server' => request()->server('SERVER_SOFTWARE') ?: PHP_SAPI,
                 'Disk space' => $disk[0] && $disk[1] ? Number::fileSize($disk[0], 1).' available of '.Number::fileSize($disk[1], 1) : '—',
                 'Log size' => Number::fileSize($this->logs->totalSize(), 1),
             ],
+            'Database' => [
+                'Connection' => $database['driver'].($database['name'] ? ' · '.$database['name'] : ''),
+                'Driver' => (string) config('database.connections.'.config('database.default').'.driver', '—'),
+                'Server version' => $serverVersion,
+                'Migrations applied' => (string) $database['ran'],
+                'Pending migrations' => (string) count($database['pending'] ?? []),
+            ],
             'Services' => [
-                'Database' => $database['driver'].($database['name'] ? ' · '.$database['name'] : ''),
                 'Cache' => $caches['store'],
                 'Action lock' => (string) config('opconsole.concurrency.lock_store', 'opconsole'),
-                'Sessions' => config('session.driver'),
+                'Sessions' => config('session.driver').' · '.config('session.lifetime', '—').' min',
                 'Queues' => config('queue.default'),
+                'Failed jobs store' => (string) (config('queue.failed.driver') ?? 'null'),
                 'Mail' => config('mail.default'),
+                'Filesystem disk' => (string) config('filesystems.default', '—'),
+                'Log channel' => (string) config('logging.default', '—'),
+                'Broadcasting' => (string) config('broadcasting.default', '—'),
             ],
             'Cache' => [
                 'Configuration' => $yes($caches['config']),

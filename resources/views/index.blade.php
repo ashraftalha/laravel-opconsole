@@ -327,6 +327,88 @@
             </div>
             @endif
 
+            {{-- ================= Failed jobs ================= --}}
+            @if ($failedJobs !== null)
+            <div class="oc-tab-panel" id="oc-panel-jobs" role="tabpanel" aria-labelledby="oc-tab-jobs" data-oc-panel="jobs">
+                <section class="oc-card" id="failed-jobs" aria-labelledby="oc-failed-jobs-title">
+                    <div class="oc-card-head">
+                        <span class="oc-card-icon">@include('opconsole::partials.icon', ['name' => 'layers'])</span>
+                        <div>
+                            <h2 id="oc-failed-jobs-title">Failed jobs</h2>
+                            <small>Newest first · driver <code>{{ $failedJobs['driver'] }}</code> · payloads are never shown</small>
+                        </div>
+                        <span @class(['oc-checks-summary', 'oc-ms-auto', 'is-bad' => $failedJobs['total'] > 0, 'is-ok' => $failedJobs['available'] && $failedJobs['total'] === 0, 'is-neutral' => ! $failedJobs['available']])>
+                            @if (! $failedJobs['available'])
+                                Not stored
+                            @elseif ($failedJobs['total'] === 0)
+                                None
+                            @else
+                                {{ $failedJobs['total'] }} failed
+                            @endif
+                        </span>
+                    </div>
+
+                    @if (! $failedJobs['available'])
+                        @include('opconsole::partials.empty-state', ['message' => 'Failed jobs are not being stored (queue.failed.driver is "null"). Set QUEUE_FAILED_DRIVER=database-uuids and run the failed_jobs migration to track them.'])
+                    @elseif ($failedJobs['error'])
+                        <div class="oc-card-content"><p class="oc-advice oc-advice-danger" role="alert">@include('opconsole::partials.icon', ['name' => 'alert-octagon'])<span>The failed-job store could not be read: <code dir="ltr">{{ $failedJobs['error'] }}</code></span></p></div>
+                    @elseif ($failedJobs['total'] === 0)
+                        @include('opconsole::partials.empty-state', ['message' => 'No failed jobs. Jobs that exhaust their retries will appear here.'])
+                    @else
+                        <div class="oc-toolbar oc-toolbar-pad">
+                            <label class="oc-search" for="oc-failed-jobs-search">
+                                @include('opconsole::partials.icon', ['name' => 'search'])
+                                <span class="oc-sr-only">Filter failed jobs</span>
+                                <input id="oc-failed-jobs-search" class="oc-input" type="search" placeholder="Filter by job, queue or error…" data-oc-filter-input="[data-oc-failed-job]" autocomplete="off">
+                            </label>
+                            <span class="oc-muted-text">Showing {{ $failedJobs['shown'] }} of {{ $failedJobs['total'] }}@if (! $failedJobs['canRetry']) · read-only: your account cannot retry jobs @endif</span>
+                        </div>
+                        <ul class="oc-rows oc-failed-jobs">
+                            @foreach ($failedJobs['items'] as $job)
+                                <li class="oc-row oc-failed-job is-bad" data-oc-failed-job>
+                                    <span class="oc-stripe" aria-hidden="true"></span>
+                                    <div class="oc-row-main">
+                                        <div class="oc-row-title">
+                                            <strong dir="ltr">{{ $job['name'] }}</strong>
+                                            @if ($job['queue'] !== '')<span class="oc-status-pill is-neutral">{{ $job['queue'] }}</span>@endif
+                                        </div>
+                                        <small>
+                                            <span dir="ltr">{{ $job['connection'] }}</span> ·
+                                            @if ($job['failedExact'])<time datetime="{{ $job['failedAt'] }}" title="{{ $job['failedExact'] }}">failed {{ $job['failedRelative'] }}</time>@else failed at an unknown time @endif
+                                            · ID <code class="oc-inline-code" dir="ltr">{{ $job['id'] }}</code>
+                                        </small>
+                                        @if ($job['exception'] !== '')
+                                            <code class="oc-failed-job-error" dir="ltr">{{ $job['exception'] }}</code>
+                                        @endif
+                                    </div>
+                                    @if ($job['retryUrl'])
+                                        <form
+                                            method="POST"
+                                            action="{{ $job['retryUrl'] }}"
+                                            data-confirm="Push {{ $job['name'] }} back onto the {{ $job['queue'] ?: 'default' }} queue? It runs again with its original payload, so any side effects (emails, charges, API calls) can happen a second time."
+                                            data-confirm-title="Retry failed job"
+                                            data-confirm-accept="Retry job"
+                                            data-confirm-command="php artisan queue:retry {{ $job['id'] }}"
+                                            data-confirm-risk="medium"
+                                            data-confirm-risk-label="Medium risk · Re-runs the job"
+                                            data-confirm-environment="{{ $environment['name'] }}"
+                                        >
+                                            @csrf
+                                            <button type="submit" class="oc-btn oc-btn-sm oc-btn-accent" aria-label="Retry {{ $job['name'] }} ({{ $job['id'] }})">
+                                                @include('opconsole::partials.icon', ['name' => 'refresh'])
+                                                <span data-oc-btn-label>Retry</span>
+                                            </button>
+                                        </form>
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                        <div class="oc-empty oc-filter-empty" data-oc-filter-empty-for="[data-oc-failed-job]" hidden><p>No failed jobs match your filter.</p></div>
+                    @endif
+                </section>
+            </div>
+            @endif
+
             {{-- ================= Health ================= --}}
             <div class="oc-tab-panel" id="oc-panel-health" role="tabpanel" aria-labelledby="oc-tab-health" data-oc-panel="health">
                 <details class="oc-card oc-collapsible" id="checks"{{ $checks['hasProblems'] ? ' open' : '' }}>
@@ -642,7 +724,8 @@
                             <span data-oc-copy-label>Copy summary for support</span>
                         </button>
                     </div>
-                    @php($ocFlags = ['Configuration' => $environment['production'] ? 'Cache config in production' : null, 'Routes' => $environment['production'] ? 'Cache routes in production' : null])
+                    @php($ocProd = $environment['production'])
+                    @php($ocFlagFor = fn (string $group, string $label, string $value) => match (true) { $group === 'Cache' && in_array($label, ['Configuration', 'Routes'], true) && $value === 'No' && $ocProd => 'Cache in production', $group === 'PHP' && $label === 'display_errors' && $value === 'On' && $ocProd => 'Turn off in production', $group === 'Performance' && $label === 'OPcache' && ! str_starts_with($value, 'Enabled') && $ocProd => 'Enable in production', $group === 'Performance' && $label === 'Xdebug' && $value === 'Loaded' && $ocProd => 'Slows production', $group === 'Database' && $label === 'Pending migrations' && $value !== '0' => 'Run migrations', default => null })
                     <div class="oc-info-grid">
                         @foreach ($info as $group => $rows)
                             <section class="oc-card" data-oc-system-group>
@@ -654,7 +737,11 @@
                                     @foreach ($rows as $label => $value)
                                         <div data-oc-system-row>
                                             <dt>{{ $label }}</dt>
-                                            <dd><bdi>{{ $value }}</bdi>@if ($group === 'Cache' && $value === 'No' && ($ocFlags[$label] ?? null))<span class="oc-flag">{{ $ocFlags[$label] }}</span>@endif</dd>
+                                            @if ($group === 'PHP extensions' && ! in_array($value, ['none', 'none of the common ones'], true))
+                                                <dd><span class="oc-ext-chips">@foreach (explode(', ', (string) $value) as $ocExt)<span @class(['oc-ext-chip', 'is-missing' => $label === 'Not loaded'])>{{ $ocExt }}</span>@endforeach</span></dd>
+                                            @else
+                                                <dd><bdi>{{ $value }}</bdi>@if ($ocFlag = $ocFlagFor((string) $group, (string) $label, (string) $value))<span class="oc-flag">{{ $ocFlag }}</span>@endif</dd>
+                                            @endif
                                             <button type="button" class="oc-copy-mini" data-copy="{{ $value }}" aria-label="Copy {{ $label }}">@include('opconsole::partials.icon', ['name' => 'copy'])</button>
                                         </div>
                                     @endforeach

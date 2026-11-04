@@ -32,7 +32,7 @@ OpConsole adds one page to your app, `/admin/opconsole` by default. It answers "
 
 ## What's inside
 
-The console is organised in seven tabs. A header above them shows a **0–100 health score**, the environment badge, and the Laravel and PHP versions.
+The console is organised in eight tabs. A header above them shows a **0–100 health score**, the environment badge, and the Laravel and PHP versions.
 
 | Tab | What you get |
 |---|---|
@@ -40,8 +40,9 @@ The console is organised in seven tabs. A header above them shows a **0–100 he
 | **Health** | Every check grouped by area, critical issues first. Filter by status chips or by name, and expand any check to see its current value and fix. Filters stay in the URL (`?check_status=`), so a shared link opens the same view. |
 | **Security** | Vulnerable Composer packages by severity, a scan-freshness meter, each advisory with a ready-to-copy `composer update` command, and Laravel configuration warnings. |
 | **Operations** | Maintenance tasks split into a **Safe** group and a **Danger zone**. The output of the last run appears first. |
+| **Failed jobs** | The newest failed queue jobs with their queue, failure time and error (never the payload), a filter, and a **Retry** button per job. |
 | **History** | An audit trail grouped by day: who ran what, when, how long it took, and any error. |
-| **System** | Application, PHP, server, service and cache settings, with copy buttons, a search box, and "Copy summary for support". |
+| **System** | Application, PHP, performance (OPcache, JIT, Xdebug), PHP extensions, server, database, service and cache settings, with production-risk flags, copy buttons, a search box, and "Copy summary for support". |
 | **Logs** | Log file list, an entries-per-hour chart, level and environment filters, search with highlighting, repeat counts, stack traces with your app's frames highlighted, download and delete. |
 
 ### Screenshots
@@ -143,6 +144,7 @@ OpConsole checks four Gates. If you don't define `viewOpConsole` or `runOpConsol
     // ...
     'action_gates' => [
         'clear' => 'clearOpConsoleCaches',
+        'queue_retry' => 'retryOpConsoleJobs',
     ],
 ],
 ```
@@ -164,6 +166,7 @@ Users without run permission see the console in read-only mode, and each button 
 | Storage link | `storage:link` | Low | No (`OPCONSOLE_ACTION_STORAGE_LINK=true`) |
 | Maintenance mode | `down --secret=…` | Medium | Yes |
 | Run migrations | `migrate --force --isolated` | High | Yes |
+| Retry a failed job | `queue:retry {id}` | Medium | Yes (`OPCONSOLE_FAILED_JOBS_RETRY`), from the **Failed jobs** tab |
 
 **Safety rules:**
 - Every operation asks for confirmation first. The confirmation names the environment and shows the exact command.

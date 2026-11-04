@@ -3,6 +3,7 @@
 use AshrafTalha\OpConsole\Http\Controllers\HealthController;
 use AshrafTalha\OpConsole\Http\Controllers\OpConsoleController;
 use AshrafTalha\OpConsole\Support\ActionRunner;
+use AshrafTalha\OpConsole\Support\FailedJobs;
 use Illuminate\Support\Facades\Route;
 
 $prefix = config('opconsole.route.name_prefix', 'opconsole.');
@@ -37,6 +38,11 @@ Route::prefix(config('opconsole.route.prefix', 'admin/opconsole'))
             ->where('file', '[\w.-]+\.log')
             ->middleware(['opconsole.authorize:delete', 'throttle:6,1,opconsole-delete'])
             ->name($prefix.'log.delete');
+
+        Route::post('failed-jobs/{id}/retry', [OpConsoleController::class, 'retryFailedJob'])
+            ->where('id', FailedJobs::ID_PATTERN)
+            ->middleware(['opconsole.authorize:run', 'throttle:20,1,opconsole-retry'])
+            ->name($prefix.'failed_jobs.retry');
 
         Route::post('{action}', [OpConsoleController::class, 'run'])
             ->whereIn('action', array_keys(ActionRunner::ACTIONS))

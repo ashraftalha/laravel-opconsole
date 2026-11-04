@@ -214,6 +214,16 @@ Setting an action to `false` hides its card in the UI and causes `POST /admin/op
 | `logs.allow_download` | `true` | When `false`, hides download buttons and aborts `GET /admin/opconsole/logs/{file}` with `403`. |
 | `logs.allow_delete` | `true` | When `false`, hides delete buttons and aborts `DELETE /admin/opconsole/logs/{file}` with `403`. Even when `true`, the newest valid log file (or any symlink resolving to it) can never be deleted. Deleting a symlink removes only the link, never its target. |
 
+### Failed Jobs (`failed_jobs.*`)
+
+| Key | Env | Default | Description |
+| --- | --- | --- | --- |
+| `failed_jobs.enabled` | `OPCONSOLE_FAILED_JOBS` | `true` | Shows the **Failed jobs** tab with the newest failed queue jobs: job name, connection, queue, failure time and the first line of the sanitised exception. Payloads are never shown. When `false`, the tab is hidden and retry requests return `403`. |
+| `failed_jobs.limit` | `OPCONSOLE_FAILED_JOBS_LIMIT` | `50` | How many jobs to list (1–500). Database providers are queried with this limit, so a large store is never loaded in full. |
+| `failed_jobs.allow_retry` | `OPCONSOLE_FAILED_JOBS_RETRY` | `true` | Shows a **Retry** button per job: `POST /admin/opconsole/failed-jobs/{id}/retry` runs `queue:retry {id}`. It needs the run Gate (or the Gate mapped to `queue_retry` in `authorization.action_gates`), is rate limited to 20 per minute, asks for confirmation, and is audited as `queue.retry`. Under `audit.policy=required`, a retry whose audit row cannot be written is refused. |
+
+The list reads Laravel's configured failed-job store (`queue.failed.driver`). With the `null` driver, the tab explains that failed jobs are not being stored.
+
 ### UI, Layout & Audit Storage
 
 | Key | Environment Variable | Default | Description |

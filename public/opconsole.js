@@ -25,6 +25,7 @@
         initThemeToggle();
         initScrollFades();
         initHistoryFilter();
+        initListFilters();
         initSystemSearch();
         initLogKeys();
         initPalette();
@@ -528,6 +529,25 @@
         });
     }
 
+    // Generic text filter: <input data-oc-filter-input="selector"> hides matching rows that do not contain the text.
+    function initListFilters() {
+        document.querySelectorAll('[data-oc-filter-input]').forEach(function (input) {
+            var selector = input.dataset.ocFilterInput;
+            var rows = Array.prototype.slice.call(document.querySelectorAll(selector));
+            var empty = document.querySelector('[data-oc-filter-empty-for="' + selector + '"]');
+            input.addEventListener('input', function () {
+                var query = input.value.trim().toLocaleLowerCase();
+                var visible = 0;
+                rows.forEach(function (row) {
+                    var show = !query || row.textContent.toLocaleLowerCase().indexOf(query) !== -1;
+                    row.hidden = !show;
+                    if (show) visible++;
+                });
+                if (empty) empty.hidden = visible > 0;
+            });
+        });
+    }
+
     function initSystemSearch() {
         var input = document.querySelector('[data-oc-system-search]');
         if (!input) return;
@@ -600,6 +620,9 @@
             });
             document.querySelectorAll('.oc-action[id^="action-"]').forEach(function (card) {
                 out.push({ label: text(card.querySelector('h3')), hint: 'Operation', tone: '', run: function () { go('#' + card.id, card); } });
+            });
+            document.querySelectorAll('[data-oc-failed-job]').forEach(function (row) {
+                out.push({ label: text(row.querySelector('.oc-row-title strong')), hint: 'Failed job', tone: 'is-bad', run: function () { go('#failed-jobs', row); } });
             });
             document.querySelectorAll('[data-oc-palette-item]').forEach(function (link) {
                 out.push({ label: link.dataset.ocPaletteItem, hint: 'Open', tone: '', run: function () { window.location.assign(link.href); } });
@@ -791,6 +814,12 @@
 
         var wrap = tablist.closest('[data-oc-tabs-wrap]');
         shell.classList.add('oc-tabbed');
+        // In tab mode a panel's wrapper <details> header is a plain title that cannot be clicked,
+        // so a wrapper the server rendered closed (Health with no problems, empty History) would
+        // leave its tab looking empty. Open them all; the tab itself now does the hiding.
+        Object.keys(panels).forEach(function (key) {
+            panels[key].querySelectorAll(':scope > details').forEach(function (details) { details.open = true; });
+        });
         tablist.hidden = false;
         if (wrap) wrap.hidden = false;
         activate(initialTab());

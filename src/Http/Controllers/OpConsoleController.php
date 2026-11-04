@@ -2,8 +2,10 @@
 
 namespace AshrafTalha\OpConsole\Http\Controllers;
 
+use AshrafTalha\OpConsole\Http\Middleware\AuthorizeOpConsole;
 use AshrafTalha\OpConsole\Support\ActionRunner;
 use AshrafTalha\OpConsole\Support\ConsoleStatus;
+use AshrafTalha\OpConsole\Support\FailedJobs;
 use AshrafTalha\OpConsole\Support\LogViewer;
 use AshrafTalha\OpConsole\Support\PagePresenter;
 use AshrafTalha\OpConsole\Support\SecurityScanner;
@@ -40,6 +42,7 @@ class OpConsoleController extends Controller
         private PagePresenter $presenter,
         private ActionRunner $actions,
         private SecurityScanner $security,
+        private FailedJobs $failedJobs,
     ) {}
 
     public function index(Request $request): View
@@ -52,6 +55,7 @@ class OpConsoleController extends Controller
             $this->log($request, $files),
             session('opconsole_output'),
             $request->user(),
+            config('opconsole.failed_jobs.enabled', true) ? $this->failedJobs->list(max(1, min(500, (int) config('opconsole.failed_jobs.limit', 50)))) : null,
         ) + ['layout' => config('opconsole.layout'), 'securityReport' => $this->security->report()]);
     }
 
@@ -118,6 +122,31 @@ class OpConsoleController extends Controller
         }
 
         return $redirect;
+    }
+
+    /** Re-queue one failed job by ID. Audited first, so audit.policy=required can refuse it. */
+    public function retryFailedJob(Request $request, string $id): RedirectResponse
+    {
+        abort_unless(config('opconsole.failed_jobs.enabled', true) && config('opconsole.failed_jobs.allow_retry', true), 403);
+        abort_unless(AuthorizeOpConsole::allowsAction('queue_retry', $request->user()), 403);
+        abort_unless($this->failedJobs->exists($id), 404);
+
+        $back = redirect()->to(route($this->routeName('index')).'#failed-jobs');
+
+        $run = $this->actions->recordStart('queue.retry', $request->user(), $id);
+        if ($run === null && $this->actions->auditRequired()) {
+            return $back->with('opconsole_error', __('opconsole::opconsole.audit_required'));
+        }
+
+        $started = hrtime(true);
+        $result = $this->failedJobs->retry($id);
+        $audited = $this->actions->recordFinish($run, $result['ok'], null, $result['error'], (int) ((hrtime(true) - $started) / 1_000_000));
+
+        $back = $result['ok']
+            ? $back->with('opconsole_success', __('opconsole::opconsole.queue_retry_ok', ['id' => $id]))
+            : $back->with('opconsole_error', __('opconsole::opconsole.queue_retry_error', ['id' => $id, 'reason' => $result['error']]));
+
+        return $audited ? $back : $back->with('opconsole_warning', __('opconsole::opconsole.audit_unavailable'));
     }
 
     public function run(Request $request, string $action): RedirectResponse
