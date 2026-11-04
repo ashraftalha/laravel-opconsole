@@ -266,12 +266,13 @@ body.oc-standalone {
 .oc-embedded-shell *, .oc-embedded-shell *::before, .oc-embedded-shell *::after,
 .oc-dialog *, .oc-dialog *::before, .oc-dialog *::after { box-sizing: border-box; }
 
-.oc-embedded-shell :is(h1, h2, h3, p, ul, ol, dl, dd, figure, pre) { margin: 0; }
-.oc-embedded-shell :is(h1, h2, h3) { text-wrap: balance; line-height: 1.25; }
-.oc-embedded-shell :is(ul, ol) { padding: 0; }
+/* Resets use :where() (zero specificity) so every component rule below can override them. */
+:where(.oc-embedded-shell) :where(h1, h2, h3, p, ul, ol, dl, dd, figure, pre) { margin: 0; }
+:where(.oc-embedded-shell) :where(h1, h2, h3) { text-wrap: balance; line-height: 1.25; }
+:where(.oc-embedded-shell) :where(ul, ol) { padding: 0; }
 .oc-embedded-shell code, .oc-dialog code, .oc-embedded-shell kbd { font-family: var(--oc-mono); font-size: 0.9em; }
 .oc-embedded-shell ::selection { background: var(--oc-primary-soft-2); }
-.oc-embedded-shell a { color: inherit; }
+:where(.oc-embedded-shell) :where(a) { color: inherit; }
 .oc-embedded-shell mark { background: var(--oc-mark); color: var(--oc-mark-ink); border-radius: 2px; padding: 0 1px; }
 .oc-embedded-shell [hidden] { display: none !important; }
 
@@ -560,7 +561,7 @@ a.oc-kpi:hover { border-color: var(--oc-tone-line); transform: translateY(-1px);
 .oc-zone-head small { color: var(--oc-faint); font-size: var(--oc-fs-xs); }
 .oc-zone-head::after { content: ""; flex: 1; height: 1px; background: var(--oc-line); min-width: 2rem; }
 .oc-zone-danger .oc-zone-head h2 { color: var(--oc-danger); }
-.oc-actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.85rem; }
+.oc-actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(22rem, 100%), 1fr)); gap: 0.85rem; }
 .oc-action { display: flex; flex-direction: column; gap: 0.6rem; padding: 1rem; background: var(--oc-surface); border: 1px solid var(--oc-line); border-radius: var(--oc-radius); box-shadow: var(--oc-shadow-1); min-width: 0; scroll-margin-top: 5rem; }
 .oc-action:target { box-shadow: 0 0 0 3px var(--oc-primary-line); }
 .oc-action.is-high-risk { border-color: var(--oc-danger-line); background: linear-gradient(var(--oc-danger-soft), var(--oc-surface) 7rem); }

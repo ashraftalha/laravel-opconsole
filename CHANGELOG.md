@@ -17,6 +17,11 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 - Command palette (Ctrl K / ⌘K) to jump to tabs, health checks, operations and log files.
 - `web_fonts` (`OPCONSOLE_WEB_FONTS`, default `false`): opt-in IBM Plex Sans / Mono / Sans Arabic from Google Fonts. Off by default, so the console still makes no external requests.
 
+### Fixed
+- Security advisories lost the upper bound of their affected version range (`>=12.0.0,<12.9.2` was stored as `>=12.0.0,`) because `strip_tags()` read `<1` as an HTML tag. Advisory text is no longer tag-stripped; every output already escapes it.
+- Base resets were more specific than component styles, so in-text links lost their colour and some lists lost their padding (for example the recent-activity times touched the card edge). Resets now use zero-specificity `:where()`.
+- Operations used a four-column grid that could leave one card alone on a row; it now uses wider cards that stay within the screen on phones.
+
 ### Changed
 - Richer colour system: blue-tinted neutrals that match the logo, more vivid status colours (green, amber, red, slate, violet) for dots, stripes and charts, tone-tinted icons on KPI cards and counts, and a navy-tinted dark theme. Every text colour pair meets WCAG AA (4.5:1) in both themes.
 - Every bar, meter and ring is drawn as SVG with plain attributes, so the page still has no inline `style=` attributes (strict CSP).

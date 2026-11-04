@@ -9,6 +9,10 @@
 <a href="LICENSE"><img src="https://img.shields.io/github/license/ashraftalha/laravel-opconsole" alt="License"></a>
 </p>
 
+<p align="center">
+<img src="art/screenshots/overview-light.png" alt="OpConsole overview: health score, status summary, issues with fix commands, and runtime status" width="900">
+</p>
+
 OpConsole adds one page to your app, `/admin/opconsole` by default. It answers "is anything wrong?" at a glance, shows the fix for every problem, and lets the right people run maintenance tasks without SSH. It ships its own CSS and JavaScript, needs no build step, and makes no CDN requests.
 
 ## Contents
@@ -39,6 +43,25 @@ The console is organised in seven tabs. A header above them shows a **0–100 he
 | **History** | An audit trail grouped by day: who ran what, when, how long it took, and any error. |
 | **System** | Application, PHP, server, service and cache settings, with copy buttons, a search box, and "Copy summary for support". |
 | **Logs** | Log file list, an entries-per-hour chart, level and environment filters, search with highlighting, repeat counts, stack traces with your app's frames highlighted, download and delete. |
+
+### Screenshots
+
+<table>
+<tr>
+<td width="50%"><img src="art/screenshots/health-light.png" alt="Health tab: checks grouped by area with status filters and fix commands"><br><sub><b>Health</b>: filter by status, expand any check for its fix</sub></td>
+<td width="50%"><img src="art/screenshots/operations-light.png" alt="Operations tab: safe operations and a danger zone"><br><sub><b>Operations</b>: safe tasks and a separate danger zone</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="art/screenshots/security-light.png" alt="Security tab: advisories by severity with update commands"><br><sub><b>Security</b>: advisories by severity, scan freshness</sub></td>
+<td width="50%"><img src="art/screenshots/logs-dark.png" alt="Logs tab in dark mode: file list, entries per hour chart and filters"><br><sub><b>Logs</b>: hourly chart, filters, repeat counts (dark)</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="art/screenshots/history-dark.png" alt="History tab in dark mode: operations grouped by day with durations"><br><sub><b>History</b>: audit trail grouped by day (dark)</sub></td>
+<td width="50%"><img src="art/screenshots/overview-dark.png" alt="Overview tab in dark mode"><br><sub><b>Overview</b> in dark mode</sub></td>
+</tr>
+</table>
+
+<sub>Screenshots use sample data.</sub>
 
 **Also included:**
 - Press <kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>K</kbd> to jump to any tab, check, operation or log file.
