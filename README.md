@@ -1,6 +1,6 @@
 <p align="center"><img src="art/logo.svg" width="300" alt="Laravel OpConsole"></p>
 
-<p align="center">An operations console for Laravel: health checks, safe Artisan actions, and a log viewer behind Gates.</p>
+<p align="center"><strong>Monitor. Diagnose. Maintain.</strong><br>An operations console for Laravel: health checks, safe Artisan operations, a security audit and a log viewer, all behind Gates.</p>
 
 <p align="center">
 <a href="https://packagist.org/packages/ashraftalha/laravel-opconsole"><img src="https://img.shields.io/packagist/v/ashraftalha/laravel-opconsole" alt="Latest Version"></a>
@@ -9,61 +9,81 @@
 <a href="LICENSE"><img src="https://img.shields.io/github/license/ashraftalha/laravel-opconsole" alt="License"></a>
 </p>
 
-## Features
+OpConsole adds one page to your app, `/admin/opconsole` by default. It answers "is anything wrong?" at a glance, shows the fix for every problem, and lets the right people run maintenance tasks without SSH. It ships its own CSS and JavaScript, needs no build step, and makes no CDN requests.
 
-- **A premium, dependency-free dashboard:** a warm-neutral design with a single accent color, tactile buttons, scroll-fade lists, and an outstanding dark mode (`OPCONSOLE_THEME`, or a per-visitor toggle) — built from plain CSS and vanilla JavaScript, no frontend build step, no CDN requests.
-- **Health and Security:** runtime configuration checks plus a separate host dependency audit of locked Composer packages, including transitive dependencies. Scans run through `php artisan opconsole:security`, or on demand from the dashboard's "Scan now" button; the dashboard reads stored results and shows stale or failed scans as unverified.
-- **Operations overview:** application identity, production badge, Laravel/PHP versions, verified issues, unverified checks, scheduler/queue/maintenance state, and the last check time in one place. Log error counts are clearly marked as a sample from the newest readable log tail.
-- **Safe actions:** clear caches, optimize, run migrations, maintenance mode on/off (with a one-time bypass URL), an optional storage link, and an on-demand security scan. Per-action Gates are available, and owner-renewed locks bound long-running commands. High-risk actions require a deliberate press-and-hold (or two presses) to confirm, not a single click.
-- **Action-level permissions:** support staff can be granted cache clearing access while migrations and maintenance mode stay administrator-only.
-- **Optional health alerts:** scheduled CLI monitoring can notify on unhealthy transitions, worsening status, and recovery without queue workers. Required checks and unknown-status policy are configurable; one failing notification channel never blocks the others.
-- **Audit history:** who ran what, when, and how long it took. An optional `required` audit policy refuses destructive actions, log deletes, and downloads that can't be recorded first.
-- **Log viewer:** filter by environment and level, search, download, delete old files, in a dense scannable table.
-- **Monitoring:** `php artisan opconsole:health` for CI and cron, and an optional token-protected `/health` JSON endpoint for uptime monitors.
+## Contents
+
+- [What's inside](#whats-inside)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Access control](#access-control)
+- [Operations](#operations)
+- [Monitoring and alerts](#monitoring-and-alerts)
+- [Security audit](#security-audit)
+- [Custom health checks](#custom-health-checks)
+- [Appearance](#appearance)
+- [Configuration](#configuration)
+- [Updating](#updating)
+- [Documentation](#documentation)
+
+## What's inside
+
+The console is organised in seven tabs. A header above them shows a **0–100 health score**, the environment badge, and the Laravel and PHP versions.
+
+| Tab | What you get |
+|---|---|
+| **Overview** | Overall state with a status bar, summary cards (database, health, log errors, cache, queue, scheduler, disk, security), the issues that need attention with copyable fix commands, runtime status, and recent activity. |
+| **Health** | Every check grouped by area, critical issues first. Filter by status chips or by name, and expand any check to see its current value and fix. Filters stay in the URL (`?check_status=`), so a shared link opens the same view. |
+| **Security** | Vulnerable Composer packages by severity, a scan-freshness meter, each advisory with a ready-to-copy `composer update` command, and Laravel configuration warnings. |
+| **Operations** | Maintenance tasks split into a **Safe** group and a **Danger zone**. The output of the last run appears first. |
+| **History** | An audit trail grouped by day: who ran what, when, how long it took, and any error. |
+| **System** | Application, PHP, server, service and cache settings, with copy buttons, a search box, and "Copy summary for support". |
+| **Logs** | Log file list, an entries-per-hour chart, level and environment filters, search with highlighting, repeat counts, stack traces with your app's frames highlighted, download and delete. |
+
+**Also included:**
+- Press <kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>K</kbd> to jump to any tab, check, operation or log file.
+- Use <kbd>j</kbd> / <kbd>k</kbd> to move through log entries.
+- Light and dark themes, with a per-visitor toggle.
+- Right-to-left layout for Arabic, Hebrew, Persian and Urdu.
+- Works on phones.
+- Strict-CSP friendly: no inline `<script>` and no inline `style=`.
 
 ## Requirements
 
-The optional host dependency audit requires Composer 2.4 or newer and a host `composer.lock`. Run `php artisan opconsole:security` (or `--json`) to scan production dependencies; pass `--include-dev` to include development dependencies. Configure daily scheduling with `OPCONSOLE_SECURITY_SCHEDULE=true`. See [Security documentation](docs/SECURITY.md) for scope, advisory network requests, exit codes, failure states, and remediation guidance.
-
 - PHP 8.3+
 - Laravel 12 or 13
-- To run maintenance actions from the browser, the web PHP runtime needs the `pcntl` functions, which enforce the action timeout. Many PHP-FPM builds disable them. Without them the dashboard, health checks, logs, and security scan work normally, and the other actions are disabled with an explanation. See [Execution environments](docs/CONFIGURATION.md#execution-environments).
+- **Optional, for browser operations:** the web PHP runtime needs the `pcntl` functions, which enforce the action timeout. Many PHP-FPM builds disable them. Without `pcntl`, everything else works, and the affected operations are disabled with an explanation. See [Execution environments](docs/CONFIGURATION.md#execution-environments).
+- **Optional, for the security audit:** Composer 2.4+ and a `composer.lock` in your app.
 
-## Quick Start
+## Quick start
 
-**Step 1. Install the package**
+**1. Install the package**
 
 ```bash
 composer require ashraftalha/laravel-opconsole
 ```
 
-**Step 2. Publish the config file**
+**2. Publish the config** (optional, but recommended)
 
 ```bash
 php artisan vendor:publish --tag=opconsole-config
 ```
 
-This creates `config/opconsole.php`, where you can change settings later.
-
-**Step 3. Create the database table**
+**3. Create the audit table**
 
 ```bash
 php artisan migrate
 ```
 
-**Step 4. Log in to your app**
+**4. Open the console**
 
-You must be signed in as a user.
+Sign in to your app, then go to `https://your-app.test/admin/opconsole`.
 
-**Step 5. Open the console**
+With `APP_ENV=local` it works right away. In every other environment, access is denied until you define the Gates below.
 
-Go to `http://your-app.test/admin/opconsole`
+**5. Allow access in production**
 
-On your local machine (`APP_ENV=local`), it works right away.
-
-**Step 6. Allow access on your live server**
-
-Open `app/Providers/AppServiceProvider.php` and add this inside `boot()`. Replace the email with yours:
+In `app/Providers/AppServiceProvider.php`, inside `boot()`:
 
 ```php
 use Illuminate\Support\Facades\Gate;
@@ -72,43 +92,111 @@ Gate::define('viewOpConsole', fn ($user) => $user->email === 'you@example.com');
 Gate::define('runOpConsoleActions', fn ($user) => $user->email === 'you@example.com');
 ```
 
-- `viewOpConsole`: can see the dashboard and logs.
-- `runOpConsoleActions`: can click the buttons (clear caches, optimize, run migrations).
-
-Done.
-
-## Updating
-
-**Step 1. Update the package**
+**6. Start the scheduler and a queue worker** (for the heartbeat checks)
 
 ```bash
-composer update ashraftalha/laravel-opconsole
+* * * * * cd /path/to/app && php artisan schedule:run >> /dev/null 2>&1
+php artisan queue:work
 ```
 
-**Step 2. Run new migrations**
+That's it.
+
+## Access control
+
+OpConsole checks four Gates. If you don't define `viewOpConsole` or `runOpConsoleActions`, a fail-closed default allows access **only** in the `local` environment.
+
+| Gate | Allows | Falls back to |
+|---|---|---|
+| `viewOpConsole` | Viewing the dashboard, health checks, history and log tail | Local only |
+| `runOpConsoleActions` | Running operations | Local only |
+| `downloadOpConsoleLogs` | Downloading full raw log files | `viewOpConsole` |
+| `deleteOpConsoleLogs` | Deleting rotated log files | `runOpConsoleActions` |
+
+**Per-operation permissions.** For example, support staff can clear caches while migrations stay with administrators:
+
+```php
+// config/opconsole.php
+'authorization' => [
+    // ...
+    'action_gates' => [
+        'clear' => 'clearOpConsoleCaches',
+    ],
+],
+```
+
+```php
+Gate::define('clearOpConsoleCaches', fn ($user) => $user->hasRole('support'));
+```
+
+Users without run permission see the console in read-only mode, and each button explains why it is disabled.
+
+## Operations
+
+| Operation | Command | Risk | On by default |
+|---|---|---|---|
+| Clear caches | `optimize:clear` | Low | Yes |
+| Optimize performance | `optimize` | Low | Yes |
+| Bring online | `up` | Low | Yes |
+| Run security scan | `opconsole:security` | Low (read-only) | Yes |
+| Storage link | `storage:link` | Low | No (`OPCONSOLE_ACTION_STORAGE_LINK=true`) |
+| Maintenance mode | `down --secret=…` | Medium | Yes |
+| Run migrations | `migrate --force --isolated` | High | Yes |
+
+**Safety rules:**
+- Every operation asks for confirmation first. The confirmation names the environment and shows the exact command.
+- High-risk operations need a **press-and-hold** (or two presses), never a single click.
+- Only one operation runs at a time. A dedicated lock store that survives `optimize:clear` ensures this.
+- Every run is bounded by `OPCONSOLE_MAX_RUNTIME_SECONDS`.
+- Every run is recorded in the audit history. With `OPCONSOLE_AUDIT_POLICY=required`, an operation is refused if its audit row can't be written first.
+- Maintenance mode shows a one-time bypass URL, and the console stays reachable while the site is down.
+- Migrations only ever run forward. There are no resets and no rollbacks.
+
+The list is a closed allow-list. You can disable entries in `config/opconsole.php` under `actions`, but you can't add arbitrary commands.
+
+## Monitoring and alerts
+
+**From the command line or CI:**
 
 ```bash
-php artisan migrate
+php artisan opconsole:health                  # table output, exits 1 on critical
+php artisan opconsole:health --fail-on=warning
+php artisan opconsole:health --json
 ```
 
-**Step 3. Clear cached config**
+**For uptime monitors:** a token-protected JSON endpoint, off by default. It returns HTTP 503 when any check is critical.
+
+```dotenv
+OPCONSOLE_HEALTH_ENDPOINT=true
+OPCONSOLE_HEALTH_TOKEN=change-me-to-a-long-random-string
+```
 
 ```bash
-php artisan config:clear
+curl -H "Authorization: Bearer $TOKEN" https://your-app.test/admin/opconsole/health
 ```
 
-**Step 4. Refresh published files (only if you published them)**
+**Alerts:**
+1. Enable `notifications` in the config.
+2. Set a persistent, shared state store.
+3. Schedule `php artisan opconsole:health --notify`.
 
-Composer never changes files in your app. If you ran `vendor:publish` before:
+You are notified when health becomes unhealthy, when it gets worse, and when it recovers. No queue worker is needed, and one failing channel never blocks the others.
 
-- **Styles:** `php artisan vendor:publish --tag=opconsole-assets --force`
-- **Config:** compare your `config/opconsole.php` with the [latest one](config/opconsole.php) and copy over any new keys (for example new `actions` entries). Re-publishing with `--force` also works, but it overwrites your changes.
+## Security audit
 
-See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+The audit checks your app's locked Composer packages, including transitive dependencies, against known advisories:
 
-## Custom Health Checks (optional)
+```bash
+php artisan opconsole:security               # production dependencies
+php artisan opconsole:security --include-dev # include development dependencies
+php artisan opconsole:security --json
+```
 
-Create a class:
+- **Run it from:** the command line, the **Run security scan** operation, or daily with `OPCONSOLE_SECURITY_SCHEDULE=true`.
+- **Stale results:** the dashboard only reads stored results. A scan that is older than `OPCONSOLE_SECURITY_MAX_AGE`, or that ran before `composer.json` or `composer.lock` changed, is shown as stale, never as clean.
+
+See [docs/SECURITY.md](docs/SECURITY.md) for its scope, network requests and exit codes.
+
+## Custom health checks
 
 ```php
 namespace App\HealthChecks;
@@ -123,13 +211,14 @@ class BackupDiskCheck implements HealthCheck
         $ok = Storage::disk('local')->exists('backups');
 
         return [
+            'id' => 'backups',                // reported as custom.backups
             'group' => 'Backups',
             'label' => 'Backup folder',
             'ok' => $ok,
-            'severity' => 'warning',
+            'severity' => 'warning',          // danger, warning or info
             'hint' => 'The backup folder must exist.',
             'value' => $ok ? 'Found' : 'Missing',
-            'fix' => $ok ? null : 'Create storage/app/backups.',
+            'fix' => $ok ? null : 'mkdir -p storage/app/backups',
         ];
     }
 }
@@ -143,47 +232,83 @@ Register it in `config/opconsole.php`:
 ],
 ```
 
-## Configuration
+Custom checks appear in the Health tab, the overview, the CLI command and the JSON endpoint. A check can also return `'status' => 'unknown'` when it cannot verify something. To treat that as critical, or to be alerted if the check throws, add its ID (`custom.backups`) to `health.required_checks`.
 
-Common options for your `.env` file:
+## Appearance
 
-```dotenv
-OPCONSOLE_ENABLED=true
-OPCONSOLE_ROUTE_PREFIX=admin/opconsole
-OPCONSOLE_LOCK_STORE=opconsole
-OPCONSOLE_HISTORY_LIMIT=15
+| Option | Env | Default | Effect |
+|---|---|---|---|
+| `theme` | `OPCONSOLE_THEME` | `auto` | `auto` follows the visitor's system setting. `light` or `dark` forces one. |
+| `theme_toggle` | `OPCONSOLE_THEME_TOGGLE` | `true` | Light/dark switch in the header, remembered per browser. |
+| `web_fonts` | `OPCONSOLE_WEB_FONTS` | `false` | Loads IBM Plex from Google Fonts. Off by default, so there are no external requests. If you enable it, allow `fonts.googleapis.com` and `fonts.gstatic.com` in your CSP. |
+| `layout` | — | `null` | Renders inside your own Blade layout instead of the standalone page. Your layout must `@yield('content')` and provide `@stack('styles')` and `@stack('scripts')`. |
+| `back_url` / `back_label` | — | `null` / `Dashboard` | Adds a link back to your own admin panel. |
 
-# Optional uptime endpoint: GET /admin/opconsole/health with "Authorization: Bearer <token>"
-OPCONSOLE_HEALTH_ENDPOINT=true
-OPCONSOLE_HEALTH_TOKEN=change-me-to-a-long-random-string
+To customise the markup or the stylesheet, publish them:
+
+```bash
+php artisan vendor:publish --tag=opconsole-views
+php artisan vendor:publish --tag=opconsole-assets
 ```
 
-Heartbeat checks need the scheduler running (`* * * * * php artisan schedule:run`) and, for the queue check, a worker (`php artisan queue:work`).
+## Configuration
 
-Use an isolated `redis` or `database` store for `OPCONSOLE_LOCK_STORE` on multi-server deployments. Set `OPCONSOLE_MAX_RUNTIME_SECONDS` to bound synchronous maintenance actions. For alerts, enable notifications in the published config, set a persistent shared state store, and schedule `php artisan opconsole:health --notify`. Set `OPCONSOLE_AUDIT_POLICY=required` to refuse actions whose audit row can't be written. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every option and [docs/UPGRADE.md](docs/UPGRADE.md) for the current migration steps.
+The most common `.env` options:
+
+```dotenv
+OPCONSOLE_ENABLED=true                  # kill switch: false registers no routes
+OPCONSOLE_ROUTE_PREFIX=admin/opconsole
+OPCONSOLE_LOCK_STORE=opconsole          # use an isolated redis/database store on multiple servers
+OPCONSOLE_MAX_RUNTIME_SECONDS=1500
+OPCONSOLE_AUDIT_POLICY=best_effort      # or "required"
+OPCONSOLE_HISTORY_LIMIT=15
+OPCONSOLE_DISK_MIN_FREE_PERCENT=10
+```
+
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every option.
+
+## Updating
+
+```bash
+composer update ashraftalha/laravel-opconsole
+php artisan migrate
+php artisan config:clear
+```
+
+Composer never changes files you published. If you published any of them earlier:
+
+- **Assets:** `php artisan vendor:publish --tag=opconsole-assets --force`
+- **Views:** compare them with the new ones, or re-publish with `--tag=opconsole-views --force`.
+- **Config:** copy over any new keys from the [latest config](config/opconsole.php). Re-publishing with `--force` overwrites your changes.
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed and [docs/UPGRADE.md](docs/UPGRADE.md) for version-specific steps.
+
+## Documentation
+
+- [Installation](docs/INSTALLATION.md)
+- [Configuration](docs/CONFIGURATION.md)
+- [Security model](docs/SECURITY.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Upgrade guide](docs/UPGRADE.md)
 
 ## Testing
 
 ```bash
-composer test
+composer test     # PHPUnit through Testbench
+composer stan     # Larastan
+composer pint     # code style
 ```
 
 ## Roadmap
 
-- [x] Accurate action durations
 - [x] Scheduler and queue worker heartbeats
-- [x] Cache round-trip and production cache checks
-- [x] Maintenance mode check and down/up actions
-- [x] Storage link check and action
+- [x] Cache round-trip, production cache and disk space checks
+- [x] Maintenance mode, storage link and security scan operations
 - [x] `opconsole:health` command and JSON health endpoint
-- [x] Last-checked time, disk percentage warning, group ordering
-- [x] Host dependency security audit and dashboard Security tab
-- [x] Execution-safety hardening: safe timeouts across Laravel lock-driver versions, `audit.policy`
-- [x] Premium dashboard redesign: design tokens, tactile buttons, hold-to-confirm, dark mode
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md).
+- [x] Host dependency security audit
+- [x] Execution safety: bounded runtimes, isolated locks, `audit.policy`
+- [x] Dashboard redesign: logo-based brand, health score, command palette, log timeline
+- [ ] Laravel Octane and Swoole checks
 
 ## Contributing
 
