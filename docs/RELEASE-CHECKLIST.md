@@ -4,9 +4,9 @@ Use this checklist before tagging any release of `ashraftalha/laravel-opconsole`
 
 ---
 
-## Release Scope: `v1.8.0`
+## Release Scope: `v1.9.0`
 
-This release adds an on-demand security scan action to the dashboard (`actions.security_scan`), redesigns the Logs tab into a dense single-line table with colored level badges, moves Logs to the last tab, and lays System information out two columns per row. Review `CHANGELOG.md`, `CONFIGURATION.md`, and `UPGRADE.md` against the exact release commit.
+This release lands an execution-safety and reliability hardening pass (safe action timeouts across Laravel lock-driver versions, the `audit.policy` setting, maintenance/log-deletion/notification fixes — see `CHANGELOG.md`) together with a premium visual and interaction redesign of the dashboard (new design tokens, tactile buttons, hold-to-confirm for high-risk actions, new summary tiles, a restructured Security tab). No routes, Gates, migrations, or config keys were removed. Review `CHANGELOG.md`, `CONFIGURATION.md`, and `UPGRADE.md` against the exact release commit.
 
 ---
 
@@ -37,6 +37,8 @@ This release adds an on-demand security scan action to the dashboard (`actions.s
 - [ ] On a PHP-FPM runtime **with** `pcntl`, a migration longer than 10 seconds completes, on both the lowest supported Laravel 12/13 releases and the latest.
 - [ ] `audit.policy=required` with the audit table unavailable refuses actions, log deletes, and downloads.
 - [ ] Notification failure logs contain no webhook URLs.
+- [ ] High-risk confirmations (`data-confirm-risk="high"`) require holding the accept button or pressing it twice; a single click or a tap-and-release before ~1.2s does not submit the form. Keyboard (Space/Enter hold) and `prefers-reduced-motion` both still work.
+- [ ] Dashboard renders correctly in light and dark themes (`OPCONSOLE_THEME`) and at desktop/tablet/mobile widths; no inline `<script>`, inline `style=`, or external CDN requests.
 
 ---
 

@@ -1,14 +1,18 @@
 # Upgrade Guide
 
-This document covers upgrades to the current `v1.8.0` release. The later sections retain migration notes for older installations.
+This document covers upgrades to the current `v1.9.0` release. The later sections retain migration notes for older installations.
 
-## Upgrading to the next release (unreleased)
+## Upgrade from v1.8.0 to v1.9.0
 
 No database migrations are required, and existing configuration keeps working.
 
 1. **Composer metadata:** the package now requires `laravel/framework` instead of individual `illuminate/*` components, because it uses classes that only ship in the framework (`Illuminate\Foundation`). Every working installation already has it, so no action is needed.
 2. **New optional key:** `audit.policy` (`OPCONSOLE_AUDIT_POLICY`, default `best_effort`, the current behaviour). Set it to `required` to refuse actions, log deletes, and log downloads that cannot be audited first. Published configs without the key keep the default.
-3. **Behaviour you may notice:**
+3. **Dashboard redesign:** `public/opconsole.css`, `public/opconsole.js`, and the Blade views were restyled (new design tokens, tactile buttons, hold-to-confirm for high-risk actions, new summary tiles, a restructured Security tab). No routes, Gates, form actions, or CSRF behaviour changed.
+   - If you published assets (`--tag=opconsole-assets`), republish them with `--force` to pick up the new styles and script: `php artisan vendor:publish --tag=opconsole-assets --force`.
+   - If you published or customized views (`--tag=opconsole-views`), diff `resources/views/vendor/opconsole` against the package's `resources/views` and merge the changes you want; a customized view otherwise keeps rendering with the old markup and the new stylesheet, which will look inconsistent.
+   - High-risk confirmations (currently only `migrate`) now require a press-and-hold or a second press instead of a single click; this is client-side only and has no server-side effect to account for.
+4. **Behaviour you may notice:**
    - On a PHP runtime without `pcntl` (common for PHP-FPM), every action was already refused, but only after the request had taken the lock and written a `started` row. Those actions are now disabled on the dashboard with the reason shown, and `security_scan` (bounded by its own subprocess timeouts) now runs. Run the others from the CLI, or enable `pcntl` for the web SAPI.
    - On Laravel < 12.63 / < 13.16, actions running longer than 10 seconds (for example migrations) were interrupted by a failed lease renewal. They now run to completion within `max_runtime_seconds`.
    - A required `custom.*` health check that throws now makes the report `critical`; previously it was silently omitted.

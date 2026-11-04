@@ -11,12 +11,13 @@
 
 ## Features
 
+- **A premium, dependency-free dashboard:** a warm-neutral design with a single accent color, tactile buttons, scroll-fade lists, and an outstanding dark mode (`OPCONSOLE_THEME`, or a per-visitor toggle) — built from plain CSS and vanilla JavaScript, no frontend build step, no CDN requests.
 - **Health and Security:** runtime configuration checks plus a separate host dependency audit of locked Composer packages, including transitive dependencies. Scans run through `php artisan opconsole:security`, or on demand from the dashboard's "Scan now" button; the dashboard reads stored results and shows stale or failed scans as unverified.
-- **Operations overview:** application and environment status, verified issues, unverified checks, scheduler/queue/maintenance state, and the last check time in one place. Log error counts are clearly marked as a sample from the newest readable log tail.
-- **Safe actions:** clear caches, optimize, run migrations, maintenance mode on/off (with a one-time bypass URL), an optional storage link, and an on-demand security scan. Per-action Gates are available, and owner-renewed locks bound long-running commands.
+- **Operations overview:** application identity, production badge, Laravel/PHP versions, verified issues, unverified checks, scheduler/queue/maintenance state, and the last check time in one place. Log error counts are clearly marked as a sample from the newest readable log tail.
+- **Safe actions:** clear caches, optimize, run migrations, maintenance mode on/off (with a one-time bypass URL), an optional storage link, and an on-demand security scan. Per-action Gates are available, and owner-renewed locks bound long-running commands. High-risk actions require a deliberate press-and-hold (or two presses) to confirm, not a single click.
 - **Action-level permissions:** support staff can be granted cache clearing access while migrations and maintenance mode stay administrator-only.
-- **Optional health alerts:** scheduled CLI monitoring can notify on unhealthy transitions, worsening status, and recovery without queue workers. Required checks and unknown-status policy are configurable.
-- **Audit history:** who ran what, when, and how long it took.
+- **Optional health alerts:** scheduled CLI monitoring can notify on unhealthy transitions, worsening status, and recovery without queue workers. Required checks and unknown-status policy are configurable; one failing notification channel never blocks the others.
+- **Audit history:** who ran what, when, and how long it took. An optional `required` audit policy refuses destructive actions, log deletes, and downloads that can't be recorded first.
 - **Log viewer:** filter by environment and level, search, download, delete old files, in a dense scannable table.
 - **Monitoring:** `php artisan opconsole:health` for CI and cron, and an optional token-protected `/health` JSON endpoint for uptime monitors.
 
@@ -159,7 +160,7 @@ OPCONSOLE_HEALTH_TOKEN=change-me-to-a-long-random-string
 
 Heartbeat checks need the scheduler running (`* * * * * php artisan schedule:run`) and, for the queue check, a worker (`php artisan queue:work`).
 
-Use an isolated `redis` or `database` store for `OPCONSOLE_LOCK_STORE` on multi-server deployments. Set `OPCONSOLE_MAX_RUNTIME_SECONDS` to bound synchronous maintenance actions. For alerts, enable notifications in the published config, set a persistent shared state store, and schedule `php artisan opconsole:health --notify`. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every option and [docs/UPGRADE.md](docs/UPGRADE.md) for the 1.8.0 migration steps.
+Use an isolated `redis` or `database` store for `OPCONSOLE_LOCK_STORE` on multi-server deployments. Set `OPCONSOLE_MAX_RUNTIME_SECONDS` to bound synchronous maintenance actions. For alerts, enable notifications in the published config, set a persistent shared state store, and schedule `php artisan opconsole:health --notify`. Set `OPCONSOLE_AUDIT_POLICY=required` to refuse actions whose audit row can't be written. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every option and [docs/UPGRADE.md](docs/UPGRADE.md) for the current migration steps.
 
 ## Testing
 
@@ -176,6 +177,9 @@ composer test
 - [x] Storage link check and action
 - [x] `opconsole:health` command and JSON health endpoint
 - [x] Last-checked time, disk percentage warning, group ordering
+- [x] Host dependency security audit and dashboard Security tab
+- [x] Execution-safety hardening: safe timeouts across Laravel lock-driver versions, `audit.policy`
+- [x] Premium dashboard redesign: design tokens, tactile buttons, hold-to-confirm, dark mode
 
 ## Changelog
 

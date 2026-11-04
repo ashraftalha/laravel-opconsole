@@ -4,9 +4,15 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-04
+
 ### Added
 - `audit.policy` (`best_effort` default, or `required`): `required` refuses Artisan actions, log deletes, and log downloads unless their audit row is written first. Unrecognised values fail closed as `required`.
 - Operation cards show, before any click, when the web PHP runtime cannot enforce the action timeout (no `pcntl`).
+- Premium dashboard redesign: a warm-neutral/teal design system, tactile buttons, an enriched header (app identity, production badge, Laravel/PHP versions, overall health pill), five new summary tiles (Cache, Queue worker, Scheduler, Disk space, Security audit) built from existing health-check data, and a restructured Security tab with per-severity stat counts and a severity-badged advisory table.
+- Hold-to-confirm for high-risk actions (currently `migrate`): press-and-hold for about 1.2 seconds, or press twice, instead of a single click. Low- and medium-risk confirmations are unchanged. Respects `prefers-reduced-motion`.
+- Scroll-fade affordance on the pending-migrations list, the log file picker, and wide tables.
+- Outstanding, independently verified dark mode; `forced-colors` and larger touch targets on coarse-pointer devices.
 
 ### Fixed
 - Actions longer than 10 seconds were aborted mid-run on Laravel < 12.63 / < 13.16, whose locks cannot `refresh()`; renewal is now used only where the driver supports it, since the lease already outlasts `max_runtime_seconds`.
@@ -25,6 +31,8 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 - Webhooks: `http`/`https` only, no redirects, non-2xx is a failure, 3 s connect / 5 s total timeout.
 - Log deletion records a `started` audit row before unlinking.
 - Composer now requires `laravel/framework` rather than a subset of `illuminate/*` components that did not cover the classes used.
+
+No database migrations, route, authorization, or configuration-key removals in this release. If you published `public/vendor/opconsole`, republish with `--force` to get the new styles and script.
 
 ## [1.8.0] - 2026-11-03
 
