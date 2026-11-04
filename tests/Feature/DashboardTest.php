@@ -294,4 +294,31 @@ class DashboardTest extends TestCase
             ->assertDontSee('data-oc-theme-toggle', false)
             ->assertSee('data-oc-theme="light"', false);
     }
+
+    public function test_dashboard_shows_the_package_logo_score_and_svg_favicon_without_external_requests(): void
+    {
+        $this->actingAsUser();
+
+        $html = $this->get('/admin/opconsole')->assertOk()
+            ->assertSee('class="oc-logo oc-logo-full oc-header-logo" role="img" aria-label="OpConsole"', false)
+            ->assertSee('Powered by', false)
+            ->assertSee('Health score', false)
+            ->assertSee('/admin/opconsole/assets/opconsole.svg"', false)
+            ->getContent();
+
+        $this->assertStringNotContainsString('fonts.googleapis.com', $html);
+
+        $this->get('/admin/opconsole/assets/opconsole.svg')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/svg+xml')
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+    }
+
+    public function test_web_fonts_are_opt_in(): void
+    {
+        $this->app['config']->set('opconsole.web_fonts', true);
+        $this->actingAsUser();
+
+        $this->get('/admin/opconsole')->assertOk()->assertSee('https://fonts.googleapis.com/css2?family=IBM+Plex', false);
+    }
 }

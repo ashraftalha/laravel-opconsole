@@ -31,6 +31,7 @@ class OpConsoleController extends Controller
     private const ASSETS = [
         'opconsole.css' => 'text/css; charset=UTF-8',
         'opconsole.js' => 'application/javascript; charset=UTF-8',
+        'opconsole.svg' => 'image/svg+xml',
     ];
 
     public function __construct(

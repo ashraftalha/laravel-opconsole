@@ -4,6 +4,7 @@
     <div class="oc-dialog-card">
         <div class="oc-dialog-head">
             <div>
+                @include('opconsole::partials.logo', ['variant' => 'mark', 'label' => null])
                 <span class="oc-risk-badge" id="opconsole-confirm-risk" hidden></span>
                 <h2 class="oc-dialog-title" id="opconsole-confirm-title">Confirm action</h2>
             </div>

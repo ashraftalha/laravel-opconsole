@@ -1,4 +1,4 @@
-/* Laravel OpConsole — dependency-free confirmation dialog, hash navigation, flash dismiss, and clipboard helper. */
+/* Laravel OpConsole — dependency-free confirmation dialog, tabs, filters, command palette, keyboard navigation and clipboard helper. */
 (function () {
     'use strict';
 
@@ -24,6 +24,11 @@
         initRefreshLinks();
         initThemeToggle();
         initScrollFades();
+        initHistoryFilter();
+        initSystemSearch();
+        initLogKeys();
+        initPalette();
+        document.querySelectorAll('[data-oc-js-only]').forEach(function (el) { el.hidden = false; });
     });
 
     var reducedMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -356,6 +361,10 @@
                 var originalText = label ? label.textContent : null;
 
                 var done = function () {
+                    if (!label) {
+                        btn.classList.add('is-done');
+                        setTimeout(function () { btn.classList.remove('is-done'); }, 1600);
+                    }
                     if (label && originalText !== null) {
                         btn.classList.add('is-done');
                         swapLabel(label, 'Copied');
@@ -425,49 +434,275 @@
         });
     }
 
+    // Health: status chips (or the plain select without chips) plus a name filter, all client-side.
+    // The status lives in ?check_status= so a copied link opens the same view.
     function initHealthFilter() {
         var filter = document.querySelector('[data-oc-health-filter]');
         if (!filter) return;
+        var chipsWrap = document.querySelector('[data-oc-health-chips]');
+        var chips = chipsWrap ? Array.prototype.slice.call(chipsWrap.querySelectorAll('[data-oc-health-chip]')) : [];
+        var search = document.querySelector('[data-oc-health-search]');
         var items = Array.prototype.slice.call(document.querySelectorAll('[data-oc-check-item]'));
         var groups = Array.prototype.slice.call(document.querySelectorAll('[data-oc-check-group]'));
         var empty = document.querySelector('[data-oc-filter-empty]');
         var count = document.querySelector('[data-oc-health-count]');
+        var allowed = ['all', 'attention', 'critical', 'warning', 'unknown', 'healthy'];
         var params = new URLSearchParams(window.location.search);
         var initial = params.get('check_status') || 'all';
-        if (['all', 'attention', 'critical', 'warning', 'unknown', 'healthy'].indexOf(initial) !== -1) filter.value = initial;
+        filter.value = allowed.indexOf(initial) !== -1 ? initial : 'all';
 
-        function apply(value) {
+        if (chipsWrap && chips.length) {
+            chipsWrap.hidden = false;
+            filter.hidden = true;
+        }
+
+        function apply() {
+            var value = filter.value;
+            var query = search ? search.value.trim().toLocaleLowerCase() : '';
             var visible = 0;
             items.forEach(function (item) {
                 var status = item.dataset.ocStatus;
-                var show = value === 'all' || (value === 'attention' && ['critical', 'warning', 'unknown'].indexOf(status) !== -1) || value === status;
+                var statusMatch = value === 'all' || (value === 'attention' && ['critical', 'warning', 'unknown'].indexOf(status) !== -1) || value === status;
+                var textMatch = !query || item.textContent.toLocaleLowerCase().indexOf(query) !== -1;
+                var show = statusMatch && textMatch;
                 item.hidden = !show;
                 if (show) visible++;
             });
             groups.forEach(function (group) {
                 group.hidden = !group.querySelector('[data-oc-check-item]:not([hidden])');
             });
+            chips.forEach(function (chip) {
+                chip.setAttribute('aria-pressed', chip.dataset.ocHealthChip === value ? 'true' : 'false');
+            });
             if (empty) empty.hidden = visible > 0;
             if (count) count.textContent = visible + ' health checks shown.';
         }
 
-        filter.addEventListener('change', function () {
+        function remember(value) {
+            if (!window.history || !window.history.replaceState) return;
             var url = new URL(window.location.href);
-            if (filter.value === 'all') url.searchParams.delete('check_status');
-            else url.searchParams.set('check_status', filter.value);
+            if (value === 'all') url.searchParams.delete('check_status');
+            else url.searchParams.set('check_status', value);
             url.hash = 'checks';
-            window.location.assign(url.toString());
+            window.history.replaceState(null, '', url.toString());
+        }
+
+        function choose(value) {
+            filter.value = value;
+            apply();
+            remember(value);
+        }
+
+        filter.addEventListener('change', function () { choose(filter.value); });
+        chips.forEach(function (chip) {
+            chip.addEventListener('click', function () { choose(chip.dataset.ocHealthChip); });
         });
+        if (search) search.addEventListener('input', apply);
         var reset = document.querySelector('[data-oc-health-reset]');
         if (reset) reset.addEventListener('click', function () {
-            filter.value = 'all';
-            apply('all');
-            var url = new URL(window.location.href);
-            url.searchParams.delete('check_status');
-            url.hash = 'checks';
-            if (window.history && window.history.replaceState) window.history.replaceState(null, '', url.toString());
+            if (search) search.value = '';
+            choose('all');
         });
-        apply(filter.value);
+        apply();
+    }
+
+    function initHistoryFilter() {
+        var chips = Array.prototype.slice.call(document.querySelectorAll('[data-oc-history-chip]'));
+        if (!chips.length) return;
+        var items = Array.prototype.slice.call(document.querySelectorAll('[data-oc-history-item]'));
+        var days = Array.prototype.slice.call(document.querySelectorAll('[data-oc-history-day]'));
+        var empty = document.querySelector('[data-oc-history-empty]');
+        chips.forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                var value = chip.dataset.ocHistoryChip;
+                var visible = 0;
+                chips.forEach(function (other) { other.setAttribute('aria-pressed', other === chip ? 'true' : 'false'); });
+                items.forEach(function (item) {
+                    var show = value === 'all' || item.dataset.ocHistoryStatus === value;
+                    item.hidden = !show;
+                    if (show) visible++;
+                });
+                days.forEach(function (day) { day.hidden = !day.querySelector('[data-oc-history-item]:not([hidden])'); });
+                if (empty) empty.hidden = visible > 0;
+            });
+        });
+    }
+
+    function initSystemSearch() {
+        var input = document.querySelector('[data-oc-system-search]');
+        if (!input) return;
+        var rows = Array.prototype.slice.call(document.querySelectorAll('[data-oc-system-row]'));
+        var groups = Array.prototype.slice.call(document.querySelectorAll('[data-oc-system-group]'));
+        var empty = document.querySelector('[data-oc-system-empty]');
+        input.addEventListener('input', function () {
+            var query = input.value.trim().toLocaleLowerCase();
+            rows.forEach(function (row) {
+                var groupName = (row.closest('[data-oc-system-group]') || row).querySelector('h3');
+                var haystack = row.textContent + ' ' + (groupName ? groupName.textContent : '');
+                row.hidden = !!query && haystack.toLocaleLowerCase().indexOf(query) === -1;
+            });
+            var any = false;
+            groups.forEach(function (group) {
+                var show = !!group.querySelector('[data-oc-system-row]:not([hidden])');
+                group.hidden = !show;
+                any = any || show;
+            });
+            if (empty) empty.hidden = any;
+        });
+    }
+
+    // Logs: j / k move between entries, Enter (native <summary>) opens one.
+    function initLogKeys() {
+        var list = document.querySelector('[data-oc-log-list]');
+        if (!list) return;
+        document.addEventListener('keydown', function (event) {
+            if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+            if (event.key !== 'j' && event.key !== 'k') return;
+            var active = document.activeElement;
+            if (active && (/^(INPUT|TEXTAREA|SELECT)$/).test(active.tagName)) return;
+            var panel = list.closest('[data-oc-panel]');
+            if (panel && panel.hidden) return;
+            var summaries = Array.prototype.slice.call(list.querySelectorAll('.oc-log-entry > summary'));
+            if (!summaries.length) return;
+            var index = summaries.indexOf(active);
+            var next = event.key === 'j' ? Math.min(index + 1, summaries.length - 1) : Math.max(index - 1, 0);
+            if (index === -1) next = 0;
+            event.preventDefault();
+            summaries[next].focus();
+            if (typeof summaries[next].scrollIntoView === 'function') summaries[next].scrollIntoView({ block: 'nearest' });
+        });
+    }
+
+    // Command palette (Ctrl/Cmd K): jump to tabs, health checks, operations and log files already on the page.
+    function initPalette() {
+        var dialog = document.getElementById('opconsole-palette');
+        var input = document.getElementById('opconsole-palette-input');
+        var list = document.getElementById('opconsole-palette-list');
+        var openers = Array.prototype.slice.call(document.querySelectorAll('[data-oc-palette-open]'));
+        if (!dialog || !input || !list || typeof dialog.showModal !== 'function') return;
+
+        var mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+        document.querySelectorAll('[data-oc-palette-kbd]').forEach(function (kbd) { kbd.textContent = mac ? '⌘K' : 'Ctrl K'; });
+        openers.forEach(function (btn) { btn.hidden = false; });
+
+        function text(el) { return (el && el.textContent || '').replace(/\s+/g, ' ').trim(); }
+
+        function entries() {
+            var out = [];
+            document.querySelectorAll('[data-oc-tab]').forEach(function (tab) {
+                var label = text(tab.querySelector('span'));
+                out.push({ label: label, hint: 'Tab', tone: '', run: function () { tab.click(); tab.focus(); } });
+            });
+            document.querySelectorAll('[data-oc-check-item]').forEach(function (item) {
+                var label = text(item.querySelector('.oc-check-label strong'));
+                var tone = (item.className.match(/is-(ok|warning|bad|unknown|info)/) || [''])[0];
+                out.push({ label: label, hint: 'Health check', tone: tone, run: function () { go('#checks', item); } });
+            });
+            document.querySelectorAll('.oc-action[id^="action-"]').forEach(function (card) {
+                out.push({ label: text(card.querySelector('h3')), hint: 'Operation', tone: '', run: function () { go('#' + card.id, card); } });
+            });
+            document.querySelectorAll('[data-oc-palette-item]').forEach(function (link) {
+                out.push({ label: link.dataset.ocPaletteItem, hint: 'Open', tone: '', run: function () { window.location.assign(link.href); } });
+            });
+            return out;
+        }
+
+        function go(hash, target) {
+            if (window.location.hash === hash) window.dispatchEvent(new HashChangeEvent('hashchange'));
+            else window.location.hash = hash;
+            setTimeout(function () {
+                var details = target.querySelector('details');
+                if (details) details.open = true;
+                if (target.hidden) return;
+                target.scrollIntoView({ block: 'center' });
+                var focusable = target.querySelector('summary, button, a');
+                if (focusable) focusable.focus({ preventScroll: true });
+            }, 30);
+        }
+
+        var all = [];
+        var shown = [];
+        var active = 0;
+
+        function render() {
+            var query = input.value.trim().toLocaleLowerCase();
+            shown = all.filter(function (entry) {
+                return !query || (entry.label + ' ' + entry.hint).toLocaleLowerCase().indexOf(query) !== -1;
+            }).slice(0, 40);
+            active = Math.min(active, Math.max(shown.length - 1, 0));
+            list.textContent = '';
+            if (!shown.length) {
+                var none = document.createElement('li');
+                none.className = 'oc-palette-empty';
+                none.textContent = 'No matches. Try a tab name, a check, or a log file.';
+                list.appendChild(none);
+                input.removeAttribute('aria-activedescendant');
+                return;
+            }
+            shown.forEach(function (entry, index) {
+                var li = document.createElement('li');
+                li.className = 'oc-palette-item';
+                li.id = 'opconsole-palette-item-' + index;
+                li.setAttribute('role', 'option');
+                li.setAttribute('aria-selected', index === active ? 'true' : 'false');
+                if (entry.tone) {
+                    var dot = document.createElement('span');
+                    dot.className = 'oc-dot ' + entry.tone;
+                    li.appendChild(dot);
+                }
+                var label = document.createElement('span');
+                label.textContent = entry.label;
+                li.appendChild(label);
+                var hint = document.createElement('small');
+                hint.textContent = entry.hint;
+                li.appendChild(hint);
+                li.addEventListener('mousemove', function () { if (active !== index) { active = index; mark(); } });
+                li.addEventListener('click', function () { choose(index); });
+                list.appendChild(li);
+            });
+            mark();
+        }
+
+        function mark() {
+            Array.prototype.forEach.call(list.children, function (li, index) {
+                li.setAttribute('aria-selected', index === active ? 'true' : 'false');
+                if (index === active && li.scrollIntoView) li.scrollIntoView({ block: 'nearest' });
+            });
+            if (shown.length) input.setAttribute('aria-activedescendant', 'opconsole-palette-item-' + active);
+        }
+
+        function choose(index) {
+            var entry = shown[index];
+            if (!entry) return;
+            dialog.close();
+            entry.run();
+        }
+
+        function open() {
+            if (dialog.open) return;
+            all = entries();
+            input.value = '';
+            active = 0;
+            render();
+            dialog.showModal();
+            input.focus();
+        }
+
+        openers.forEach(function (btn) { btn.addEventListener('click', open); });
+        document.addEventListener('keydown', function (event) {
+            if ((event.metaKey || event.ctrlKey) && (event.key === 'k' || event.key === 'K')) {
+                if (document.getElementById('opconsole-confirm-modal') && document.getElementById('opconsole-confirm-modal').open) return;
+                event.preventDefault();
+                if (dialog.open) dialog.close(); else open();
+            }
+        });
+        input.addEventListener('input', function () { active = 0; render(); });
+        input.addEventListener('keydown', function (event) {
+            if (event.key === 'ArrowDown') { event.preventDefault(); active = Math.min(active + 1, shown.length - 1); mark(); }
+            else if (event.key === 'ArrowUp') { event.preventDefault(); active = Math.max(active - 1, 0); mark(); }
+            else if (event.key === 'Enter') { event.preventDefault(); choose(active); }
+        });
+        dialog.addEventListener('click', function (event) { if (event.target === dialog) dialog.close(); });
     }
 
     function initTabs() {

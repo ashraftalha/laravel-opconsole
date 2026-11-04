@@ -172,7 +172,9 @@ class PagePresenter
         $warnings = $all->filter(fn (array $check) => $check['status'] === 'warning' && $check['severity'] !== 'info')->count();
         $unknown = $all->where('status', 'unknown')->count();
         $healthy = $all->where('status', 'healthy')->count();
+        $advisory = $all->filter(fn (array $check) => $check['status'] === 'warning' && $check['severity'] === 'info')->count();
         $total = $all->count();
+        $score = $this->score($total, $healthy + $advisory, $warnings, $unknown, $critical);
         $tone = $critical > 0 ? 'is-bad' : ($warnings > 0 ? 'is-warning' : ($unknown > 0 || $total === 0 ? 'is-unknown' : 'is-ok'));
         $state = $critical > 0 ? 'Critical issues' : ($warnings > 0 ? 'Attention needed' : ($unknown > 0 ? 'Partially verified' : ($total === 0 ? 'Health unavailable' : 'All checks healthy')));
 
@@ -216,7 +218,10 @@ class PagePresenter
             'critical' => $critical,
             'warnings' => $warnings,
             'unknown' => $unknown,
+            'healthy' => $healthy,
+            'advisory' => $advisory,
             'total' => $total,
+            'score' => $score,
             'attention' => array_slice($attention, 0, 4),
             'moreAttention' => max(0, count($attention) - 4),
             'unknownItems' => $unknownItems,
@@ -228,6 +233,27 @@ class PagePresenter
                 'action' => isset($actions['up']) && $actions['up']['enabled'] ? '#action-up' : '#checks',
             ],
         ];
+    }
+
+    /**
+     * A 0–100 readiness score for the header ring. Healthy and advisory checks count fully,
+     * unverified ones half, warnings a little, critical ones not at all; any critical check caps
+     * the score below 60 and any warning below 90, so the number never reads healthier than the state.
+     */
+    private function score(int $total, int $good, int $warnings, int $unknown, int $critical): ?int
+    {
+        if ($total === 0) {
+            return null;
+        }
+
+        $score = (int) round(100 * ($good + 0.5 * $unknown + 0.4 * $warnings) / $total);
+        if ($critical > 0) {
+            $score = min($score, 59);
+        } elseif ($warnings > 0) {
+            $score = min($score, 89);
+        }
+
+        return max(0, min(100, $score));
     }
 
     /** The visitor's toggle choice (plain cookie written by opconsole.js) wins over the configured default. */
@@ -252,7 +278,7 @@ class PagePresenter
         return config('opconsole.layout') ? 'light' : 'auto';
     }
 
-    /** @return array{css: string, js: string} */
+    /** @return array{css: string, js: string, icon: string} */
     private function assets(): array
     {
         return [
@@ -262,6 +288,9 @@ class PagePresenter
             'js' => is_file(public_path('vendor/opconsole/opconsole.js'))
                 ? asset('vendor/opconsole/opconsole.js')
                 : route($this->routeName('asset'), 'opconsole.js'),
+            'icon' => is_file(public_path('vendor/opconsole/opconsole.svg'))
+                ? asset('vendor/opconsole/opconsole.svg')
+                : route($this->routeName('asset'), 'opconsole.svg'),
         ];
     }
 
@@ -668,15 +697,42 @@ class PagePresenter
                 'startedRelative' => $startedCarbon ? $startedCarbon->locale('en')->diffForHumans() : '—',
                 'startedExact' => $startedCarbon ? $startedCarbon->copy()->utc()->format('Y-m-d H:i:s \U\T\C') : null,
                 'startedIso' => $item['startedAt'],
+                'startedTime' => $startedCarbon ? $startedCarbon->copy()->setTimezone((string) config('app.timezone', 'UTC'))->format('H:i') : null,
+                'day' => $startedCarbon ? $this->dayLabel($startedCarbon) : 'Unknown date',
                 'duration' => $duration,
+                'durationMs' => $item['durationMs'],
                 'details' => $detailsParts !== [] ? implode(' · ', $detailsParts) : '—',
             ];
         }, $history['items']);
 
+        $longest = max([1, ...array_map(fn (array $run) => (int) ($run['durationMs'] ?? 0), $items)]);
+        foreach ($items as &$run) {
+            $run['durationShare'] = $run['durationMs'] !== null ? max(2, (int) round(100 * $run['durationMs'] / $longest)) : 0;
+        }
+        unset($run);
+
         return [
             'available' => $history['available'],
             'items' => $items,
+            'days' => collect($items)->groupBy('day', preserveKeys: false)->map(fn ($runs, $day) => ['label' => $day, 'runs' => $runs->all()])->values()->all(),
+            'counts' => [
+                'succeeded' => collect($items)->where('status', 'succeeded')->count(),
+                'failed' => collect($items)->where('status', 'failed')->count(),
+                'other' => collect($items)->whereNotIn('status', ['succeeded', 'failed'])->count(),
+            ],
         ];
+    }
+
+    private function dayLabel(Carbon $time): string
+    {
+        $local = $time->copy()->setTimezone((string) config('app.timezone', 'UTC'));
+        $today = Carbon::now((string) config('app.timezone', 'UTC'))->startOfDay();
+
+        return match (true) {
+            $local->isSameDay($today) => 'Today · '.$local->locale('en')->isoFormat('ddd D MMM'),
+            $local->isSameDay($today->copy()->subDay()) => 'Yesterday · '.$local->locale('en')->isoFormat('ddd D MMM'),
+            default => $local->locale('en')->isoFormat('dddd D MMM YYYY'),
+        };
     }
 
     /** File cards; every file except the newest (still being written) can be deleted by authorized operators. */
@@ -724,6 +780,16 @@ class PagePresenter
 
         $hasActiveFilters = $log['level'] !== null || $log['search'] !== '' || $log['env'] !== null;
 
+        // Same normalisation LogViewer uses to fold repeated messages, so a row can show "×N" inline.
+        $repeatKey = fn (string $level, string $message) => $level.'|'.preg_replace(['/\d+/', "/'[^']*'|\"[^\"]*\"/"], ['#', '…'], $message);
+        $repeats = [];
+        foreach ($log['groups'] as $group) {
+            $repeats[$repeatKey($group['level'], $group['message'])] = $group['count'];
+        }
+
+        $timeline = $log['timeline'] ?? [];
+        $peak = max([1, ...array_map(fn (array $hour) => $hour['errors'] + $hour['warnings'] + $hour['other'], $timeline)]);
+
         return [
             'name' => $log['name'],
             'env' => $log['env'] ?? 'all',
@@ -738,16 +804,44 @@ class PagePresenter
             'emptyMessage' => $log['allTotal'] === 0 ? 'This log file is empty or contains no parsable entries.' : 'No entries match the active filters.',
             'truncated' => $log['truncated'],
             'groups' => array_map(fn ($group) => $group + ['style' => self::LEVEL_STYLES[$group['level']] ?? 'is-muted', 'message' => Str::limit($group['message'], 180)], $log['groups']),
+            'timeline' => array_map(fn (array $hour) => $hour + [
+                'total' => $hour['errors'] + $hour['warnings'] + $hour['other'],
+                'errorsPct' => round(100 * $hour['errors'] / $peak, 1),
+                'warningsPct' => round(100 * $hour['warnings'] / $peak, 1),
+                'otherPct' => round(100 * $hour['other'] / $peak, 1),
+            ], $timeline),
             'entries' => array_map(fn ($entry) => [
                 'level' => $entry['level'],
                 'style' => self::LEVEL_STYLES[$entry['level']] ?? 'is-muted',
                 'meta' => $entry['env'].' · '.$entry['time'],
+                'env' => $entry['env'],
+                'time' => $entry['time'],
+                'repeat' => $repeats[$repeatKey($entry['level'], $entry['message'])] ?? 1,
                 'messageHtml' => $this->highlight($entry['message'], $log['search']),
-                'detailsHtml' => $entry['details'] ? $this->highlight($entry['details'], $log['search']) : null,
+                'detailsHtml' => $entry['details'] ? $this->frames($this->highlight($entry['details'], $log['search'])) : null,
                 'copy' => '['.$entry['time'].'] '.$entry['env'].'.'.strtoupper($entry['level']).': '.($entry['details'] ?: $entry['message']),
             ], $log['entries']),
             'moreUrl' => $log['more'] ? $url(['limit' => $log['limit'] + 50]) : null,
         ];
+    }
+
+    /**
+     * Wraps each stack-trace line of already-escaped details in a span so vendor frames can be dimmed
+     * and application frames emphasised. Input is the output of highlight(), so it is already safe;
+     * a <mark> never spans lines because the search box is single-line.
+     */
+    private function frames(string $escaped): string
+    {
+        return collect(explode("\n", $escaped))
+            ->map(function (string $line) {
+                if (! preg_match('/^#\d+ /', $line)) {
+                    return $line;
+                }
+                $vendor = str_contains($line, '/vendor/') || str_contains($line, '[internal function]') || str_contains($line, '{main}');
+
+                return '<span class="'.($vendor ? 'oc-frame oc-frame-vendor' : 'oc-frame oc-frame-app').'">'.$line.'</span>';
+            })
+            ->implode("\n");
     }
 
     /**

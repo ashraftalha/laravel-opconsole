@@ -4,6 +4,23 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+### Added
+- Dashboard redesign built around the OpConsole logo: the logo (as a `currentColor` SVG partial) in the header, confirm dialog, empty states and a "Powered by" footer; an SVG favicon served at `assets/opconsole.svg`; brand blue from the logo as the accent, with separate slate (unverified) and violet (advisory / info) status colours.
+- Header health score (0–100) ring. Any critical check caps it below 60 and any warning below 90.
+- Overview: status split bar, KPI cards from the existing tiles, fix commands with a Copy button in "Attention needed", and a recent-activity feed.
+- Operations split into a "Safe" group and a "Danger zone"; the last command's output appears first in a terminal panel.
+- Health: status chips with counts (the select remains as the no-JS fallback), a text filter, expandable rows, and a per-group status mini bar. `?check_status=` is updated in place instead of reloading the page.
+- Security: scan-freshness meter, advisory rows with severity stripes and a copyable `composer update <package>` command.
+- History: runs grouped by day, inline error details, duration bars, and status filter chips.
+- System: one card per group, copy-on-hover values, a "Find a setting" search, and production-risk flags.
+- Logs: file sidebar, a 24-hour entries-per-hour chart (`LogViewer::read()` now returns `timeline`), inline `×N` repeat counts, application stack frames highlighted and vendor frames dimmed, and `j` / `k` keyboard navigation.
+- Command palette (Ctrl K / ⌘K) to jump to tabs, health checks, operations and log files.
+- `web_fonts` (`OPCONSOLE_WEB_FONTS`, default `false`): opt-in IBM Plex Sans / Mono / Sans Arabic from Google Fonts. Off by default, so the console still makes no external requests.
+
+### Changed
+- Every bar, meter and ring is drawn as SVG with plain attributes, so the page still has no inline `style=` attributes (strict CSP).
+- The standalone layout sets `lang` from the app locale and `dir="rtl"` for Arabic, Hebrew, Persian and Urdu.
+
 ## [1.9.0] - 2026-11-04
 
 ### Added

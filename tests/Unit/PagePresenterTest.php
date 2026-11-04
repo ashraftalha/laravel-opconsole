@@ -243,4 +243,36 @@ class PagePresenterTest extends TestCase
         $this->assertNotNull($view['log']['resetFiltersUrl']);
         $this->assertStringContainsString('q=0', $view['log']['levelChips'][0]['url']);
     }
+
+    private function invokePrivate(string $method, ...$args): mixed
+    {
+        $presenter = new PagePresenter;
+        $reflection = new \ReflectionMethod($presenter, $method);
+
+        return $reflection->invoke($presenter, ...$args);
+    }
+
+    public function test_health_score_never_reads_healthier_than_the_state(): void
+    {
+        $this->assertNull($this->invokePrivate('score', 0, 0, 0, 0, 0));
+        $this->assertSame(100, $this->invokePrivate('score', 10, 10, 0, 0, 0));
+        // 9 healthy + 1 critical would be 90, but any critical check caps the score below 60.
+        $this->assertSame(59, $this->invokePrivate('score', 10, 9, 0, 0, 1));
+        // 9 healthy + 1 warning would be 94, but any warning caps it below 90.
+        $this->assertSame(89, $this->invokePrivate('score', 10, 9, 1, 0, 0));
+        // Unverified checks count half.
+        $this->assertSame(75, $this->invokePrivate('score', 4, 2, 0, 2, 0));
+    }
+
+    public function test_stack_frames_are_marked_as_application_or_vendor_without_unescaping(): void
+    {
+        $details = "[stacktrace]\n#0 /app/Http/Controllers/HomeController.php(12): index()\n#1 /app/vendor/laravel/framework/src/Router.php(5): run()\n#2 {main}\n<b>not a frame</b>";
+        $html = $this->invokePrivate('frames', $this->highlight($details, 'Home'));
+
+        $this->assertStringContainsString('<span class="oc-frame oc-frame-app">#0 /app/Http/Controllers/<mark>Home</mark>Controller.php(12): index()</span>', $html);
+        $this->assertStringContainsString('<span class="oc-frame oc-frame-vendor">#1 /app/vendor/', $html);
+        $this->assertStringContainsString('<span class="oc-frame oc-frame-vendor">#2 {main}</span>', $html);
+        $this->assertStringContainsString('&lt;b&gt;not a frame&lt;/b&gt;', $html);
+        $this->assertStringContainsString("[stacktrace]\n", $html);
+    }
 }

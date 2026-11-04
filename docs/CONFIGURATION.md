@@ -222,6 +222,7 @@ Setting an action to `false` hides its card in the UI and causes `POST /admin/op
 | `layout` | — | `null` | `null` renders OpConsole's standalone layout. Set to a host Blade view name (must provide `@yield('content')`, `@stack('styles')`, and `@stack('scripts')`) to embed inside an existing admin shell. |
 | `theme` | `OPCONSOLE_THEME` | `null` | Color theme: `auto` (follow the system light/dark setting), `light`, or `dark`. `null` uses `auto` for the standalone layout and `light` when `layout` is set. |
 | `theme_toggle` | `OPCONSOLE_THEME_TOGGLE` | `true` | Shows a light/dark switch in the header. The choice is saved per browser in the `opconsole_theme` cookie and overrides `theme`. |
+| `web_fonts` | `OPCONSOLE_WEB_FONTS` | `false` | Loads IBM Plex Sans, Plex Mono and Plex Sans Arabic from Google Fonts. Off by default so the console makes no external requests; when on, allow `fonts.googleapis.com` (`style-src`) and `fonts.gstatic.com` (`font-src`) in your Content-Security-Policy. When off, the system font stack is used. |
 | `back_url` | — | `null` | Optional URL rendered as a back link in the console header (hidden when `null`). |
 | `back_label` | — | `'Dashboard'` | Label text for `back_url`. |
 | `table` | `OPCONSOLE_TABLE` | `'opconsole_runs'` | Database table name for operation audit records. |

@@ -194,4 +194,31 @@ class LogViewerTest extends TestCase
         $this->assertSame(1, $withFallback['total']);
         $this->assertNull($withFallback['resolvedEnv']);
     }
+
+    public function test_timeline_buckets_the_24_hours_up_to_the_newest_entry_by_level(): void
+    {
+        File::put($this->dir.'/laravel.log', implode("\n", [
+            '[2026-01-01 08:15:00] testing.INFO: way too old',
+            '[2026-01-02 09:05:00] testing.INFO: first hour',
+            '[2026-01-02 09:59:00] testing.WARNING: first hour warning',
+            '[2026-01-03 07:10:00] testing.ERROR: newest hour error',
+            '[2026-01-03 07:20:00] testing.CRITICAL: newest hour critical',
+        ])."\n");
+
+        $timeline = $this->viewer()->read('laravel.log')['timeline'];
+
+        $this->assertCount(24, $timeline);
+        $this->assertSame('08:00', $timeline[0]['label']);
+        $this->assertSame('07:00', $timeline[23]['label']);
+        $this->assertSame(['errors' => 2, 'warnings' => 0, 'other' => 0], array_intersect_key($timeline[23], array_flip(['errors', 'warnings', 'other'])));
+        $this->assertSame(['errors' => 0, 'warnings' => 1, 'other' => 1], array_intersect_key($timeline[1], array_flip(['errors', 'warnings', 'other'])));
+        $this->assertSame(5 - 1, array_sum(array_map(fn ($hour) => $hour['errors'] + $hour['warnings'] + $hour['other'], $timeline)));
+    }
+
+    public function test_timeline_is_empty_without_parsable_timestamps(): void
+    {
+        File::put($this->dir.'/laravel.log', "not a log line\n");
+
+        $this->assertSame([], $this->viewer()->read('laravel.log')['timeline']);
+    }
 }

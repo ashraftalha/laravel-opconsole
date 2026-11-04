@@ -139,7 +139,45 @@ class LogViewer
             'truncated' => $truncated,
             'more' => count($matching) > $limit,
             'resolvedEnv' => $env,
+            'timeline' => $this->timeline($inEnv),
         ];
+    }
+
+    /**
+     * Entries per hour for the 24 hours ending at the newest parsable entry, split into
+     * errors, warnings and everything else. Uses strtotime (not Carbon) to stay cheap on large tails.
+     *
+     * @return list<array{label: string, errors: int, warnings: int, other: int}>
+     */
+    private function timeline(array $entries): array
+    {
+        $stamps = [];
+        foreach ($entries as $entry) {
+            $stamp = strtotime($entry['time']);
+            if ($stamp !== false) {
+                $stamps[] = [$stamp, $entry['level']];
+            }
+        }
+        if ($stamps === []) {
+            return [];
+        }
+
+        $end = intdiv(max(array_column($stamps, 0)), 3600) * 3600;
+        $start = $end - 23 * 3600;
+        $buckets = [];
+        for ($hour = $start; $hour <= $end; $hour += 3600) {
+            $buckets[$hour] = ['label' => date('H:00', $hour), 'errors' => 0, 'warnings' => 0, 'other' => 0];
+        }
+        foreach ($stamps as [$stamp, $level]) {
+            $hour = intdiv($stamp, 3600) * 3600;
+            if (! isset($buckets[$hour])) {
+                continue;
+            }
+            $kind = in_array($level, ['emergency', 'alert', 'critical', 'error'], true) ? 'errors' : ($level === 'warning' ? 'warnings' : 'other');
+            $buckets[$hour][$kind]++;
+        }
+
+        return array_values($buckets);
     }
 
     /**

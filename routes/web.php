@@ -24,7 +24,7 @@ Route::prefix(config('opconsole.route.prefix', 'admin/opconsole'))
             ->name($prefix.'index');
 
         Route::get('assets/{asset}', [OpConsoleController::class, 'asset'])
-            ->whereIn('asset', ['opconsole.css', 'opconsole.js'])
+            ->whereIn('asset', ['opconsole.css', 'opconsole.js', 'opconsole.svg'])
             ->middleware('opconsole.authorize:view')
             ->name($prefix.'asset');
 

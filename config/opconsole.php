@@ -227,6 +227,12 @@ return [
     // Light/dark switch in the header; the choice is remembered per browser in a cookie.
     'theme_toggle' => (bool) env('OPCONSOLE_THEME_TOGGLE', true),
 
+    // Opt-in: load IBM Plex (Sans, Mono, Sans Arabic) from Google Fonts. Off by default so
+    // the console makes no external requests and stays strict-CSP friendly; when off, the
+    // stylesheet uses the system font stack. If you enable it, allow fonts.googleapis.com
+    // (style-src) and fonts.gstatic.com (font-src) in your Content-Security-Policy.
+    'web_fonts' => (bool) env('OPCONSOLE_WEB_FONTS', false),
+
     /*
     |--------------------------------------------------------------------------
     | Back link
