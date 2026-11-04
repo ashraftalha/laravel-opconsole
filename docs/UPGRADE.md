@@ -1,6 +1,44 @@
 # Upgrade Guide
 
-This document covers upgrades to the current `v1.9.0` release. The later sections retain migration notes for older installations.
+This document covers upgrades to the current `v1.10.0` release. The later sections retain migration notes for older installations.
+
+## Upgrade from v1.9.0 to v1.10.0
+
+No database migrations are required, and no routes, Gates, form actions or CSRF behaviour changed. Existing configuration keeps working.
+
+1. **Update the package:**
+
+   ```bash
+   composer update ashraftalha/laravel-opconsole
+   php artisan config:clear
+   ```
+
+2. **Published assets:** the dashboard was redesigned around the OpConsole logo (new colours, health score, command palette, log timeline). If you published assets, republish them:
+
+   ```bash
+   php artisan vendor:publish --tag=opconsole-assets --force
+   ```
+
+   The package now also serves `opconsole.svg` (the favicon). Republishing copies it to `public/vendor/opconsole/`.
+
+3. **Published views:** `index.blade.php` was rewritten and new partials were added (`logo`, `segbar`, `fonts`). If you customised views, diff `resources/views/vendor/opconsole` against the package and merge the changes, or republish with `--tag=opconsole-views --force`. A customised view keeps the old markup and will look broken with the new stylesheet.
+
+4. **Renamed CSS classes** (only if you wrote CSS against them or kept old published views):
+
+   | Before | After |
+   |---|---|
+   | `oc-btn-soft-primary` | `oc-btn-accent` |
+   | `oc-btn-soft-success` | `oc-btn-success` |
+   | `oc-btn-soft-warning` | `oc-btn-warning` |
+   | `oc-btn-soft-secondary` | `oc-btn-secondary` |
+   | `oc-card-body` | `oc-card-content` |
+
+5. **New optional key:** `web_fonts` (`OPCONSOLE_WEB_FONTS`, default `false`) loads IBM Plex from Google Fonts. Leave it off to keep the console free of external requests. If you turn it on, allow `fonts.googleapis.com` (`style-src`) and `fonts.gstatic.com` (`font-src`) in your Content-Security-Policy.
+
+6. **Behaviour you may notice:**
+   - Health filter chips update `?check_status=` in place instead of reloading the page.
+   - Security advisories now keep the full affected version range. Earlier scans stored a truncated range such as `>=12.0.0,`. Run `php artisan opconsole:security` once to refresh stored results.
+   - `LogViewer::read()` returns an additional `timeline` key. Existing keys are unchanged.
 
 ## Upgrade from v1.8.0 to v1.9.0
 

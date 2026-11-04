@@ -4,6 +4,8 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-04
+
 ### Added
 - Dashboard redesign built around the OpConsole logo: the logo (as a `currentColor` SVG partial) in the header, confirm dialog, empty states and a "Powered by" footer; an SVG favicon served at `assets/opconsole.svg`; brand blue from the logo as the accent, with separate slate (unverified) and violet (advisory / info) status colours.
 - Header health score (0–100) ring. Any critical check caps it below 60 and any warning below 90.
@@ -23,6 +25,7 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 - Operations used a four-column grid that could leave one card alone on a row; it now uses wider cards that stay within the screen on phones.
 
 ### Changed
+- Button and card class names no longer follow an admin-theme convention: `oc-btn-soft-primary`, `-success`, `-warning` and `-secondary` are now `oc-btn-accent`, `oc-btn-success`, `oc-btn-warning` and `oc-btn-secondary`, and `oc-card-body` is now `oc-card-content`. This only matters if you published views or wrote CSS against these classes.
 - Richer colour system: blue-tinted neutrals that match the logo, more vivid status colours (green, amber, red, slate, violet) for dots, stripes and charts, tone-tinted icons on KPI cards and counts, and a navy-tinted dark theme. Every text colour pair meets WCAG AA (4.5:1) in both themes.
 - Every bar, meter and ring is drawn as SVG with plain attributes, so the page still has no inline `style=` attributes (strict CSP).
 - The standalone layout sets `lang` from the app locale and `dir="rtl"` for Arabic, Hebrew, Persian and Urdu.

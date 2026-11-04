@@ -4,9 +4,9 @@ Use this checklist before tagging any release of `ashraftalha/laravel-opconsole`
 
 ---
 
-## Release Scope: `v1.9.0`
+## Release Scope: `v1.10.0`
 
-This release lands an execution-safety and reliability hardening pass (safe action timeouts across Laravel lock-driver versions, the `audit.policy` setting, maintenance/log-deletion/notification fixes — see `CHANGELOG.md`) together with a premium visual and interaction redesign of the dashboard (new design tokens, tactile buttons, hold-to-confirm for high-risk actions, new summary tiles, a restructured Security tab). No routes, Gates, migrations, or config keys were removed. Review `CHANGELOG.md`, `CONFIGURATION.md`, and `UPGRADE.md` against the exact release commit.
+This release redesigns the dashboard around the OpConsole logo (brand colours, health score, command palette, log timeline, screenshots in the README), renames five admin-theme CSS classes, adds the opt-in `web_fonts` key, serves an `opconsole.svg` favicon asset, and fixes truncated advisory version ranges and CSS reset specificity. No routes, Gates, migrations or config keys were removed. Review `CHANGELOG.md`, `CONFIGURATION.md` and `UPGRADE.md` against the exact release commit.
 
 ---
 
@@ -28,6 +28,7 @@ This release lands an execution-safety and reliability hardening pass (safe acti
 - [ ] Authenticated users in `production`, `staging`, and `testing` receive HTTP `403` when host Gates are not explicitly defined.
 - [ ] Custom `authentication.guard` governs both Gate evaluation (`Gate::forUser`) and audit attribution (`OpConsoleRun`), failing closed (`403`) on invalid guard names.
 - [ ] Overriding `route.middleware` (even to `[]`) preserves `web` session and CSRF protection (`419` on forged POST/DELETE).
+- [ ] The asset route serves only `opconsole.css`, `opconsole.js` and `opconsole.svg`, behind the view Gate.
 - [ ] `ActionRunner` exposes only the seven documented actions (`optimize:clear`, `optimize`, `migrate --force --isolated`, `down`, `up`, optional `storage:link`, and `opconsole:security`) with zero user-supplied arguments.
 - [ ] Unsafe lock stores (`null`, `array` outside unit tests, `lock_store === cache.default` without separate lock storage, overlapping `file` lock directories, missing stores) fail closed without executing Artisan.
 - [ ] `LogViewer::files()` and `LogViewer::path()` reject path traversal, invalid filenames, and external symlinks.
