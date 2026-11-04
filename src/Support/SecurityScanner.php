@@ -303,12 +303,17 @@ class SecurityScanner
         return array_values(array_unique(array_filter(array_map($this->clean(...), $values))));
     }
 
+    /**
+     * Normalises untrusted advisory text: control characters become spaces and length is capped.
+     * It deliberately does not strip_tags(): that treats "<1" as a tag opening and truncated version
+     * ranges such as ">=12.0.0,<12.9.2". Every output escapes this text instead (Blade {{ }}, JSON, CLI).
+     */
     private function clean($value): ?string
     {
         if (! is_string($value) || $value === '') {
             return null;
         }
 
-        return mb_substr(strip_tags(preg_replace('/[\x00-\x1F\x7F]/u', ' ', $value) ?? ''), 0, 1000);
+        return mb_substr(preg_replace('/[\x00-\x1F\x7F]/u', ' ', $value) ?? '', 0, 1000);
     }
 }

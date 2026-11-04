@@ -119,6 +119,7 @@ class SecurityTest extends TestCase
             $this->assertSame('complete', $report['status']);
             $this->assertSame(['CVE-2026-1234', 'PKSA-123'], $report['advisories'][0]['identifiers']);
             $this->assertNull($report['advisories'][0]['severity']);
+            $this->assertSame('<1.3.0', $report['advisories'][0]['affected']);
             $this->assertCount(1, $report['ignored']);
             $this->assertSame('Reviewed exception.', $report['ignored'][0]['ignored_reason']);
             $this->assertSame('fixture/old', $report['abandoned'][0]['package']);
@@ -132,5 +133,30 @@ class SecurityTest extends TestCase
         } finally {
             File::deleteDirectory($directory);
         }
+    }
+
+    public function test_version_ranges_keep_their_upper_bound_and_stay_escaped_on_the_dashboard(): void
+    {
+        $this->allowOpConsole();
+        $range = '>=12.0.0,<12.9.2';
+        Cache::store(config('opconsole.security.store'))->forever('opconsole.security.report', [
+            'status' => 'complete', 'scanned_at' => now()->toIso8601String(), 'last_success_at' => now()->toIso8601String(),
+            'manifest_hash' => hash('sha256', (string) @file_get_contents(base_path('composer.json'))."\0".(string) @file_get_contents(base_path('composer.lock'))),
+            'scope' => 'fixture', 'advisories' => [[
+                'package' => 'laravel/framework', 'version' => '12.9.0', 'version_mismatch' => false, 'severity' => 'high',
+                'title' => 'Range <b>fixture</b>', 'identifier' => null, 'affected' => $range, 'published' => null,
+                'link' => null, 'remediation' => "Update\nnow",
+            ]], 'ignored' => [], 'abandoned' => [], 'config_warnings' => [],
+        ]);
+
+        $report = app(SecurityScanner::class)->report();
+        $this->assertSame($range, $report['advisories'][0]['affected']);
+        $this->assertSame('Update now', $report['advisories'][0]['remediation']);
+
+        $this->actingAsUser();
+        $this->get('/admin/opconsole')->assertOk()
+            ->assertSee('&gt;=12.0.0,&lt;12.9.2', false)
+            ->assertSee('Range &lt;b&gt;fixture&lt;/b&gt;', false)
+            ->assertDontSee('<b>fixture</b>', false);
     }
 }
