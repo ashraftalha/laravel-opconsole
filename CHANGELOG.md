@@ -18,6 +18,7 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 - `web_fonts` (`OPCONSOLE_WEB_FONTS`, default `false`): opt-in IBM Plex Sans / Mono / Sans Arabic from Google Fonts. Off by default, so the console still makes no external requests.
 
 ### Changed
+- Richer colour system: blue-tinted neutrals that match the logo, more vivid status colours (green, amber, red, slate, violet) for dots, stripes and charts, tone-tinted icons on KPI cards and counts, and a navy-tinted dark theme. Every text colour pair meets WCAG AA (4.5:1) in both themes.
 - Every bar, meter and ring is drawn as SVG with plain attributes, so the page still has no inline `style=` attributes (strict CSP).
 - The standalone layout sets `lang` from the app locale and `dir="rtl"` for Arabic, Hebrew, Persian and Urdu.
 
