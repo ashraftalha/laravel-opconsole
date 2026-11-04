@@ -59,7 +59,7 @@ The console is organised in eight tabs. A header above them shows a **0–100 he
 </tr>
 <tr>
 <td width="50%"><img src="art/screenshots/history-dark.png" alt="History tab in dark mode: operations grouped by day with durations"><br><sub><b>History</b>: audit trail grouped by day (dark)</sub></td>
-<td width="50%"><img src="art/screenshots/overview-dark.png" alt="Overview tab in dark mode"><br><sub><b>Overview</b> in dark mode</sub></td>
+<td width="50%"><img src="art/screenshots/jobs-light.png" alt="Failed jobs tab: failed queue jobs with their error and a Retry button"><br><sub><b>Failed jobs</b>: errors at a glance, retry one job</sub></td>
 </tr>
 </table>
 

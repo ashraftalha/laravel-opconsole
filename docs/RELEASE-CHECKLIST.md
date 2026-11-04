@@ -4,9 +4,9 @@ Use this checklist before tagging any release of `ashraftalha/laravel-opconsole`
 
 ---
 
-## Release Scope: `v1.10.0`
+## Release Scope: `v1.11.0`
 
-This release redesigns the dashboard around the OpConsole logo (brand colours, health score, command palette, log timeline, screenshots in the README), renames five admin-theme CSS classes, adds the opt-in `web_fonts` key, serves an `opconsole.svg` favicon asset, and fixes truncated advisory version ranges and CSS reset specificity. No routes, Gates, migrations or config keys were removed. Review `CHANGELOG.md`, `CONFIGURATION.md` and `UPGRADE.md` against the exact release commit.
+This release adds a Failed jobs tab with per-job retry (`POST failed-jobs/{id}/retry`, run Gate or `queue_retry` action Gate, audited), Laravel Octane and Swoole health checks with a Reload Octane workers operation (only when Octane is installed), a guard that refuses timed operations inside Swoole workers, more System information, and fixes the Health tab opening empty. No routes, Gates, migrations or config keys were removed. Review `CHANGELOG.md`, `CONFIGURATION.md` and `UPGRADE.md` against the exact release commit.
 
 ---
 

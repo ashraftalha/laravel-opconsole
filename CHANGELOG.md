@@ -4,6 +4,8 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-04
+
 ### Added
 - **Laravel Octane and Swoole support**, active only when Octane is installed: an **Octane and runtime** health group (server dependency, requests served by Octane, server process running, garbage threshold vs `memory_limit`, HTTPS vs `APP_URL`, `opcache.enable_cli`; with Swoole also `package_max_length` vs PHP upload limits, worker count vs CPUs, Xdebug, and the Swoole log file), an **Octane** card in System information, an **Octane server** row in Runtime status, a **Reload Octane workers** operation (`octane:reload`), and a reminder to reload workers after clearing caches, optimizing or migrating. New `octane.checks`, `octane.expected_in_production`, `octane.allow_actions_in_swoole` and `actions.octane_reload` options.
 - **Failed jobs** tab: the newest failed queue jobs (name, connection, queue, failure time, first line of the sanitised exception; payloads are never shown), a filter, a tab badge with the count, and a **Retry** button per job that runs `queue:retry {id}`. Retrying needs the run Gate or a `queue_retry` action Gate, is confirmed, rate limited and audited as `queue.retry`. New `failed_jobs.enabled`, `failed_jobs.limit` and `failed_jobs.allow_retry` options.
@@ -15,6 +17,10 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ### Changed
 - Operations shows four cards per row on wide screens (two on tablets, one on phones).
+- README screenshots refreshed for the eight-tab console, including Failed jobs.
+
+### Tests
+- Octane support is unit-tested against stand-ins of Octane's classes (`tests/Stubs/octane.php`), so the real runtime detection, process-inspector integration and Swoole guard run without laravel/octane installed.
 
 ## [1.10.0] - 2026-11-04
 

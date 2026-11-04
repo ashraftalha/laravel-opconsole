@@ -1,6 +1,32 @@
 # Upgrade Guide
 
-This document covers upgrades to the current `v1.10.0` release. The later sections retain migration notes for older installations.
+This document covers upgrades to the current `v1.11.0` release. The later sections retain migration notes for older installations.
+
+## Upgrade from v1.10.0 to v1.11.0
+
+No database migrations are required, and no routes, Gates or existing config keys changed. Existing configuration keeps working.
+
+1. **Update the package:**
+
+   ```bash
+   composer update ashraftalha/laravel-opconsole
+   php artisan config:clear
+   ```
+
+2. **Published assets or views:** the views gained a Failed jobs tab and an Octane section, and the stylesheet and script changed. Republish assets with `php artisan vendor:publish --tag=opconsole-assets --force`. If you customised views, merge the changes from the package's `resources/views/index.blade.php`.
+
+3. **New optional config keys** (published configs without them keep the defaults):
+   - `failed_jobs.enabled` (`OPCONSOLE_FAILED_JOBS`, default `true`), `failed_jobs.limit` (`OPCONSOLE_FAILED_JOBS_LIMIT`, `50`), `failed_jobs.allow_retry` (`OPCONSOLE_FAILED_JOBS_RETRY`, `true`).
+   - `octane.checks` (`OPCONSOLE_OCTANE_CHECKS`, `auto`), `octane.expected_in_production` (`OPCONSOLE_OCTANE_EXPECTED`, `false`), `octane.allow_actions_in_swoole` (`OPCONSOLE_OCTANE_ALLOW_ACTIONS`, `false`).
+   - `actions.octane_reload` (`OPCONSOLE_ACTION_OCTANE_RELOAD`, `true`; only shown when Octane is installed).
+
+4. **Permissions to review:**
+   - Anyone with the run Gate can now retry a failed job, which re-runs it with its original payload. To restrict that, map `queue_retry` to its own Gate in `authorization.action_gates`, or set `OPCONSOLE_FAILED_JOBS_RETRY=false`.
+   - The Failed jobs tab is visible to anyone with the view Gate. It shows job class names, queues and the first line of each exception (sanitised), never payloads. Set `OPCONSOLE_FAILED_JOBS=false` to hide it.
+
+5. **Behaviour you may notice:**
+   - If you serve the console with Laravel Octane on Swoole, timed operations (clear caches, optimize, migrate, maintenance on/off, storage link) are now refused from the browser, because their timeout signal would interrupt the Swoole worker itself. Run them from the CLI, or set `OPCONSOLE_OCTANE_ALLOW_ACTIONS=true` to accept that risk. The security scan and Octane reload still run. RoadRunner, FrankenPHP and PHP-FPM are unaffected.
+   - The Health and History tabs no longer open empty when every check is healthy.
 
 ## Upgrade from v1.9.0 to v1.10.0
 
