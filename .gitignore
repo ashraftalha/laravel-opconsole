@@ -9,3 +9,8 @@ composer.lock
 .DS_Store
 .idea/
 .vscode/
+
+# Documentation site (VitePress)
+/node_modules
+/docs/.vitepress/cache
+/docs/.vitepress/dist

@@ -1,3 +1,7 @@
+---
+title: Upgrade Guide
+---
+
 # Upgrade Guide
 
 This document covers upgrades to the current `v1.11.0` release. The later sections retain migration notes for older installations.
@@ -107,7 +111,7 @@ Laravel 12 and 13 and PHP `^8.3` remain supported. The release adds an on-demand
    php artisan view:cache
    ```
 
-See [CONFIGURATION.md](CONFIGURATION.md) for the `actions.security_scan` option.
+See [Configuration Reference](/reference/configuration) for the `actions.security_scan` option.
 
 ---
 
@@ -153,7 +157,7 @@ Laravel 12 and 13 and PHP `^8.3` remain supported. The release adds an optional 
 
 5. If package assets were published, refresh them with `php artisan vendor:publish --tag=opconsole-assets --force`.
 
-See [CONFIGURATION.md](CONFIGURATION.md) for all `security.*` options and [SECURITY.md](SECURITY.md) for scan scope, advisory network requests, exit codes, and remediation guidance.
+See [Configuration Reference](/reference/configuration) for all `security.*` options and [Security](/reference/security) for scan scope, advisory network requests, exit codes, and remediation guidance.
 
 ---
 
@@ -183,7 +187,7 @@ Laravel 12 and 13 and PHP `^8.3` remain supported. The release adds per-action a
 
 5. If package assets were published, refresh them with `php artisan vendor:publish --tag=opconsole-assets --force`.
 
-For action-specific permissions, map action keys to host-defined Gates in `authorization.action_gates`. For alerts, configure `notifications.channels` and a persistent shared `notifications.state_store`, then schedule `php artisan opconsole:health --notify`. See [CONFIGURATION.md](CONFIGURATION.md) for all options and behavior.
+For action-specific permissions, map action keys to host-defined Gates in `authorization.action_gates`. For alerts, configure `notifications.channels` and a persistent shared `notifications.state_store`, then schedule `php artisan opconsole:health --notify`. See [Configuration Reference](/reference/configuration) for all options and behavior.
 
 ---
 

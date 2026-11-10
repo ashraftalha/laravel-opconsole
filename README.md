@@ -77,7 +77,7 @@ The console is organised in eight tabs. A header above them shows a **0–100 he
 
 - PHP 8.3+
 - Laravel 12 or 13
-- **Optional, for browser operations:** the web PHP runtime needs the `pcntl` functions, which enforce the action timeout. Many PHP-FPM builds disable them. Without `pcntl`, everything else works, and the affected operations are disabled with an explanation. See [Execution environments](docs/CONFIGURATION.md#execution-environments).
+- **Optional, for browser operations:** the web PHP runtime needs the `pcntl` functions, which enforce the action timeout. Many PHP-FPM builds disable them. Without `pcntl`, everything else works, and the affected operations are disabled with an explanation. See [Execution environments](docs/reference/configuration.md#execution-environments).
 - **Optional, for the security audit:** Composer 2.4+ and a `composer.lock` in your app.
 
 ## Quick start
@@ -187,7 +187,7 @@ When [Laravel Octane](https://laravel.com/docs/octane) is installed, OpConsole a
 
 It checks that the configured server (Swoole, RoadRunner or FrankenPHP) is installed and running, that requests are served by Octane, that `octane.garbage` stays below `memory_limit`, that `octane.https` matches your `APP_URL`, and that OPcache is on for workers. With Swoole it also checks that `package_max_length` covers your upload size (Swoole ignores `upload_max_filesize`), worker count against CPU cores, Xdebug, and the Swoole log file.
 
-After clearing caches, optimizing or migrating, the console reminds you to reload workers, since they keep the old configuration in memory. Inside a Swoole worker, operations that rely on a `SIGALRM` timeout are refused by default because the signal would hit the worker itself; set `OPCONSOLE_OCTANE_ALLOW_ACTIONS=true` to override. See [Configuration](docs/CONFIGURATION.md#laravel-octane-octane).
+After clearing caches, optimizing or migrating, the console reminds you to reload workers, since they keep the old configuration in memory. Inside a Swoole worker, operations that rely on a `SIGALRM` timeout are refused by default because the signal would hit the worker itself; set `OPCONSOLE_OCTANE_ALLOW_ACTIONS=true` to override. See [Configuration](docs/reference/configuration.md#laravel-octane-octane).
 
 ## Monitoring and alerts
 
@@ -230,7 +230,7 @@ php artisan opconsole:security --json
 - **Run it from:** the command line, the **Run security scan** operation, or daily with `OPCONSOLE_SECURITY_SCHEDULE=true`.
 - **Stale results:** the dashboard only reads stored results. A scan that is older than `OPCONSOLE_SECURITY_MAX_AGE`, or that ran before `composer.json` or `composer.lock` changed, is shown as stale, never as clean.
 
-See [docs/SECURITY.md](docs/SECURITY.md) for its scope, network requests and exit codes.
+See [docs/reference/security.md](docs/reference/security.md) for its scope, network requests and exit codes.
 
 ## Custom health checks
 
@@ -301,7 +301,7 @@ OPCONSOLE_HISTORY_LIMIT=15
 OPCONSOLE_DISK_MIN_FREE_PERCENT=10
 ```
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every option.
+See [docs/reference/configuration.md](docs/reference/configuration.md) for every option.
 
 ## Updating
 
@@ -317,15 +317,17 @@ Composer never changes files you published. If you published any of them earlier
 - **Views:** compare them with the new ones, or re-publish with `--tag=opconsole-views --force`.
 - **Config:** copy over any new keys from the [latest config](config/opconsole.php). Re-publishing with `--force` overwrites your changes.
 
-See [CHANGELOG.md](CHANGELOG.md) for what changed and [docs/UPGRADE.md](docs/UPGRADE.md) for version-specific steps.
+See [CHANGELOG.md](CHANGELOG.md) for what changed and [docs/reference/upgrade.md](docs/reference/upgrade.md) for version-specific steps.
 
 ## Documentation
 
-- [Installation](docs/INSTALLATION.md)
-- [Configuration](docs/CONFIGURATION.md)
-- [Security model](docs/SECURITY.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Upgrade guide](docs/UPGRADE.md)
+Full documentation, including every feature, configuration key, and the Artisan commands, is at **[opconsole.ashraftalha.com](https://opconsole.ashraftalha.com)**.
+
+- [Installation](docs/guide/installation.md)
+- [Configuration](docs/reference/configuration.md)
+- [Security model](docs/reference/security.md)
+- [Architecture](docs/reference/architecture.md)
+- [Upgrade guide](docs/reference/upgrade.md)
 
 ## Testing
 

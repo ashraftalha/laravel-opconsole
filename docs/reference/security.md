@@ -1,3 +1,7 @@
+---
+title: Security Model
+---
+
 # Security
 
 Reporting a vulnerability: open a private security advisory on the repository, or contact the maintainer directly. Do not open a public issue for exploitable vulnerabilities.
@@ -50,7 +54,7 @@ Gate::define($runGate, fn ($user = null) => app()->environment('local'));
 
 - OpConsole **does not redact raw log lines** rendered in `#logs` or downloaded via `GET {prefix}/logs/{file}`, because redacting arbitrary stack traces and payloads destructively hides diagnostic evidence.
 - Treat `viewOpConsole` and `downloadOpConsoleLogs` as high-trust administrative permissions.
-- In high-compliance environments or conservative initial rollouts (see the Read-Only Diagnostic Preset in [`docs/CONFIGURATION.md`](CONFIGURATION.md)), set `'allow_download' => false` and `'allow_delete' => false` in `config/opconsole.php` and ensure `APP_DEBUG=false` and `LOG_LEVEL=warning` (or higher) in production.
+- In high-compliance environments or conservative initial rollouts (see the Read-Only Diagnostic Preset in [Configuration Reference](/reference/configuration)), set `'allow_download' => false` and `'allow_delete' => false` in `config/opconsole.php` and ensure `APP_DEBUG=false` and `LOG_LEVEL=warning` (or higher) in production.
 
 ---
 

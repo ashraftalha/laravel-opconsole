@@ -1,3 +1,7 @@
+---
+title: Architecture
+---
+
 # Architecture
 
 One service provider, one controller, five focused `Support` classes, one Eloquent model, and one guard-aware Gate middleware. No facades, no repository layer, no DTO hierarchy, and no per-command action classes — keeping the package lightweight, readable, and trivial to audit.

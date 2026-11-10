@@ -1,3 +1,7 @@
+---
+title: Configuration Reference
+---
+
 # Configuration Guide
 
 Publish the package configuration file to `config/opconsole.php`:
@@ -59,7 +63,7 @@ php artisan vendor:publish --tag=opconsole-config
 | `security.trusted_proxy_https` | `OPCONSOLE_SECURITY_TRUSTED_PROXY_HTTPS` | `false` | Assert that correctly configured trusted proxies and the TLS edge enforce HTTPS. |
 | `security.risky_actions` | — | `['migrate', 'down']` | Enabled OpConsole actions listed as security configuration warnings. |
 
-See [Security](SECURITY.md) for Composer prerequisites, data sent to advisory sources, report freshness, and failure behavior.
+See [Security](/reference/security) for Composer prerequisites, data sent to advisory sources, report freshness, and failure behavior.
 
 For example, let support staff clear caches while only administrators can migrate or change maintenance mode:
 

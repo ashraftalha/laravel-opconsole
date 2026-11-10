@@ -10,4 +10,4 @@ composer stan
 composer pint
 ```
 
-Report security issues privately. See [docs/SECURITY.md](docs/SECURITY.md).
+Report security issues privately. See [docs/reference/security.md](docs/reference/security.md).
