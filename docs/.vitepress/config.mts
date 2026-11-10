@@ -30,8 +30,9 @@ export default defineConfig({
   ],
 
   themeConfig: {
-    logo: '/logo.svg',
-    siteTitle: 'OpConsole',
+    // The logo is the full wordmark, so no separate site title next to it.
+    logo: { light: '/logo.svg', dark: '/logo-dark.svg', alt: 'OpConsole' },
+    siteTitle: false,
 
     nav: [
       { text: 'Guide', link: '/guide/introduction' },
@@ -48,71 +49,68 @@ export default defineConfig({
       },
     ],
 
-    sidebar: {
-      '/guide/': [
-        {
-          text: 'Getting Started',
-          items: [
-            { text: 'Introduction', link: '/guide/introduction' },
-            { text: 'Requirements & Compatibility', link: '/guide/requirements' },
-            { text: 'Installation', link: '/guide/installation' },
-            { text: 'Initial Configuration', link: '/guide/initial-configuration' },
-            { text: 'Authentication & Authorization', link: '/guide/authentication' },
-            { text: 'Quick Start', link: '/guide/quick-start' },
-          ],
-        },
-      ],
-      '/features/': [
-        {
-          text: 'Core Features',
-          items: [
-            { text: 'Health Dashboard', link: '/features/health-dashboard' },
-            { text: 'Health Checks & Health Score', link: '/features/health-checks' },
-            { text: 'Cache, Database & Storage', link: '/features/cache-database-storage' },
-            { text: 'Queue Worker & Scheduler', link: '/features/queue-scheduler' },
-            { text: 'Failed Jobs & Retry', link: '/features/failed-jobs' },
-            { text: 'Log Viewer', link: '/features/log-viewer' },
-            { text: 'Artisan Actions', link: '/features/artisan-actions' },
-            { text: 'Maintenance Operations', link: '/features/maintenance-operations' },
-            { text: 'Octane & Swoole', link: '/features/octane-swoole' },
-            { text: 'Security Audit', link: '/features/security-checks' },
-            { text: 'Operational Audit Trail', link: '/features/audit-trail' },
-          ],
-        },
-      ],
-      '/advanced/': [
-        {
-          text: 'Advanced Topics',
-          items: [
-            { text: 'Custom Health Checks', link: '/advanced/custom-health-checks' },
-            { text: 'Extension Points & Contracts', link: '/advanced/extension-points' },
-            { text: 'Production Deployment', link: '/advanced/production-deployment' },
-            { text: 'Octane & Swoole Environments', link: '/advanced/octane-swoole-environments' },
-            { text: 'Permissions & Security Policies', link: '/advanced/permissions-security-policies' },
-            { text: 'Operational Safety', link: '/advanced/operational-safety' },
-            { text: 'Performance Considerations', link: '/advanced/performance' },
-          ],
-        },
-      ],
-      '/reference/': [
-        {
-          text: 'Reference',
-          items: [
-            { text: 'Configuration Reference', link: '/reference/configuration' },
-            { text: 'Artisan Commands', link: '/reference/artisan-commands' },
-            { text: 'Environment Variables', link: '/reference/environment-variables' },
-            { text: 'Routes & Endpoints', link: '/reference/routes' },
-            { text: 'Architecture', link: '/reference/architecture' },
-            { text: 'Security Model', link: '/reference/security' },
-            { text: 'Supported Versions', link: '/reference/supported-versions' },
-            { text: 'Troubleshooting', link: '/reference/troubleshooting' },
-            { text: 'FAQ', link: '/reference/faq' },
-            { text: 'Upgrade Guide', link: '/reference/upgrade' },
-            { text: 'Changelog', link: '/reference/changelog' },
-          ],
-        },
-      ],
-    },
+    // One sidebar for the whole site: every page in every section, each group collapsible.
+    sidebar: [
+      {
+        text: 'Getting Started',
+        collapsed: false,
+        items: [
+          { text: 'Introduction', link: '/guide/introduction' },
+          { text: 'Requirements & Compatibility', link: '/guide/requirements' },
+          { text: 'Installation', link: '/guide/installation' },
+          { text: 'Initial Configuration', link: '/guide/initial-configuration' },
+          { text: 'Authentication & Authorization', link: '/guide/authentication' },
+          { text: 'Quick Start', link: '/guide/quick-start' },
+        ],
+      },
+      {
+        text: 'Core Features',
+        collapsed: false,
+        items: [
+          { text: 'Health Dashboard', link: '/features/health-dashboard' },
+          { text: 'Health Checks & Health Score', link: '/features/health-checks' },
+          { text: 'Cache, Database & Storage', link: '/features/cache-database-storage' },
+          { text: 'Queue Worker & Scheduler', link: '/features/queue-scheduler' },
+          { text: 'Failed Jobs & Retry', link: '/features/failed-jobs' },
+          { text: 'Log Viewer', link: '/features/log-viewer' },
+          { text: 'Artisan Actions', link: '/features/artisan-actions' },
+          { text: 'Maintenance Operations', link: '/features/maintenance-operations' },
+          { text: 'Octane & Swoole', link: '/features/octane-swoole' },
+          { text: 'Security Audit', link: '/features/security-checks' },
+          { text: 'Operational Audit Trail', link: '/features/audit-trail' },
+        ],
+      },
+      {
+        text: 'Advanced Topics',
+        collapsed: false,
+        items: [
+          { text: 'Custom Health Checks', link: '/advanced/custom-health-checks' },
+          { text: 'Extension Points & Contracts', link: '/advanced/extension-points' },
+          { text: 'Production Deployment', link: '/advanced/production-deployment' },
+          { text: 'Octane & Swoole Environments', link: '/advanced/octane-swoole-environments' },
+          { text: 'Permissions & Security Policies', link: '/advanced/permissions-security-policies' },
+          { text: 'Operational Safety', link: '/advanced/operational-safety' },
+          { text: 'Performance Considerations', link: '/advanced/performance' },
+        ],
+      },
+      {
+        text: 'Reference',
+        collapsed: false,
+        items: [
+          { text: 'Configuration Reference', link: '/reference/configuration' },
+          { text: 'Artisan Commands', link: '/reference/artisan-commands' },
+          { text: 'Environment Variables', link: '/reference/environment-variables' },
+          { text: 'Routes & Endpoints', link: '/reference/routes' },
+          { text: 'Architecture', link: '/reference/architecture' },
+          { text: 'Security Model', link: '/reference/security' },
+          { text: 'Supported Versions', link: '/reference/supported-versions' },
+          { text: 'Troubleshooting', link: '/reference/troubleshooting' },
+          { text: 'FAQ', link: '/reference/faq' },
+          { text: 'Upgrade Guide', link: '/reference/upgrade' },
+          { text: 'Changelog', link: '/reference/changelog' },
+        ],
+      },
+    ],
 
     search: {
       provider: 'local',

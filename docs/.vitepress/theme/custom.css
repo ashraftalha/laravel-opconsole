@@ -1,0 +1,4 @@
+/* The logo is a 4:1 wordmark; the default 24px height makes the text unreadable. */
+.VPNavBarTitle .logo {
+  height: 36px;
+}
