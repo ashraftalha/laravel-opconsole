@@ -113,3 +113,25 @@ jobs:
       - name: Routes are registered
         working-directory: smoke-app
         run: php artisan route:list | grep -q opconsole
+
+  docs:
+    runs-on: ubuntu-latest
+    name: Documentation site
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so "last updated" dates are per page
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Version references match CHANGELOG.md
+        run: npm run docs:check
+
+      - name: Build (fails on dead internal links)
+        run: npm run docs:build

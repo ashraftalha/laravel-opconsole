@@ -7,8 +7,10 @@
     },
     "scripts": {
         "docs:dev": "vitepress dev docs",
+        "predocs:build": "git rev-parse --is-shallow-repository | grep -q true && git fetch --unshallow --quiet || true",
         "docs:build": "vitepress build docs",
-        "docs:preview": "vitepress preview docs"
+        "docs:preview": "vitepress preview docs",
+        "docs:check": "node docs/.vitepress/check-versions.mjs"
     },
     "devDependencies": {
         "sitemap": "^10.0.0",

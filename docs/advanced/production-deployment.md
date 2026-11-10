@@ -1,5 +1,6 @@
 ---
 title: Production Deployment
+description: "Run Laravel OpConsole in production: config and route caching, Gates, a dedicated lock store, the audit policy, heartbeats and health endpoint monitoring."
 ---
 
 # Production Deployment

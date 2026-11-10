@@ -1,5 +1,6 @@
 ---
 title: Security Model
+description: "The Laravel OpConsole security model: fail-closed Gates, CSRF, a closed command allow-list, output sanitising, audit logging and how to report a vulnerability."
 ---
 
 # Security

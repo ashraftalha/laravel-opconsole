@@ -1,5 +1,6 @@
 ---
 title: Configuration Reference
+description: "Every Laravel OpConsole configuration key in config/opconsole.php, with its environment variable, default value and what it controls."
 ---
 
 # Configuration Guide

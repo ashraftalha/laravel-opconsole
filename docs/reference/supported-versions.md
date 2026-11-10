@@ -1,5 +1,6 @@
 ---
 title: Supported Versions
+description: "PHP and Laravel versions supported by Laravel OpConsole, the current release, and the CI matrix every change is tested against."
 ---
 
 # Supported Versions

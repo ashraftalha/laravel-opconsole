@@ -1,11 +1,34 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { defineConfig } from 'vitepress'
 
 const hostname = 'https://opconsole.ashraftalha.com'
 const ogImage = `${hostname}/screenshots/overview-light.png`
+const siteDescription = 'Monitor. Diagnose. Maintain. An operations console for Laravel: health checks, safe Artisan operations, a security audit and a log viewer, all behind Gates.'
+
+// Single source of truth for the version label: the newest released heading in CHANGELOG.md.
+const changelog = readFileSync(new URL('../../CHANGELOG.md', import.meta.url), 'utf8')
+const version = changelog.match(/^## \[(\d+\.\d+\.\d+)\]/m)?.[1]
+if (!version) throw new Error('No released version heading (## [x.y.z]) found in CHANGELOG.md')
+
+/** First prose paragraph of a page as plain text, for its meta description. */
+function firstParagraph(markdown: string): string | undefined {
+  const body = markdown.replace(/^---\n[\s\S]*?\n---\n/, '').replace(/```[\s\S]*?```/g, '')
+  const block = body.split(/\n\s*\n/).map(b => b.trim())
+    .find(b => b && !/^(#|\||<|:::|[-*>]\s|\d+\.\s|!\[)/.test(b))
+  if (!block) return undefined
+  const text = block
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\*\*|__|[*`]/g, '') // single "_" stays: it appears in config keys
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return text.length <= 160 ? text : text.slice(0, 157).replace(/\s+\S*$/, '') + '…'
+}
 
 export default defineConfig({
   title: 'Laravel OpConsole',
-  description: 'Monitor. Diagnose. Maintain. An operations console for Laravel: health checks, safe Artisan operations, a security audit and a log viewer, all behind Gates.',
+  description: siteDescription,
   lang: 'en-US',
   cleanUrls: true,
   lastUpdated: true,
@@ -15,19 +38,35 @@ export default defineConfig({
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
-    ['link', { rel: 'canonical', href: hostname }],
     ['meta', { name: 'theme-color', content: '#2952e3' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:site_name', content: 'Laravel OpConsole' }],
-    ['meta', { property: 'og:title', content: 'Laravel OpConsole — Monitor. Diagnose. Maintain.' }],
-    ['meta', { property: 'og:description', content: 'An operations console for Laravel: health checks, safe Artisan operations, a security audit and a log viewer, all behind Gates.' }],
     ['meta', { property: 'og:image', content: ogImage }],
-    ['meta', { property: 'og:url', content: hostname }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
-    ['meta', { name: 'twitter:title', content: 'Laravel OpConsole' }],
-    ['meta', { name: 'twitter:description', content: 'An operations console for Laravel: health checks, safe Artisan operations, a security audit and a log viewer, all behind Gates.' }],
     ['meta', { name: 'twitter:image', content: ogImage }],
   ],
+
+  // Per-page canonical URL, Open Graph/Twitter title and description. A site-wide canonical
+  // pointing at the home page would tell search engines every page is a duplicate of it.
+  transformPageData(pageData, { siteConfig }) {
+    const path = pageData.relativePath.replace(/(^|\/)index\.md$/, '$1').replace(/\.md$/, '')
+    const url = `${hostname}/${path}`
+    if (!pageData.frontmatter.description && pageData.relativePath !== 'index.md') {
+      pageData.description = firstParagraph(readFileSync(join(siteConfig.srcDir, pageData.relativePath), 'utf8')) ?? siteDescription
+    }
+    const title = pageData.relativePath === 'index.md' ? 'Laravel OpConsole — Monitor. Diagnose. Maintain.' : `${pageData.title} | Laravel OpConsole`
+    const description = pageData.description || siteDescription
+
+    pageData.frontmatter.head ??= []
+    pageData.frontmatter.head.push(
+      ['link', { rel: 'canonical', href: url }],
+      ['meta', { property: 'og:url', content: url }],
+      ['meta', { property: 'og:title', content: title }],
+      ['meta', { property: 'og:description', content: description }],
+      ['meta', { name: 'twitter:title', content: title }],
+      ['meta', { name: 'twitter:description', content: description }],
+    )
+  },
 
   themeConfig: {
     // The logo is the full wordmark, so no separate site title next to it.
@@ -40,7 +79,7 @@ export default defineConfig({
       { text: 'Advanced', link: '/advanced/custom-health-checks' },
       { text: 'Reference', link: '/reference/configuration' },
       {
-        text: 'v1.12.0',
+        text: `v${version}`,
         items: [
           { text: 'Changelog', link: '/reference/changelog' },
           { text: 'Upgrade guide', link: '/reference/upgrade' },

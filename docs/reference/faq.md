@@ -1,5 +1,6 @@
 ---
 title: FAQ
+description: "Answers to common Laravel OpConsole questions about access, Gates, production use, operations, logs and the security audit."
 ---
 
 # FAQ

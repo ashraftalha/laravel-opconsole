@@ -1,5 +1,6 @@
 ---
 title: Requirements & Compatibility
+description: "Laravel OpConsole requirements: PHP 8.3 or newer, Laravel 12 or 13, and Composer 2.4+ for the security audit, plus optional pcntl for timed operations."
 ---
 
 # Requirements & Compatibility

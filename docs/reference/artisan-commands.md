@@ -46,7 +46,7 @@ Runs the host Composer dependency audit (production dependencies by default) and
 
 ## Commands executed internally by Operations
 
-These are never typed by a user — they're what the **Operations** tab's allow-listed buttons run on your behalf. See [Allowlisted Artisan Actions](/features/artisan-actions) for the full table and [Configuration Reference](#allow-listed-artisan-actions-actions) for enabling/disabling each one.
+These are never typed by a user — they're what the **Operations** tab's allow-listed buttons run on your behalf. See [Allowlisted Artisan Actions](/features/artisan-actions) for the full table and [Configuration Reference](/reference/configuration#allow-listed-artisan-actions-actions) for enabling/disabling each one.
 
 | Action key | Command |
 |---|---|

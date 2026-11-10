@@ -19,6 +19,7 @@ This release lets operators run a single pending migration (`POST migrate` with 
 - [ ] `composer test` passes all unit and feature tests on **Laravel 12 + Orchestra Testbench 10**.
 - [ ] `composer test` passes all unit and feature tests on **Laravel 13 + Orchestra Testbench 11**.
 - [ ] `composer dump-autoload -o` completes without PSR-4 classmap warnings.
+- [ ] `npm run docs:check` passes: every "current version" reference in the docs matches the newest `## [x.y.z]` in `CHANGELOG.md`. Update those pages in the release commit.
 
 ---
 

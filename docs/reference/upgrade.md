@@ -1,5 +1,6 @@
 ---
 title: Upgrade Guide
+description: "Step-by-step upgrade notes for each Laravel OpConsole release: config keys, assets to republish, migrations and permission changes to review."
 ---
 
 # Upgrade Guide

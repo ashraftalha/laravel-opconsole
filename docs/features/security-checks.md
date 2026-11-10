@@ -1,5 +1,6 @@
 ---
 title: Security Checks
+description: "OpConsole audits Composer dependencies for known advisories and checks Laravel runtime configuration for risky settings such as debug mode and insecure cookies."
 ---
 
 # Security Checks

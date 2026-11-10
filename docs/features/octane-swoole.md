@@ -1,5 +1,6 @@
 ---
 title: Octane & Swoole Monitoring and Worker Reload
+description: "Laravel Octane and Swoole support in OpConsole: runtime health checks, an Octane card in System information, and a Reload Octane workers operation."
 ---
 
 # Octane & Swoole Monitoring and Worker Reload

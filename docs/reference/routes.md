@@ -1,5 +1,6 @@
 ---
 title: Routes & Endpoints
+description: "Every HTTP route Laravel OpConsole registers, with its method, name, middleware, Gate and rate limit, plus the optional JSON health endpoint."
 ---
 
 # Routes & Endpoints

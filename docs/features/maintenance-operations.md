@@ -1,5 +1,6 @@
 ---
 title: Maintenance Operations
+description: "Take a Laravel site down and bring it back from the dashboard, with a one-time bypass URL and a console that stays reachable during maintenance."
 ---
 
 # Maintenance Operations
