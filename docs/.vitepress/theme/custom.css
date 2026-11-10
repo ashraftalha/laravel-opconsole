@@ -1,4 +1,154 @@
-/* The logo is a 4:1 wordmark; the default 24px height makes the text unreadable. */
+/* ---------- Header wordmark: square mark image + real text (theme/index.ts) ---------- */
 .VPNavBarTitle .logo {
-  height: 36px;
+  height: 28px;
+}
+
+.oc-wordmark {
+  margin-left: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--vp-c-text-1);
+}
+
+/* Same blues as the mark (logo-mark.svg / logo-mark-dark.svg). Large bold text, so 3:1 contrast suffices. */
+.oc-wordmark-op {
+  color: #2f80ed;
+}
+
+.dark .oc-wordmark-op {
+  color: #5b9cf5;
+}
+
+/* ---------- Home hero: the mark at a readable size on a soft glow in the mark's blue ---------- */
+:root {
+  --vp-home-hero-image-background-image: radial-gradient(circle, rgba(47, 128, 237, 0.28) 0%, rgba(47, 128, 237, 0) 65%);
+  --vp-home-hero-image-filter: blur(40px);
+}
+
+.VPHero .image-src {
+  width: 160px;
+  height: 160px;
+}
+
+@media (min-width: 960px) {
+  .VPHero .image-src {
+    width: 220px;
+    height: 220px;
+  }
+}
+
+/* ---------- Home feature icons: the console's own line icons, tinted with the brand colour ---------- */
+.VPFeature .icon {
+  color: var(--vp-c-brand-1);
+  background-color: var(--vp-c-brand-soft);
+}
+
+/* ---------- Motion. Everything below is skipped for visitors who prefer reduced motion. ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes oc-fade-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @keyframes oc-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* Uses `translate`, not `transform`: VitePress centres the hero image with transform. */
+  @keyframes oc-float {
+    0%, 100% { translate: 0 0; }
+    50% { translate: 0 -8px; }
+  }
+
+  /* Hero: name, headline, tagline and buttons arrive one after another; the mark floats gently. */
+  .VPHero .name,
+  .VPHero .text,
+  .VPHero .tagline,
+  .VPHero .actions {
+    animation: oc-fade-up 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .VPHero .text { animation-delay: 0.08s; }
+  .VPHero .tagline { animation-delay: 0.16s; }
+  .VPHero .actions { animation-delay: 0.24s; }
+
+  .VPHero .image-container {
+    animation: oc-fade-in 0.8s ease-out 0.2s both;
+  }
+  .VPHero .image-src {
+    animation: oc-float 6s ease-in-out 1s infinite;
+  }
+
+  /* Feature cards: staggered entrance, then a slight lift on hover. */
+  .VPFeatures .item {
+    animation: oc-fade-up 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .VPFeatures .item:nth-child(1) { animation-delay: 0.30s; }
+  .VPFeatures .item:nth-child(2) { animation-delay: 0.36s; }
+  .VPFeatures .item:nth-child(3) { animation-delay: 0.42s; }
+  .VPFeatures .item:nth-child(4) { animation-delay: 0.48s; }
+  .VPFeatures .item:nth-child(5) { animation-delay: 0.54s; }
+  .VPFeatures .item:nth-child(6) { animation-delay: 0.60s; }
+  .VPFeatures .item:nth-child(7) { animation-delay: 0.66s; }
+  .VPFeatures .item:nth-child(8) { animation-delay: 0.72s; }
+
+  .VPFeature {
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .VPFeature:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.25);
+  }
+  .VPFeature .icon {
+    transition: transform 0.25s ease;
+  }
+  .VPFeature:hover .icon {
+    transform: scale(1.08);
+  }
+
+  /* Screenshots and "where next" cards on the home page. */
+  .opconsole-shots img,
+  .opconsole-next a {
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .opconsole-shots img:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 34px -14px rgba(15, 23, 42, 0.35);
+  }
+  .opconsole-next a:hover {
+    transform: translateY(-2px);
+  }
+
+  /* Reveal screenshots as they scroll into view, where the browser supports scroll-driven animations. */
+  @supports (animation-timeline: view()) {
+    .opconsole-shots figure {
+      animation: oc-fade-up linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 60%;
+    }
+  }
+
+  /* Doc pages: content fades in on every navigation (the page root is re-created per route). */
+  .vp-doc > div {
+    animation: oc-fade-in 0.35s ease-out both;
+  }
+
+  /* Header logo: a small lift on hover. */
+  .VPNavBarTitle .title .logo {
+    transition: transform 0.25s ease;
+  }
+  .VPNavBarTitle .title:hover .logo {
+    transform: rotate(-6deg) scale(1.06);
+  }
+
+  /* Sidebar and outline links slide slightly on hover. */
+  .VPSidebarItem .link .text,
+  .VPDocAsideOutline .outline-link {
+    transition: color 0.2s ease, transform 0.2s ease;
+  }
+  .VPSidebarItem .link:hover .text,
+  .VPDocAsideOutline .outline-link:hover {
+    transform: translateX(2px);
+  }
 }

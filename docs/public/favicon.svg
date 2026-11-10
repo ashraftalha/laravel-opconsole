@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- The OpConsole mark redrawn for favicon sizes: tighter padding, bolder strokes, transparent background. -->
+  <style>
+    .s { stroke: #2f80ed; }
+    .f { fill: #2f80ed; }
+    @media (prefers-color-scheme: dark) {
+      .s { stroke: #5b9cf5; }
+      .f { fill: #5b9cf5; }
+    }
+  </style>
+  <rect class="s" x="2.5" y="2.5" width="27" height="27" rx="7" fill="none" stroke-width="2.75"/>
+  <polyline class="s" points="7,16.75 11.25,16.75 13.75,11 17.5,22.25 19.75,16.75 21.75,16.75" fill="none" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect class="f" x="23.25" y="14.5" width="2.5" height="4.75" rx="0.6"/>
+</svg>

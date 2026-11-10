@@ -37,7 +37,10 @@ export default defineConfig({
   },
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
+    // favicon.svg adapts to dark browser UI; favicon.ico (16/32/48) covers Safari and Google's favicon crawler.
+    ['link', { rel: 'icon', href: '/favicon.ico', sizes: '48x48' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
+    ['link', { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' }],
     ['meta', { name: 'theme-color', content: '#2952e3' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:site_name', content: 'Laravel OpConsole' }],
@@ -69,8 +72,8 @@ export default defineConfig({
   },
 
   themeConfig: {
-    // The logo is the full wordmark, so no separate site title next to it.
-    logo: { light: '/logo.svg', dark: '/logo-dark.svg', alt: 'OpConsole' },
+    // Square mark as the image; the name is rendered as text by the theme (theme/index.ts).
+    logo: { light: '/logo-mark.svg', dark: '/logo-mark-dark.svg', alt: '' },
     siteTitle: false,
 
     nav: [
