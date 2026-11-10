@@ -4,7 +4,22 @@ title: Upgrade Guide
 
 # Upgrade Guide
 
-This document covers upgrades to the current `v1.11.0` release. The later sections retain migration notes for older installations.
+This document covers upgrades to the current `v1.12.0` release. The later sections retain migration notes for older installations.
+
+## Upgrade from v1.11.0 to v1.12.0
+
+No database migrations are required, and no routes, Gates or config keys changed. Existing configuration keeps working.
+
+1. **Update the package:**
+
+   ```bash
+   composer update ashraftalha/laravel-opconsole
+   php artisan config:clear
+   ```
+
+2. **Published assets or views:** the Run migrations card changed (full-width list with a **Run only this** button per pending migration), and the stylesheet changed. Republish assets with `php artisan vendor:publish --tag=opconsole-assets --force`. If you customised views, merge the changes from the package's `resources/views/index.blade.php`.
+
+3. **Permissions to review:** anyone allowed to run `migrate` can now apply a single pending migration, including one ahead of earlier pending files. The confirmation warns about this. The same Gate applies as before (`migrate` in `authorization.action_gates`, or the run Gate).
 
 ## Upgrade from v1.10.0 to v1.11.0
 

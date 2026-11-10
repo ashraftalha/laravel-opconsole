@@ -39,7 +39,7 @@ export default defineConfig({
       { text: 'Advanced', link: '/advanced/custom-health-checks' },
       { text: 'Reference', link: '/reference/configuration' },
       {
-        text: 'v1.11.0',
+        text: 'v1.12.0',
         items: [
           { text: 'Changelog', link: '/reference/changelog' },
           { text: 'Upgrade guide', link: '/reference/upgrade' },
