@@ -8,6 +8,11 @@ title: Operational Audit Trail
 
 Every operation run through OpConsole — Artisan actions, log downloads, log deletions, failed-job retries — is recorded in the `opconsole_runs` table and shown in the **History** tab, grouped by day: who ran what, when, how long it took, and any error.
 
+<figure class="oc-shot">
+  <img src="/screenshots/history-light.png" alt="OpConsole History tab: operations grouped by day with status, user, exit code and duration" width="1920" height="1245" loading="lazy">
+  <figcaption>The History tab: every operation grouped by day, with who ran it, the outcome, exit code and duration.</figcaption>
+</figure>
+
 ## Why it is useful
 
 When something changes in production, "who ran what and when" is the first question during a postmortem. This answers it without grepping deploy logs or asking around.

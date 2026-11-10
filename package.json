@@ -13,6 +13,7 @@
         "docs:check": "node docs/.vitepress/check-versions.mjs"
     },
     "devDependencies": {
+        "medium-zoom": "^1.1.2",
         "sitemap": "^10.0.0",
         "vitepress": "^1.6.4"
     }

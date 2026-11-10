@@ -8,6 +8,11 @@ title: Log Viewer & Log Management
 
 The **Logs** tab lists readable log files, an entries-per-hour chart for the last 24 hours, level and environment filters, full-text search with highlighting, repeat counts for duplicate consecutive entries, and stack traces with your application's own frames highlighted and vendor frames dimmed.
 
+<figure class="oc-shot">
+  <img src="/screenshots/logs-light.png" alt="OpConsole Logs tab: log files, an entries-per-hour chart, level filters, search and log entries with repeat counts" width="1920" height="1245" loading="lazy">
+  <figcaption>The Logs tab: file list, entries-per-hour chart, level filters, search, and repeat counts.</figcaption>
+</figure>
+
 ## Why it is useful
 
 Most production debugging starts with "what's actually in the log right now" — this gives you that without a terminal, with the noise (repeated identical entries, vendor-frame clutter) reduced.

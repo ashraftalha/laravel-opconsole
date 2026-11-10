@@ -52,6 +52,17 @@ features:
 
 <script setup>
 import { useData } from 'vitepress'
+
+const slides = [
+  { src: '/screenshots/overview-light.png', alt: 'OpConsole Overview tab: health score, status summary, issues with fix commands, and runtime status', caption: 'Overview: health score, status summary, and fix commands' },
+  { src: '/screenshots/health-light.png', alt: 'OpConsole Health tab: checks grouped by area with status filters and fix commands', caption: 'Health: every check grouped by area, filterable by status' },
+  { src: '/screenshots/security-light.png', alt: 'OpConsole Security tab: advisories by severity with update commands', caption: 'Security: advisories by severity and scan freshness' },
+  { src: '/screenshots/operations-light.png', alt: 'OpConsole Operations tab: safe operations and a danger zone, with each pending migration runnable on its own', caption: 'Operations: safe tasks, a danger zone, and run one migration or all', height: 1770 },
+  { src: '/screenshots/jobs-light.png', alt: 'OpConsole Failed jobs tab: failed queue jobs with their error and a Retry button', caption: 'Failed jobs: errors at a glance, retry one job' },
+  { src: '/screenshots/history-light.png', alt: 'OpConsole History tab: operations grouped by day with durations', caption: 'History: every operation grouped by day' },
+  { src: '/screenshots/system-light.png', alt: 'OpConsole System information tab: application, PHP, performance, extensions, server and database settings', caption: 'System information: runtime and service settings, with a support summary' },
+  { src: '/screenshots/logs-light.png', alt: 'OpConsole Logs tab: file list, entries per hour chart and filters', caption: 'Logs: hourly chart, filters, and repeat counts' },
+]
 </script>
 
 <div class="opconsole-landing">
@@ -68,32 +79,7 @@ Then sign in and open `/admin/opconsole`. Works immediately with `APP_ENV=local`
 
 ## See it in action
 
-<div class="opconsole-shots">
-  <figure>
-    <img src="/screenshots/overview-light.png" alt="OpConsole Overview tab: health score, status summary, issues with fix commands, and runtime status" loading="lazy">
-    <figcaption>Overview — health score, status summary, and fix commands</figcaption>
-  </figure>
-  <figure>
-    <img src="/screenshots/health-light.png" alt="OpConsole Health tab: checks grouped by area with status filters and fix commands" loading="lazy">
-    <figcaption>Health — every check grouped by area, filterable by status</figcaption>
-  </figure>
-  <figure>
-    <img src="/screenshots/operations-light.png" alt="OpConsole Operations tab: safe operations and a danger zone, with each pending migration runnable on its own" loading="lazy">
-    <figcaption>Operations — safe tasks and a separate danger zone</figcaption>
-  </figure>
-  <figure>
-    <img src="/screenshots/security-light.png" alt="OpConsole Security tab: advisories by severity with update commands" loading="lazy">
-    <figcaption>Security — advisories by severity, scan freshness</figcaption>
-  </figure>
-  <figure>
-    <img src="/screenshots/logs-light.png" alt="OpConsole Logs tab: file list, entries per hour chart and filters" loading="lazy">
-    <figcaption>Logs — hourly chart, filters, repeat counts</figcaption>
-  </figure>
-  <figure>
-    <img src="/screenshots/jobs-light.png" alt="OpConsole Failed jobs tab: failed queue jobs with their error and a Retry button" loading="lazy">
-    <figcaption>Failed jobs — errors at a glance, retry one job</figcaption>
-  </figure>
-</div>
+<ScreenshotSlider :slides="slides" />
 
 <p class="opconsole-shots-note">Screenshots use sample data.</p>
 
@@ -121,18 +107,13 @@ Verified in CI across PHP 8.3–8.5 × Laravel 12/13 × `prefer-stable`/`prefer-
 
 <style>
 .opconsole-landing { max-width: 960px; margin: 0 auto; padding: 0 24px 64px; }
-.opconsole-shots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin: 24px 0; }
-.opconsole-shots figure { margin: 0; }
-.opconsole-shots img { width: 100%; border-radius: 8px; border: 1px solid var(--vp-c-divider); display: block; }
-.opconsole-shots figcaption { font-size: 13px; color: var(--vp-c-text-2); margin-top: 6px; text-align: center; }
-.opconsole-shots-note { font-size: 13px; color: var(--vp-c-text-3); text-align: center; margin-top: -8px; }
+.opconsole-shots-note { font-size: 13px; color: var(--vp-c-text-3); text-align: center; margin-top: 4px; }
 .opconsole-next { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 .opconsole-next a { display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 1px solid var(--vp-c-divider); border-radius: 8px; text-decoration: none; color: inherit; }
 .opconsole-next a:hover { border-color: var(--vp-c-brand-1); }
 .opconsole-next strong { color: var(--vp-c-brand-1); }
 .opconsole-next span { font-size: 14px; color: var(--vp-c-text-2); }
 @media (max-width: 640px) {
-  .opconsole-shots { grid-template-columns: 1fr; }
   .opconsole-next { grid-template-columns: 1fr; }
 }
 </style>

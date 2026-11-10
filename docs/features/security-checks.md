@@ -12,6 +12,11 @@ OpConsole combines two kinds of security coverage:
 1. **Host dependency audit:** scans your locked Composer packages — including transitive dependencies — against known advisories.
 2. **Runtime configuration checks:** Laravel configuration warnings for app key presence, debug mode, session cookie flags, HTTPS enforcement, and OpConsole's own authorization/action configuration.
 
+<figure class="oc-shot">
+  <img src="/screenshots/security-light.png" alt="OpConsole Security tab: advisory counts by severity, scan freshness, and advisories with composer update commands" width="1920" height="1245" loading="lazy">
+  <figcaption>The Security tab: advisories by severity, scan freshness, and a ready-to-copy update command for each package.</figcaption>
+</figure>
+
 The dashboard **only reads the last stored report** for the dependency audit — no dashboard page load ever launches Composer.
 
 ## Why it is useful

@@ -8,6 +8,11 @@ title: Health Dashboard
 
 The dashboard is a single page at `/admin/opconsole` (by default) organized into eight tabs, with a header showing a **0–100 health score**, the environment badge, and the Laravel and PHP versions.
 
+<figure class="oc-shot">
+  <img src="/screenshots/overview-light.png" alt="OpConsole Overview tab: health score, status summary, issues with fix commands and runtime status" width="1920" height="1245" loading="lazy">
+  <figcaption>The Overview tab with the health score in the header. Click any screenshot to enlarge it.</figcaption>
+</figure>
+
 | Tab | What you get |
 |---|---|
 | **Overview** | Overall state with a status bar, summary cards (database, health, log errors, cache, queue, scheduler, disk, security), issues needing attention with copyable fix commands, runtime status, and a recent-activity feed. |
@@ -18,6 +23,45 @@ The dashboard is a single page at `/admin/opconsole` (by default) organized into
 | **History** | An audit trail grouped by day: who ran what, when, how long it took, and any error. |
 | **System** | Application, PHP, performance (OPcache, JIT, Xdebug), extensions, server, database, service and cache settings, with production-risk flags and "Copy summary for support". |
 | **Logs** | Log file list, an entries-per-hour chart, level/environment filters, search with highlighting, repeat counts, and stack traces with your app's frames highlighted. |
+
+### Every tab at a glance
+
+<div class="oc-shot-grid">
+  <figure class="oc-shot">
+    <img src="/screenshots/overview-light.png" alt="OpConsole Overview tab" width="1920" height="1245" loading="lazy">
+    <figcaption>Overview</figcaption>
+  </figure>
+  <figure class="oc-shot">
+    <img src="/screenshots/health-light.png" alt="OpConsole Health tab" width="1920" height="1245" loading="lazy">
+    <figcaption>Health</figcaption>
+  </figure>
+  <figure class="oc-shot">
+    <img src="/screenshots/security-light.png" alt="OpConsole Security tab" width="1920" height="1245" loading="lazy">
+    <figcaption>Security</figcaption>
+  </figure>
+  <figure class="oc-shot">
+    <img src="/screenshots/operations-light.png" alt="OpConsole Operations tab" width="1920" height="1770" loading="lazy">
+    <figcaption>Operations</figcaption>
+  </figure>
+  <figure class="oc-shot">
+    <img src="/screenshots/jobs-light.png" alt="OpConsole Failed jobs tab" width="1920" height="1245" loading="lazy">
+    <figcaption>Failed jobs</figcaption>
+  </figure>
+  <figure class="oc-shot">
+    <img src="/screenshots/history-light.png" alt="OpConsole History tab" width="1920" height="1245" loading="lazy">
+    <figcaption>History</figcaption>
+  </figure>
+  <figure class="oc-shot">
+    <img src="/screenshots/system-light.png" alt="OpConsole System information tab" width="1920" height="1245" loading="lazy">
+    <figcaption>System information</figcaption>
+  </figure>
+  <figure class="oc-shot">
+    <img src="/screenshots/logs-light.png" alt="OpConsole Logs tab" width="1920" height="1245" loading="lazy">
+    <figcaption>Logs</figcaption>
+  </figure>
+</div>
+
+<p class="oc-shot-note">Screenshots use sample data.</p>
 
 ## The health score
 

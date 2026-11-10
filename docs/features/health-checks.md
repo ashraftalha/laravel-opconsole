@@ -8,6 +8,11 @@ title: Health Checks & Health Score
 
 OpConsole runs a set of built-in diagnostics, plus any checks you register, and reports each as one of four statuses: `healthy`, `warning`, `critical`, or `unknown`. The same report feeds the dashboard's **Health** tab, the `opconsole:health` Artisan command, and the optional JSON health endpoint — there is one health report policy, not three.
 
+<figure class="oc-shot">
+  <img src="/screenshots/health-light.png" alt="OpConsole Health tab: checks grouped by area with status filters, a critical check expanded with its fix command" width="1920" height="1245" loading="lazy">
+  <figcaption>The Health tab: every check grouped by area, critical issues first, with status filters and the fix for each problem.</figcaption>
+</figure>
+
 Checks are grouped by area, in a fixed order with problem groups surfaced first: Security, Database and queues, Scheduler and workers, Cache and performance, Files and folders, PHP settings, URL and email, then custom groups.
 
 ## Why it is useful

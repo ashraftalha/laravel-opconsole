@@ -12,6 +12,11 @@ Two operations manage Laravel's maintenance mode directly from the dashboard:
 - **Maintenance mode (`down`):** runs `php artisan down --secret=<random>`. A one-time bypass URL containing the secret is shown once in the output panel — it is never logged or audited.
 - **Bring online (`up`):** runs `php artisan up`.
 
+<figure class="oc-shot">
+  <img src="/screenshots/operations-light.png" alt="OpConsole Operations tab with the Bring online card in the safe group and the Maintenance mode card in the danger zone" width="1920" height="1770" loading="lazy">
+  <figcaption>Bring online sits in the safe group; Maintenance mode is in the danger zone, below Run migrations.</figcaption>
+</figure>
+
 While the application is down, a warning health check (`app.maintenance_mode`) stays visible, with fix `php artisan up`.
 
 ## Why it is useful

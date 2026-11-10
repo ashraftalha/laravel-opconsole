@@ -8,6 +8,11 @@ title: Allowlisted Artisan Actions
 
 The **Operations** tab exposes a fixed, closed allow-list of Artisan operations, split into a **Safe** group and a **Danger zone**. There is no way to run an arbitrary command — the list below is exhaustive.
 
+<figure class="oc-shot">
+  <img src="/screenshots/operations-light.png" alt="OpConsole Operations tab: safe operations, and a danger zone with the Run migrations card listing each pending migration" width="1920" height="1770" loading="lazy">
+  <figcaption>The Operations tab: safe tasks, the danger zone, and the Run migrations card, where you run all pending migrations or one at a time.</figcaption>
+</figure>
+
 | Operation | Command | Risk | On by default |
 |---|---|---|---|
 | Clear caches | `optimize:clear` | Low | Yes |

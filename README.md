@@ -7,7 +7,11 @@
 <a href="https://packagist.org/packages/ashraftalha/laravel-opconsole"><img src="https://img.shields.io/packagist/dt/ashraftalha/laravel-opconsole" alt="Total Downloads"></a>
 <a href="https://github.com/ashraftalha/laravel-opconsole/actions/workflows/tests.yml"><img src="https://github.com/ashraftalha/laravel-opconsole/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
 <a href="LICENSE"><img src="https://img.shields.io/github/license/ashraftalha/laravel-opconsole" alt="License"></a>
+<a href="https://opconsole.ashraftalha.com/reference/supported-versions"><img src="https://img.shields.io/badge/-12.x%20%7C%2013.x-FF2D20?logo=laravel&logoColor=FF2D20&labelColor=555" alt="Laravel 12.x | 13.x"></a>
+<a href="https://opconsole.ashraftalha.com/"><img src="https://img.shields.io/badge/docs-website-2f80ed" alt="Documentation website"></a>
 </p>
+
+<p align="center">📖 Full documentation: <a href="https://opconsole.ashraftalha.com/">https://opconsole.ashraftalha.com/</a></p>
 
 <p align="center">
 <img src="art/screenshots/overview-light.png" alt="OpConsole overview: health score, status summary, issues with fix commands, and runtime status" width="900">
@@ -20,16 +24,9 @@ OpConsole adds one page to your app, `/admin/opconsole` by default. It answers "
 - [What's inside](#whats-inside)
 - [Requirements](#requirements)
 - [Quick start](#quick-start)
-- [Access control](#access-control)
-- [Operations](#operations)
-- [Laravel Octane and Swoole](#laravel-octane-and-swoole)
-- [Monitoring and alerts](#monitoring-and-alerts)
-- [Security audit](#security-audit)
-- [Custom health checks](#custom-health-checks)
-- [Appearance](#appearance)
-- [Configuration](#configuration)
+- [Learn more](#learn-more)
 - [Updating](#updating)
-- [Documentation](#documentation)
+- [Testing](#testing)
 
 ## What's inside
 
@@ -77,7 +74,7 @@ The console is organised in eight tabs. A header above them shows a **0–100 he
 
 - PHP 8.3+
 - Laravel 12 or 13
-- **Optional, for browser operations:** the web PHP runtime needs the `pcntl` functions, which enforce the action timeout. Many PHP-FPM builds disable them. Without `pcntl`, everything else works, and the affected operations are disabled with an explanation. See [Execution environments](docs/reference/configuration.md#execution-environments).
+- **Optional, for browser operations:** the web PHP runtime needs the `pcntl` functions, which enforce the action timeout. Many PHP-FPM builds disable them. Without `pcntl`, everything else works, and the affected operations are disabled with an explanation. See [Execution environments](https://opconsole.ashraftalha.com/reference/configuration#execution-environments).
 - **Optional, for the security audit:** Composer 2.4+ and a `composer.lock` in your app.
 
 ## Quick start
@@ -126,182 +123,26 @@ php artisan queue:work
 
 That's it.
 
-## Access control
+Need finer permissions? Map individual operations to their own Gates (for example, support staff can clear caches while migrations stay with administrators). See [Authentication & Authorization](https://opconsole.ashraftalha.com/guide/authentication).
 
-OpConsole checks four Gates. If you don't define `viewOpConsole` or `runOpConsoleActions`, a fail-closed default allows access **only** in the `local` environment.
+## Learn more
 
-| Gate | Allows | Falls back to |
-|---|---|---|
-| `viewOpConsole` | Viewing the dashboard, health checks, history and log tail | Local only |
-| `runOpConsoleActions` | Running operations | Local only |
-| `downloadOpConsoleLogs` | Downloading full raw log files | `viewOpConsole` |
-| `deleteOpConsoleLogs` | Deleting rotated log files | `runOpConsoleActions` |
+📖 The full documentation lives at **[opconsole.ashraftalha.com](https://opconsole.ashraftalha.com/)**.
 
-**Per-operation permissions.** For example, support staff can clear caches while migrations stay with administrators:
-
-```php
-// config/opconsole.php
-'authorization' => [
-    // ...
-    'action_gates' => [
-        'clear' => 'clearOpConsoleCaches',
-        'queue_retry' => 'retryOpConsoleJobs',
-    ],
-],
-```
-
-```php
-Gate::define('clearOpConsoleCaches', fn ($user) => $user->hasRole('support'));
-```
-
-Users without run permission see the console in read-only mode, and each button explains why it is disabled.
-
-## Operations
-
-| Operation | Command | Risk | On by default |
-|---|---|---|---|
-| Clear caches | `optimize:clear` | Low | Yes |
-| Optimize performance | `optimize` | Low | Yes |
-| Bring online | `up` | Low | Yes |
-| Run security scan | `opconsole:security` | Low (read-only) | Yes |
-| Storage link | `storage:link` | Low | No (`OPCONSOLE_ACTION_STORAGE_LINK=true`) |
-| Maintenance mode | `down --secret=…` | Medium | Yes |
-| Run migrations | `migrate --force --isolated` | High | Yes |
-| Reload Octane workers | `octane:reload` | Low | Yes, when Laravel Octane is installed |
-| Retry a failed job | `queue:retry {id}` | Medium | Yes (`OPCONSOLE_FAILED_JOBS_RETRY`), from the **Failed jobs** tab |
-
-**Safety rules:**
-- Every operation asks for confirmation first. The confirmation names the environment and shows the exact command.
-- High-risk operations need a **press-and-hold** (or two presses), never a single click.
-- Only one operation runs at a time. A dedicated lock store that survives `optimize:clear` ensures this.
-- Every run is bounded by `OPCONSOLE_MAX_RUNTIME_SECONDS`.
-- Every run is recorded in the audit history. With `OPCONSOLE_AUDIT_POLICY=required`, an operation is refused if its audit row can't be written first.
-- Maintenance mode shows a one-time bypass URL, and the console stays reachable while the site is down.
-- Migrations only ever run forward. There are no resets and no rollbacks. You can run all pending migrations or pick one file to run on its own.
-
-The list is a closed allow-list. You can disable entries in `config/opconsole.php` under `actions`, but you can't add arbitrary commands.
-
-## Laravel Octane and Swoole
-
-When [Laravel Octane](https://laravel.com/docs/octane) is installed, OpConsole adds an **Octane and runtime** health group, an **Octane** card in System information and a **Reload Octane workers** operation. Without Octane nothing changes.
-
-It checks that the configured server (Swoole, RoadRunner or FrankenPHP) is installed and running, that requests are served by Octane, that `octane.garbage` stays below `memory_limit`, that `octane.https` matches your `APP_URL`, and that OPcache is on for workers. With Swoole it also checks that `package_max_length` covers your upload size (Swoole ignores `upload_max_filesize`), worker count against CPU cores, Xdebug, and the Swoole log file.
-
-After clearing caches, optimizing or migrating, the console reminds you to reload workers, since they keep the old configuration in memory. Inside a Swoole worker, operations that rely on a `SIGALRM` timeout are refused by default because the signal would hit the worker itself; set `OPCONSOLE_OCTANE_ALLOW_ACTIONS=true` to override. See [Configuration](docs/reference/configuration.md#laravel-octane-octane).
-
-## Monitoring and alerts
-
-**From the command line or CI:**
-
-```bash
-php artisan opconsole:health                  # table output, exits 1 on critical
-php artisan opconsole:health --fail-on=warning
-php artisan opconsole:health --json
-```
-
-**For uptime monitors:** a token-protected JSON endpoint, off by default. It returns HTTP 503 when any check is critical.
-
-```dotenv
-OPCONSOLE_HEALTH_ENDPOINT=true
-OPCONSOLE_HEALTH_TOKEN=change-me-to-a-long-random-string
-```
-
-```bash
-curl -H "Authorization: Bearer $TOKEN" https://your-app.test/admin/opconsole/health
-```
-
-**Alerts:**
-1. Enable `notifications` in the config.
-2. Set a persistent, shared state store.
-3. Schedule `php artisan opconsole:health --notify`.
-
-You are notified when health becomes unhealthy, when it gets worse, and when it recovers. No queue worker is needed, and one failing channel never blocks the others.
-
-## Security audit
-
-The audit checks your app's locked Composer packages, including transitive dependencies, against known advisories:
-
-```bash
-php artisan opconsole:security               # production dependencies
-php artisan opconsole:security --include-dev # include development dependencies
-php artisan opconsole:security --json
-```
-
-- **Run it from:** the command line, the **Run security scan** operation, or daily with `OPCONSOLE_SECURITY_SCHEDULE=true`.
-- **Stale results:** the dashboard only reads stored results. A scan that is older than `OPCONSOLE_SECURITY_MAX_AGE`, or that ran before `composer.json` or `composer.lock` changed, is shown as stale, never as clean.
-
-See [docs/reference/security.md](docs/reference/security.md) for its scope, network requests and exit codes.
-
-## Custom health checks
-
-```php
-namespace App\HealthChecks;
-
-use AshrafTalha\OpConsole\Contracts\HealthCheck;
-use Illuminate\Support\Facades\Storage;
-
-class BackupDiskCheck implements HealthCheck
-{
-    public function run(): array
-    {
-        $ok = Storage::disk('local')->exists('backups');
-
-        return [
-            'id' => 'backups',                // reported as custom.backups
-            'group' => 'Backups',
-            'label' => 'Backup folder',
-            'ok' => $ok,
-            'severity' => 'warning',          // danger, warning or info
-            'hint' => 'The backup folder must exist.',
-            'value' => $ok ? 'Found' : 'Missing',
-            'fix' => $ok ? null : 'mkdir -p storage/app/backups',
-        ];
-    }
-}
-```
-
-Register it in `config/opconsole.php`:
-
-```php
-'checks' => [
-    App\HealthChecks\BackupDiskCheck::class,
-],
-```
-
-Custom checks appear in the Health tab, the overview, the CLI command and the JSON endpoint. A check can also return `'status' => 'unknown'` when it cannot verify something. To treat that as critical, or to be alerted if the check throws, add its ID (`custom.backups`) to `health.required_checks`.
-
-## Appearance
-
-| Option | Env | Default | Effect |
-|---|---|---|---|
-| `theme` | `OPCONSOLE_THEME` | `auto` | `auto` follows the visitor's system setting. `light` or `dark` forces one. |
-| `theme_toggle` | `OPCONSOLE_THEME_TOGGLE` | `true` | Light/dark switch in the header, remembered per browser. |
-| `web_fonts` | `OPCONSOLE_WEB_FONTS` | `false` | Loads IBM Plex from Google Fonts. Off by default, so there are no external requests. If you enable it, allow `fonts.googleapis.com` and `fonts.gstatic.com` in your CSP. |
-| `layout` | — | `null` | Renders inside your own Blade layout instead of the standalone page. Your layout must `@yield('content')` and provide `@stack('styles')` and `@stack('scripts')`. |
-| `back_url` / `back_label` | — | `null` / `Dashboard` | Adds a link back to your own admin panel. |
-
-To customise the markup or the stylesheet, publish them:
-
-```bash
-php artisan vendor:publish --tag=opconsole-views
-php artisan vendor:publish --tag=opconsole-assets
-```
-
-## Configuration
-
-The most common `.env` options:
-
-```dotenv
-OPCONSOLE_ENABLED=true                  # kill switch: false registers no routes
-OPCONSOLE_ROUTE_PREFIX=admin/opconsole
-OPCONSOLE_LOCK_STORE=opconsole          # use an isolated redis/database store on multiple servers
-OPCONSOLE_MAX_RUNTIME_SECONDS=1500
-OPCONSOLE_AUDIT_POLICY=best_effort      # or "required"
-OPCONSOLE_HISTORY_LIMIT=15
-OPCONSOLE_DISK_MIN_FREE_PERCENT=10
-```
-
-See [docs/reference/configuration.md](docs/reference/configuration.md) for every option.
+| Topic | What it covers |
+|---|---|
+| [Authentication & Authorization](https://opconsole.ashraftalha.com/guide/authentication) | The four Gates, the fail-closed default, per-operation Gates, read-only users |
+| [Operations](https://opconsole.ashraftalha.com/features/artisan-actions) | Every allow-listed operation, its risk, and the safety rules (confirmation, press-and-hold, locks, runtime limits, audit). Run all pending migrations or one at a time |
+| [Failed jobs & retry](https://opconsole.ashraftalha.com/features/failed-jobs) | The failed-jobs tab and per-job retry |
+| [Health checks & alerts](https://opconsole.ashraftalha.com/features/health-checks) | Built-in checks, the health score, and [alerts when health changes](https://opconsole.ashraftalha.com/features/health-checks#alerts-health-transition-notifications) |
+| [CLI and JSON health endpoint](https://opconsole.ashraftalha.com/reference/artisan-commands) | `opconsole:health` for CI and the token-protected [endpoint for uptime monitors](https://opconsole.ashraftalha.com/reference/configuration#health-endpoint-health-endpoint) |
+| [Security audit](https://opconsole.ashraftalha.com/features/security-checks) | Composer advisory scanning, `opconsole:security`, stale-result handling |
+| [Laravel Octane & Swoole](https://opconsole.ashraftalha.com/features/octane-swoole) | Octane health checks, Reload Octane workers, why timed operations are refused inside Swoole workers |
+| [Custom health checks](https://opconsole.ashraftalha.com/advanced/custom-health-checks) | Write your own check with the `HealthCheck` contract |
+| [Configuration](https://opconsole.ashraftalha.com/reference/configuration) and [environment variables](https://opconsole.ashraftalha.com/reference/environment-variables) | Every option, including themes, your own Blade layout and a back link |
+| [Production deployment](https://opconsole.ashraftalha.com/advanced/production-deployment) | Caching, lock stores on multiple servers, the audit policy |
+| [Security model](https://opconsole.ashraftalha.com/reference/security) | How access, CSRF, the command allow-list and output sanitising work |
+| [Troubleshooting](https://opconsole.ashraftalha.com/reference/troubleshooting) and [FAQ](https://opconsole.ashraftalha.com/reference/faq) | Common problems and questions |
 
 ## Updating
 
@@ -317,17 +158,7 @@ Composer never changes files you published. If you published any of them earlier
 - **Views:** compare them with the new ones, or re-publish with `--tag=opconsole-views --force`.
 - **Config:** copy over any new keys from the [latest config](config/opconsole.php). Re-publishing with `--force` overwrites your changes.
 
-See [CHANGELOG.md](CHANGELOG.md) for what changed and [docs/reference/upgrade.md](docs/reference/upgrade.md) for version-specific steps.
-
-## Documentation
-
-Full documentation, including every feature, configuration key, and the Artisan commands, is at **[opconsole.ashraftalha.com](https://opconsole.ashraftalha.com)**.
-
-- [Installation](docs/guide/installation.md)
-- [Configuration](docs/reference/configuration.md)
-- [Security model](docs/reference/security.md)
-- [Architecture](docs/reference/architecture.md)
-- [Upgrade guide](docs/reference/upgrade.md)
+See the [changelog](CHANGELOG.md) for what changed and the [upgrade guide](https://opconsole.ashraftalha.com/reference/upgrade) for version-specific steps.
 
 ## Testing
 
@@ -336,18 +167,6 @@ composer test     # PHPUnit through Testbench
 composer stan     # Larastan
 composer pint     # code style
 ```
-
-## Roadmap
-
-- [x] Scheduler and queue worker heartbeats
-- [x] Cache round-trip, production cache and disk space checks
-- [x] Maintenance mode, storage link and security scan operations
-- [x] `opconsole:health` command and JSON health endpoint
-- [x] Host dependency security audit
-- [x] Execution safety: bounded runtimes, isolated locks, `audit.policy`
-- [x] Dashboard redesign: logo-based brand, health score, command palette, log timeline
-- [x] Failed jobs with per-job retry
-- [x] Laravel Octane and Swoole checks, and a Reload Octane workers operation
 
 ## Contributing
 

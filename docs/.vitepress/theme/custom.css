@@ -44,6 +44,64 @@
   background-color: var(--vp-c-brand-soft);
 }
 
+/* ---------- Screenshots in doc pages (click to zoom, see theme/index.ts) ---------- */
+.vp-doc .oc-shot {
+  margin: 20px 0 24px;
+}
+
+.vp-doc .oc-shot img {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px -16px rgba(15, 23, 42, 0.35);
+  cursor: zoom-in;
+}
+
+.vp-doc .oc-shot figcaption {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--vp-c-text-2);
+  text-align: center;
+}
+
+.vp-doc .oc-shot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.vp-doc .oc-shot-grid .oc-shot {
+  margin: 0;
+}
+
+/* Thumbnails share one height; the full image (including the taller Operations shot) shows on zoom. */
+.vp-doc .oc-shot-grid .oc-shot img {
+  aspect-ratio: 1920 / 1245;
+  object-fit: cover;
+  object-position: top;
+}
+
+.vp-doc .oc-shot-note {
+  font-size: 13px;
+  color: var(--vp-c-text-3);
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .vp-doc .oc-shot-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Zoom overlay above the nav bar and sidebar. */
+.medium-zoom-overlay,
+.medium-zoom-image--opened {
+  z-index: 100;
+}
+
 /* ---------- Motion. Everything below is skipped for visitors who prefer reduced motion. ---------- */
 @media (prefers-reduced-motion: no-preference) {
   @keyframes oc-fade-up {
@@ -107,26 +165,12 @@
     transform: scale(1.08);
   }
 
-  /* Screenshots and "where next" cards on the home page. */
-  .opconsole-shots img,
+  /* "Where next" cards on the home page. */
   .opconsole-next a {
     transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
   }
-  .opconsole-shots img:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 14px 34px -14px rgba(15, 23, 42, 0.35);
-  }
   .opconsole-next a:hover {
     transform: translateY(-2px);
-  }
-
-  /* Reveal screenshots as they scroll into view, where the browser supports scroll-driven animations. */
-  @supports (animation-timeline: view()) {
-    .opconsole-shots figure {
-      animation: oc-fade-up linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 60%;
-    }
   }
 
   /* Doc pages: content fades in on every navigation (the page root is re-created per route). */

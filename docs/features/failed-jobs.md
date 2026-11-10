@@ -8,6 +8,11 @@ title: Failed Jobs & Retry
 
 The **Failed jobs** tab lists the newest failed queue jobs — name, connection, queue, failure time, and the first line of the sanitized exception. Job **payloads are never shown**. Each row has a **Retry** button that runs `queue:retry {id}`.
 
+<figure class="oc-shot">
+  <img src="/screenshots/jobs-light.png" alt="OpConsole Failed jobs tab: failed queue jobs with their queue, failure time, error and a Retry button" width="1920" height="1245" loading="lazy">
+  <figcaption>The Failed jobs tab: each job with its queue, failure time and error (never the payload), and a Retry button.</figcaption>
+</figure>
+
 ## Why it is useful
 
 Seeing what failed, and retrying one specific job, previously meant SSH and `php artisan queue:failed` / `queue:retry`. This surfaces the same information and the same action in the browser, behind the same Gates as everything else.
