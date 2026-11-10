@@ -55,10 +55,10 @@ The console is organised in eight tabs. A header above them shows a **0–100 he
 </tr>
 <tr>
 <td width="50%"><img src="art/screenshots/security-light.png" alt="Security tab: advisories by severity with update commands"><br><sub><b>Security</b>: advisories by severity, scan freshness</sub></td>
-<td width="50%"><img src="art/screenshots/logs-dark.png" alt="Logs tab in dark mode: file list, entries per hour chart and filters"><br><sub><b>Logs</b>: hourly chart, filters, repeat counts (dark)</sub></td>
+<td width="50%"><img src="art/screenshots/logs-light.png" alt="Logs tab: file list, entries per hour chart and filters"><br><sub><b>Logs</b>: hourly chart, filters, repeat counts</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="art/screenshots/history-dark.png" alt="History tab in dark mode: operations grouped by day with durations"><br><sub><b>History</b>: audit trail grouped by day (dark)</sub></td>
+<td width="50%"><img src="art/screenshots/history-light.png" alt="History tab: operations grouped by day with durations"><br><sub><b>History</b>: audit trail grouped by day</sub></td>
 <td width="50%"><img src="art/screenshots/jobs-light.png" alt="Failed jobs tab: failed queue jobs with their error and a Retry button"><br><sub><b>Failed jobs</b>: errors at a glance, retry one job</sub></td>
 </tr>
 </table>

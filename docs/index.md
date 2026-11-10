@@ -85,8 +85,8 @@ Then sign in and open `/admin/opconsole`. Works immediately with `APP_ENV=local`
     <figcaption>Security — advisories by severity, scan freshness</figcaption>
   </figure>
   <figure>
-    <img src="/screenshots/logs-dark.png" alt="OpConsole Logs tab in dark mode: file list, entries per hour chart and filters" loading="lazy">
-    <figcaption>Logs — hourly chart, filters, repeat counts (dark theme)</figcaption>
+    <img src="/screenshots/logs-light.png" alt="OpConsole Logs tab: file list, entries per hour chart and filters" loading="lazy">
+    <figcaption>Logs — hourly chart, filters, repeat counts</figcaption>
   </figure>
   <figure>
     <img src="/screenshots/jobs-light.png" alt="OpConsole Failed jobs tab: failed queue jobs with their error and a Retry button" loading="lazy">
