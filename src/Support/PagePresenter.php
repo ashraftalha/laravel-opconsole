@@ -107,7 +107,8 @@ class PagePresenter
                 ->implode("\n"),
             'dbError' => $status['database']['error'] ? Str::limit($status['database']['error'], 200) : null,
             'output' => $output ? [
-                'title' => $actions[$output['action']]['title'] ?? (self::ACTION_LABELS[$output['action']][0] ?? $output['action']),
+                'title' => ($actions[$output['action']]['title'] ?? (self::ACTION_LABELS[$output['action']][0] ?? $output['action']))
+                    .(($output['subject'] ?? null) ? ' · '.$output['subject'] : ''),
                 'text' => $output['text'] ?: '(No output)',
                 'ok' => $output['ok'],
                 'hint' => $output['ok'] && in_array($output['action'], ['clear', 'optimize', 'migrate'], true) && isset($actions['octane_reload'])
@@ -570,7 +571,7 @@ class PagePresenter
                 'command' => 'php artisan migrate --force --isolated',
                 'risk' => 'high',
                 'riskLabel' => 'High risk · Schema change',
-                'button' => $pending ? 'Run '.count($pending).' '.(count($pending) === 1 ? 'migration' : 'migrations') : 'Nothing pending',
+                'button' => $pending ? (count($pending) === 1 ? 'Run 1 migration' : 'Run all '.count($pending).' migrations') : 'Nothing pending',
                 'style' => $pending ? 'oc-btn-danger' : 'oc-btn-secondary',
                 'url' => route($this->routeName('run'), 'migrate'),
                 'text' => 'Applies pending database schema migrations forward-only under an isolated lock. Never runs destructive resets or rollbacks.',
@@ -580,6 +581,16 @@ class PagePresenter
                 'enabled' => (bool) ($enabledActions['migrate'] ?? false) && ($actionPermissions['migrate'] ?? $canRun) && $dbOk && $pending,
                 'disabledReason' => ! ($actionPermissions['migrate'] ?? $canRun) ? ($canRun ? 'Your account cannot run migrations.' : $readOnlyNote) : $migrateDisabledReason,
                 'pending' => $pending,
+                'wide' => true,
+                // One entry per pending file, in the order `migrate` would apply them.
+                'single' => array_map(fn (string $name, int $i) => [
+                    'name' => $name,
+                    'command' => 'php artisan migrate --force --isolated --path=…/'.$name.'.php',
+                    'confirm' => 'Apply only ['.$name.'] in ['.$status['app']['environment'].']?'
+                        .(count($pending) > 1 ? ' The other '.(count($pending) - 1).' pending '.(count($pending) === 2 ? 'migration stays' : 'migrations stay').' pending.' : '')
+                        .($i > 0 ? ' It runs ahead of '.$i.' earlier pending '.($i === 1 ? 'migration' : 'migrations').'; make sure it does not depend on '.($i === 1 ? 'it' : 'them').'.' : '')
+                        .' Ensure a recent database backup exists before modifying schema.',
+                ], $pending, array_keys($pending)),
                 'last' => $last('migrate'),
             ],
             'down' => [

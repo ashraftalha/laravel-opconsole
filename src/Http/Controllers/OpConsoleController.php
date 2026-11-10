@@ -156,7 +156,12 @@ class OpConsoleController extends Controller
             abort(404);
         }
 
-        $result = $this->actions->run($action, $request->user());
+        // Optional: run one pending migration instead of all of them. Only a name; ActionRunner maps it to a file.
+        $migration = $action === 'migrate' && is_string($request->input('migration')) && $request->input('migration') !== ''
+            ? $request->input('migration')
+            : null;
+
+        $result = $this->actions->run($action, $request->user(), $migration);
         [$successKey, $errorKey] = self::MESSAGES[$action];
         // Not started at all: show the specific reason rather than a generic "command failed" message.
         $notStarted = $result['busy'] || ($result['lock_error'] ?? false) || ($result['blocked'] ?? false);
@@ -165,7 +170,7 @@ class OpConsoleController extends Controller
 
         $redirect = redirect()->route($this->routeName('index'))
             ->with($flash, $message)
-            ->with('opconsole_output', ['action' => $action, 'text' => $result['output'], 'ok' => $result['ok']]);
+            ->with('opconsole_output', ['action' => $action, 'subject' => $migration, 'text' => $result['output'], 'ok' => $result['ok']]);
 
         if (! ($result['audited'] ?? true)) {
             $redirect->with('opconsole_warning', __('opconsole::opconsole.audit_unavailable'));

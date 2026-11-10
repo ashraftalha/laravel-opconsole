@@ -4,6 +4,12 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+### Added
+- **Run one migration at a time**: the Run migrations card lists every pending migration in apply order, each with a **Run only this** button (`migrate --force --isolated --path=… --realpath`), next to **Run all**. Only names of currently pending migrations are accepted; the path comes from the migrator. The audit row records the migration name.
+
+### Changed
+- The Run migrations card spans the full row so long migration names are readable, and shows every pending migration instead of the first eight.
+
 ## [1.11.0] - 2026-11-04
 
 ### Added

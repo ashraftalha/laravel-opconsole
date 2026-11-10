@@ -76,6 +76,63 @@ class ActionsTest extends TestCase
         $this->assertSame(['migrate', ['--force' => true, '--isolated' => true]], $fake->calls[0]);
     }
 
+    /** A pending migration in a temporary directory registered with the migrator; returns [name, path]. */
+    private function pendingMigration(string $name = '2099_01_01_000000_create_widgets_table'): array
+    {
+        $dir = sys_get_temp_dir().'/opconsole-migrations-'.uniqid();
+        File::ensureDirectoryExists($dir);
+        File::put("$dir/$name.php", "<?php\nreturn new class extends Illuminate\\Database\\Migrations\\Migration { public function up(): void {} };\n");
+        $this->app['migrator']->path($dir);
+        $this->beforeApplicationDestroyed(fn () => File::deleteDirectory($dir));
+
+        return [$name, "$dir/$name.php"];
+    }
+
+    public function test_migrate_action_can_run_one_pending_migration_by_name(): void
+    {
+        [$name, $path] = $this->pendingMigration();
+        $fake = $this->fakeArtisan();
+        $this->actingAsUser();
+
+        $this->post('/admin/opconsole/migrate', ['migration' => $name])->assertSessionHas('opconsole_success');
+
+        $this->assertSame(['migrate', ['--force' => true, '--isolated' => true, '--path' => $path, '--realpath' => true]], $fake->calls[0]);
+        $this->assertSame($name, OpConsoleRun::query()->where('action', 'migrate')->value('subject'));
+    }
+
+    public function test_migrate_action_refuses_a_migration_that_is_not_pending(): void
+    {
+        $fake = $this->fakeArtisan();
+        $this->actingAsUser();
+
+        $this->post('/admin/opconsole/migrate', ['migration' => '../../../etc/passwd'])->assertSessionHas('opconsole_error');
+        $this->post('/admin/opconsole/migrate', ['migration' => '2099_01_01_000000_does_not_exist'])->assertSessionHas('opconsole_error');
+
+        $this->assertSame([], $fake->calls);
+        $this->assertSame(0, OpConsoleRun::query()->where('action', 'migrate')->count());
+    }
+
+    public function test_dashboard_lists_each_pending_migration_with_its_own_run_form(): void
+    {
+        [$name] = $this->pendingMigration();
+        $this->actingAsUser();
+
+        $this->get('/admin/opconsole')
+            ->assertSee('<input type="hidden" name="migration" value="'.$name.'">', false)
+            ->assertSee('Run only this')
+            ->assertSee('Apply only ['.$name.']', false);
+    }
+
+    public function test_migration_input_is_ignored_by_other_actions(): void
+    {
+        $fake = $this->fakeArtisan();
+        $this->actingAsUser();
+
+        $this->post('/admin/opconsole/clear', ['migration' => 'anything'])->assertRedirect();
+
+        $this->assertSame(['optimize:clear', []], $fake->calls[0]);
+    }
+
     public function test_storage_link_action_is_disabled_by_default(): void
     {
         $fake = $this->fakeArtisan();

@@ -7,6 +7,7 @@ return [
     'optimize_error' => 'Optimization failed. Review the output.',
     'migrate_ok' => 'Migrations completed.',
     'migrate_error' => 'Migrations failed. Review the output.',
+    'migrate_not_pending' => 'Migration [:migration] is not pending; it may have already run or no longer exists. Nothing was changed.',
     'down_ok' => 'The application is now in maintenance mode. Save the bypass URL from the output; it is shown only once.',
     'down_error' => 'Could not enable maintenance mode. Review the output.',
     'up_ok' => 'The application is back online.',

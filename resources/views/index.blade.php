@@ -268,7 +268,7 @@
                             <div class="oc-zone-head"><h2>{{ $ocZoneTitle }}</h2><small>{{ $ocZoneText }}</small></div>
                             <div class="oc-actions">
                                 @foreach ($ocZoneActions as $key => $action)
-                                    <article @class(['oc-action', 'is-high-risk' => $action['risk'] === 'high', 'is-medium-risk' => $action['risk'] === 'medium', 'is-disabled' => ! $action['enabled']]) id="action-{{ $key }}">
+                                    <article @class(['oc-action', 'is-wide' => $action['wide'] ?? false, 'is-high-risk' => $action['risk'] === 'high', 'is-medium-risk' => $action['risk'] === 'medium', 'is-disabled' => ! $action['enabled']]) id="action-{{ $key }}">
                                         <div class="oc-action-top">
                                             <span class="oc-action-icon">@include('opconsole::partials.icon', ['name' => $action['icon']])</span>
                                             <span @class(['oc-risk-badge', 'is-high' => $action['risk'] === 'high', 'is-medium' => $action['risk'] === 'medium'])>{{ $action['riskLabel'] }}</span>
@@ -277,14 +277,40 @@
                                         <code class="oc-command-pill" dir="ltr">{{ $action['command'] }}</code>
                                         <p>{{ $action['text'] }}</p>
 
-                                        @if ($action['pending'])
-                                            <ul class="oc-migrations" dir="ltr" aria-label="Pending migrations" data-oc-scroll-fade="y" tabindex="0">
-                                                @foreach (array_slice($action['pending'], 0, 8) as $migration)
-                                                    <li>{{ $migration }}</li>
+                                        @if ($action['single'] ?? [])
+                                            {{-- Every pending file in apply order: run all below, or pick one to run on its own. --}}
+                                            <div class="oc-migrations-head"><span>{{ count($action['single']) }} pending · applied top to bottom</span></div>
+                                            <ol class="oc-migrations" dir="ltr" aria-label="Pending migrations" data-oc-scroll-fade="y" tabindex="0">
+                                                @foreach ($action['single'] as $ocMigration)
+                                                    <li>
+                                                        <span class="oc-migration-index" aria-hidden="true">{{ $loop->iteration }}</span>
+                                                        <span class="oc-migration-name">{{ $ocMigration['name'] }}</span>
+                                                        <form
+                                                            method="POST"
+                                                            action="{{ $action['url'] }}"
+                                                            data-confirm="{{ $ocMigration['confirm'] }}"
+                                                            data-confirm-title="Run one migration"
+                                                            data-confirm-accept="Run this migration"
+                                                            data-confirm-command="{{ $ocMigration['command'] }}"
+                                                            data-confirm-risk="{{ $action['risk'] }}"
+                                                            data-confirm-risk-label="{{ $action['riskLabel'] }}"
+                                                            data-confirm-environment="{{ $environment['name'] }}"
+                                                        >
+                                                            @csrf
+                                                            <input type="hidden" name="migration" value="{{ $ocMigration['name'] }}">
+                                                            <button type="submit" class="oc-btn oc-btn-sm oc-btn-secondary" @disabled(! $action['enabled']) aria-label="Run only {{ $ocMigration['name'] }}">
+                                                                @include('opconsole::partials.icon', ['name' => 'play'])
+                                                                <span data-oc-btn-label>Run only this</span>
+                                                            </button>
+                                                        </form>
+                                                    </li>
                                                 @endforeach
-                                                @if (count($action['pending']) > 8)
-                                                    <li class="oc-migrations-more">+{{ count($action['pending']) - 8 }} more pending</li>
-                                                @endif
+                                            </ol>
+                                        @elseif ($action['pending'])
+                                            <ul class="oc-migrations" dir="ltr" aria-label="Pending migrations" data-oc-scroll-fade="y" tabindex="0">
+                                                @foreach ($action['pending'] as $migration)
+                                                    <li><span class="oc-migration-name">{{ $migration }}</span></li>
+                                                @endforeach
                                             </ul>
                                         @endif
 

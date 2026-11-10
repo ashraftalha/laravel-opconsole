@@ -63,14 +63,38 @@ class ActionRunner
     }
 
     /**
+     * Absolute path of a migration that is still pending, or null. The request only names a
+     * migration; the path always comes from the migrator's own file list, never from input.
+     */
+    public function pendingMigrationPath(string $name): ?string
+    {
+        try {
+            $migrator = app('migrator');
+            $files = $migrator->getMigrationFiles([database_path('migrations'), ...$migrator->paths()]);
+            if (! isset($files[$name])) {
+                return null;
+            }
+            $ran = $migrator->repositoryExists() ? $migrator->getRepository()->getRan() : [];
+        } catch (Throwable) {
+            return null;
+        }
+
+        return in_array($name, $ran, true) ? null : $files[$name];
+    }
+
+    /**
      * `blocked` means the command was refused before it started (unsupported runtime or required audit unavailable).
+     * `$migration` narrows `migrate` to that one pending migration file.
      *
      * @return array{ok: bool, output: string, busy: bool, lock_error?: bool, blocked?: bool, audited?: bool}
      */
-    public function run(string $action, ?Authenticatable $user): array
+    public function run(string $action, ?Authenticatable $user, ?string $migration = null): array
     {
         if (! array_key_exists($action, self::ACTIONS) || ! config("opconsole.actions.{$action}")) {
             throw new \InvalidArgumentException("Action [$action] is not enabled.");
+        }
+        if ($migration !== null && $action !== 'migrate') {
+            throw new \InvalidArgumentException("Action [$action] does not take a migration.");
         }
 
         // Checked before the lock and the audit row: nothing may start that this runtime cannot bound.
@@ -126,7 +150,20 @@ class ActionRunner
         }
 
         try {
-            $run = $this->recordStart($action, $user);
+            // Resolved under the lock, so a concurrent run cannot apply it between the check and the call.
+            $migrationPath = $migration !== null ? $this->pendingMigrationPath($migration) : null;
+            if ($migration !== null && $migrationPath === null) {
+                return [
+                    'ok' => false,
+                    'output' => __('opconsole::opconsole.migrate_not_pending', ['migration' => $migration]),
+                    'busy' => false,
+                    'lock_error' => false,
+                    'blocked' => true,
+                    'audited' => true,
+                ];
+            }
+
+            $run = $this->recordStart($action, $user, $migration);
             if ($run === null && $this->auditRequired()) {
                 Log::error('OpConsole: action refused because audit.policy is "required" and the audit row could not be written', ['action' => $action]);
 
@@ -145,6 +182,9 @@ class ActionRunner
             if ($action === 'down') {
                 $bypassSecret = Str::random(40);
                 $options['--secret'] = $bypassSecret;
+            }
+            if ($migrationPath !== null) {
+                $options += ['--path' => $migrationPath, '--realpath' => true];
             }
             $startedAt = hrtime(true);
 

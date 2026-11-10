@@ -51,7 +51,7 @@ The console is organised in eight tabs. A header above them shows a **0–100 he
 <table>
 <tr>
 <td width="50%"><img src="art/screenshots/health-light.png" alt="Health tab: checks grouped by area with status filters and fix commands"><br><sub><b>Health</b>: filter by status, expand any check for its fix</sub></td>
-<td width="50%"><img src="art/screenshots/operations-light.png" alt="Operations tab: safe operations and a danger zone"><br><sub><b>Operations</b>: safe tasks and a separate danger zone</sub></td>
+<td width="50%"><img src="art/screenshots/operations-light.png" alt="Operations tab: safe operations and a danger zone, with each pending migration runnable on its own"><br><sub><b>Operations</b>: safe tasks, a danger zone, and run one migration or all</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="art/screenshots/security-light.png" alt="Security tab: advisories by severity with update commands"><br><sub><b>Security</b>: advisories by severity, scan freshness</sub></td>
@@ -177,7 +177,7 @@ Users without run permission see the console in read-only mode, and each button 
 - Every run is bounded by `OPCONSOLE_MAX_RUNTIME_SECONDS`.
 - Every run is recorded in the audit history. With `OPCONSOLE_AUDIT_POLICY=required`, an operation is refused if its audit row can't be written first.
 - Maintenance mode shows a one-time bypass URL, and the console stays reachable while the site is down.
-- Migrations only ever run forward. There are no resets and no rollbacks.
+- Migrations only ever run forward. There are no resets and no rollbacks. You can run all pending migrations or pick one file to run on its own.
 
 The list is a closed allow-list. You can disable entries in `config/opconsole.php` under `actions`, but you can't add arbitrary commands.
 

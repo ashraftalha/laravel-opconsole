@@ -57,8 +57,16 @@ Every operation asks for confirmation first, naming the environment and showing 
 ## Limitations
 
 - **Runtimes without `pcntl`** (common on PHP-FPM) refuse every timer-bound action from the browser — only the self-bounded `security_scan` still runs. See [Execution environments](/reference/configuration#execution-environments).
-- There is no way to pass arguments or flags to these commands from the UI; they always run with the exact flags shown in the table above.
+- There is no way to pass arguments or flags to these commands from the UI; they always run with the exact flags shown in the table above. The one exception is choosing a single pending migration (below).
 - `migrate` only ever runs **forward** — there are no resets and no rollbacks available from the dashboard.
+
+## Running one migration at a time
+
+The **Run migrations** card spans the full row and lists every pending migration in the order `migrate` would apply them. Use **Run all** to apply them all, or **Run only this** on a row to apply just that file (`migrate --force --isolated --path=… --realpath`). The rest stay pending.
+
+- The request only carries the migration's name. The file path always comes from Laravel's migrator, and a name that is not currently pending is refused without running anything.
+- Running a later file ahead of earlier ones is allowed; the confirmation warns you when it does, so you can check it doesn't depend on them.
+- The audit row records the migration name as its subject, and the output panel title shows it.
 
 ## Troubleshooting
 

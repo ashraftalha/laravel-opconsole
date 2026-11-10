@@ -77,7 +77,7 @@ Then sign in and open `/admin/opconsole`. Works immediately with `APP_ENV=local`
     <figcaption>Health — every check grouped by area, filterable by status</figcaption>
   </figure>
   <figure>
-    <img src="/screenshots/operations-light.png" alt="OpConsole Operations tab: safe operations and a danger zone" loading="lazy">
+    <img src="/screenshots/operations-light.png" alt="OpConsole Operations tab: safe operations and a danger zone, with each pending migration runnable on its own" loading="lazy">
     <figcaption>Operations — safe tasks and a separate danger zone</figcaption>
   </figure>
   <figure>
