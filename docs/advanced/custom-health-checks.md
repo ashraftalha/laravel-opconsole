@@ -42,7 +42,7 @@ class BackupDiskCheck implements HealthCheck
             'severity' => 'warning',          // danger, warning or info
             'hint' => 'The backup folder must exist.',
             'value' => $ok ? 'Found' : 'Missing',
-            'fix' => $ok ? null : 'mkdir -p storage/app/backups',
+            'fix' => $ok ? null : 'Create the backups directory on the configured local disk.',
         ];
     }
 }

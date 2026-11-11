@@ -41,7 +41,7 @@ Open the **Failed jobs** tab — its badge shows the current count. Filter the l
 
 ## Security considerations
 
-- Retrying needs the run Gate, or a Gate mapped to `queue_retry` in `authorization.action_gates` — map it to a narrower Gate if you want to separate "can view failures" from "can re-trigger a job with side effects."
+- Retrying needs the run Gate and, when configured, the Gate mapped to `queue_retry` in `authorization.action_gates` — map it to a narrower Gate if you want to separate "can view failures" from "can re-trigger a job with side effects."
 - Retry requests are rate limited to 20 per minute, require confirmation in the UI, and are recorded in the audit history as `queue.retry`.
 - Under `audit.policy=required`, a retry whose audit row can't be written is refused rather than running unaudited.
 - The job's ID must match `FailedJobs::ID_PATTERN` and exist in the failed-job store — there's no way to pass an arbitrary identifier through to the underlying command.

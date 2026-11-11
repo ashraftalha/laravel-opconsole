@@ -14,8 +14,9 @@ const props = withDefaults(defineProps<{
 const track = ref<HTMLElement | null>(null)
 const current = ref(0)
 const paused = ref(false)
+const userPaused = ref(false)
 let timer: ReturnType<typeof setInterval> | undefined
-let reducedMotion = false
+const reducedMotion = ref(false)
 let observer: IntersectionObserver | undefined
 
 function go(index: number) {
@@ -23,7 +24,7 @@ function go(index: number) {
   if (!el) return
   const count = props.slides.length
   const target = ((index % count) + count) % count
-  el.scrollTo({ left: target * el.clientWidth, behavior: reducedMotion ? 'auto' : 'smooth' })
+  el.scrollTo({ left: target * el.clientWidth, behavior: reducedMotion.value ? 'auto' : 'smooth' })
   current.value = target
 }
 
@@ -37,8 +38,8 @@ function onKey(event: KeyboardEvent) {
 
 function start() {
   stop()
-  if (reducedMotion) return
-  timer = setInterval(() => { if (!paused.value && !document.hidden) next() }, props.interval)
+  if (reducedMotion.value) return
+  timer = setInterval(() => { if (!paused.value && !userPaused.value && !document.hidden) next() }, props.interval)
 }
 
 function stop() {
@@ -47,7 +48,7 @@ function stop() {
 }
 
 onMounted(() => {
-  reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  reducedMotion.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   // Keep the active dot in sync when the visitor swipes or scrolls the track directly.
   observer = new IntersectionObserver(entries => {
     for (const entry of entries) {
@@ -78,7 +79,7 @@ onBeforeUnmount(() => {
     @keydown="onKey"
   >
     <div class="oc-slider-viewport">
-      <div ref="track" class="oc-slider-track" tabindex="0" aria-live="polite">
+      <div ref="track" class="oc-slider-track" tabindex="0" :aria-live="paused || userPaused || reducedMotion ? 'polite' : 'off'">
         <figure
           v-for="(slide, i) in slides"
           :key="slide.src"
@@ -122,6 +123,9 @@ onBeforeUnmount(() => {
           @click="go(i)"
         />
       </div>
+      <button type="button" class="oc-slider-pause" @click="userPaused = !userPaused">
+        {{ userPaused ? 'Resume slideshow' : 'Pause slideshow' }}
+      </button>
       <span class="oc-slider-count" aria-hidden="true">{{ current + 1 }} / {{ slides.length }}</span>
     </div>
   </section>
@@ -212,6 +216,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 14px;
+  flex-wrap: wrap;
   margin-top: 6px;
 }
 
@@ -246,6 +251,13 @@ onBeforeUnmount(() => {
 .oc-slider-dot.is-active::after {
   background: var(--vp-c-brand-1);
   transform: scale(1.25);
+}
+
+.oc-slider-pause {
+  padding: 4px 8px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 4px;
+  font-size: 13px;
 }
 
 .oc-slider-count {

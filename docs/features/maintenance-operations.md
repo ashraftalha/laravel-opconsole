@@ -1,6 +1,6 @@
 ---
 title: Maintenance Operations
-description: "Take a Laravel site down and bring it back from the dashboard, with a one-time bypass URL and a console that stays reachable during maintenance."
+description: "Take a Laravel site down and bring it back from the dashboard, with a bypass URL shown once and a console that stays reachable during maintenance."
 ---
 
 # Maintenance Operations
@@ -11,7 +11,7 @@ description: "Take a Laravel site down and bring it back from the dashboard, wit
 
 Two operations manage Laravel's maintenance mode directly from the dashboard:
 
-- **Maintenance mode (`down`):** runs `php artisan down --secret=<random>`. A one-time bypass URL containing the secret is shown once in the output panel — it is never logged or audited.
+- **Maintenance mode (`down`):** runs `php artisan down --secret=<random>`. A bypass URL containing the secret is shown once in the output panel — it is never logged or audited.
 - **Bring online (`up`):** runs `php artisan up`.
 
 <figure class="oc-shot">
@@ -46,16 +46,16 @@ Press **Maintenance mode**, confirm (medium risk — single confirmation, not ho
 
 ## Security considerations
 
-- The secret is generated randomly per run and never persisted to the audit log or anywhere else readable later — if you lose it, generate a new one by running `down` again.
+- The secret is generated randomly per run and excluded from OpConsole audit records. Laravel stores maintenance state, including the secret, in its configured maintenance driver; protect access to that storage. The URL is shown once by OpConsole, but is reusable while that maintenance secret remains active.
 - Both actions go through the same Artisan action pipeline as every other operation: confirmed, locked, bounded, and audited (the *fact* that maintenance was toggled is audited; the secret itself is not).
 - Map `down`/`up` to a narrower Gate than `runOpConsoleActions` if you want maintenance-mode control reserved for a smaller group — see [Authentication & Authorization](/guide/authentication#per-operation-permissions).
 
 ## Limitations
 
-- Like every Artisan action, `down`/`up` are refused on a runtime without `pcntl` from the browser (see [Execution environments](/reference/configuration#execution-environments)) — run them from the CLI instead on such hosts.
+- Like other timer-bound actions, `down`/`up` are refused on a runtime without `pcntl` from the browser (see [Execution environments](/reference/configuration#execution-environments)) — run them from the CLI instead on such hosts.
 - Inside a Swoole worker, these are refused by default because their timeout mechanism would interrupt the worker itself — see [Octane & Swoole](/features/octane-swoole).
 
 ## Troubleshooting
 
 - **Site stays unreachable after pressing "Bring online":** confirm the operation actually succeeded in History — a runtime without `pcntl`, or a Swoole guard refusal, would leave the application down.
-- **Lost the bypass secret:** there's no way to recover it; run **Maintenance mode** again to generate a fresh one (this also resets the down state, so only do this if the app is still down or you're fine toggling it).
+- **Lost the bypass secret:** OpConsole does not display it again; run **Maintenance mode** again to generate a fresh one (this also resets the down state, so only do this if the app is still down or you're fine toggling it).

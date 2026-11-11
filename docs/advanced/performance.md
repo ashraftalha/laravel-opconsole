@@ -10,9 +10,9 @@ Every dashboard load, every `opconsole:health` invocation, and every hit to the 
 
 **Implication:** keep custom [health checks](/advanced/custom-health-checks) fast, and give any network call inside one an explicit, short timeout. OpConsole cannot interrupt a slow check — a check that hangs makes every page load that includes it hang too.
 
-## Bounded, constant-cost history queries
+## Bounded history results {#bounded-constant-cost-history-queries}
 
-`ConsoleStatus` fetches the latest completed run per action via a grouped `SELECT MAX(id) ... GROUP BY action` query, and the most recent `history_limit` rows (default 15, clamped 1–100) via `ORDER BY id DESC LIMIT`. Both queries cost the same regardless of how large the `opconsole_runs` table grows — there's no full-table scan as history accumulates.
+`ConsoleStatus` fetches the latest completed run per action via a grouped `SELECT MAX(id) ... GROUP BY action` query, and the most recent `history_limit` rows (default 15, clamped 1–100) via `ORDER BY id DESC LIMIT`. The number of queries and returned rows is bounded; database execution cost is not guaranteed to be constant. It depends on table size, indexes, and the database query plan. Monitor query performance and apply an audit-retention policy as history grows.
 
 ## Log viewer: bounded tail reads
 

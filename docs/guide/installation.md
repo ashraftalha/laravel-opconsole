@@ -32,7 +32,7 @@ A terminal with `pcntl` does not prove the web runtime has it. Check the disable
 |---|---|
 | PHP | `^8.3` (`8.3`, `8.4`, `8.5`) with `mbstring`, `openssl`, `tokenizer`, `ctype`, `json`, and your database PDO extension |
 | Laravel Framework | `^12.0` or `^13.0` |
-| Browser-triggered actions | `pcntl` functions available to the **web** SAPI (PHP-FPM / mod_php). Without them only `security_scan` runs from the browser; see [Execution environments](/reference/configuration#execution-environments). |
+| Browser-triggered actions | `pcntl` functions available to the **web** SAPI (PHP-FPM / mod_php). Without them `security_scan` and `octane_reload` remain available from the browser when enabled and their prerequisites are met; see [Execution environments](/reference/configuration#execution-environments). |
 
 ---
 
@@ -60,6 +60,8 @@ For staging or production deployments from a VCS repository, always pin an expli
 
 ## 3. Publish Configuration, Publish Assets, and Migrate
 
+Review `php artisan migrate:status` and all pending migrations first: `migrate` applies pending application migrations as well as package migrations. Back up production data before applying reviewed schema changes.
+
 ```bash
 php artisan vendor:publish --tag=opconsole-config
 php artisan vendor:publish --tag=opconsole-assets
@@ -69,7 +71,7 @@ php artisan migrate
 | Publish Tag | Target Path | Required? |
 |---|---|---|
 | `opconsole-config` | `config/opconsole.php` | Recommended |
-| `opconsole-assets` | `public/vendor/opconsole/opconsole.{css,js}` | Recommended (falls back to authenticated route `opconsole.asset` if omitted) |
+| `opconsole-assets` | `public/vendor/opconsole/opconsole.{css,js,svg}` | Recommended (falls back to authenticated route `opconsole.asset` if omitted) |
 | `opconsole-views` | `resources/views/vendor/opconsole/` | Optional |
 | `opconsole-lang` | `lang/vendor/opconsole/` | Optional |
 | `opconsole-migrations` | `database/migrations/` | Optional (`loadMigrationsFrom` runs automatically) |
@@ -80,9 +82,9 @@ php artisan migrate
 
 ## 4. Configure Authorization Gates
 
-OpConsole is **fail-closed outside the `local` environment**. In `production`, `staging`, or `testing`, every request returns HTTP `403` until explicit Gates are registered.
+OpConsole is **fail-closed outside the `local` environment**. In `production`, `staging`, or `testing`, authenticated browser requests are denied with HTTP `403` until explicit Gates are registered. Guests redirect to login or receive `401`; the optional health endpoint uses separate bearer-token authentication.
 
-Register your authorization policy in `App\Providers\AppServiceProvider`:
+Start with read-only access in `App\Providers\AppServiceProvider`. Replace the example email with a trusted operator; for execution privileges, use the [limited maintenance recipe](/advanced/production-recipes#limited-maintenance-administrators):
 
 ```php
 <?php
@@ -98,26 +100,24 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::define('viewOpConsole', function (User $user): bool {
-            return $user->isAdmin();
+            return $user->email === 'operator@example.com';
         });
 
-        Gate::define('runOpConsoleActions', function (User $user): bool {
-            return $user->isAdmin();
-        });
+        Gate::define('runOpConsoleActions', fn (User $user): bool => false);
 
-        // Optional granular log capabilities (when omitted, download delegates to view_gate
-        // and delete delegates to run_gate):
-        Gate::define('downloadOpConsoleLogs', fn (User $user): bool => $user->isAdmin());
-        Gate::define('deleteOpConsoleLogs', fn (User $user): bool => $user->isAdmin());
+        Gate::define('downloadOpConsoleLogs', fn (User $user): bool => false);
+        Gate::define('deleteOpConsoleLogs', fn (User $user): bool => false);
     }
 }
 ```
+
+Keep `authorization.action_gates` empty for this read-only policy. Viewing includes unredacted log tails; see the [complete production recipe](/advanced/production-recipes#read-only-production-recommended).
 
 ---
 
 ## 5. Registered Routes
 
-With default configuration (`route.prefix = 'admin/opconsole'`, `route.name_prefix = 'opconsole.'`), OpConsole registers five routes:
+With default configuration (`route.prefix = 'admin/opconsole'`, `route.name_prefix = 'opconsole.'`), OpConsole registers seven routes:
 
 | Method | URI | Route Name | Middleware |
 |---|---|---|---|
@@ -125,6 +125,8 @@ With default configuration (`route.prefix = 'admin/opconsole'`, `route.name_pref
 | `GET` | `/admin/opconsole/assets/{asset}` | `opconsole.asset` | `web`, `opconsole.authorize:view` |
 | `GET` | `/admin/opconsole/logs/{file}` | `opconsole.log` | `web`, `opconsole.authorize:download`, `throttle:30,1,opconsole-download` |
 | `DELETE` | `/admin/opconsole/logs/{file}` | `opconsole.log.delete` | `web`, `opconsole.authorize:delete`, `throttle:6,1,opconsole-delete` |
+| `POST` | `/admin/opconsole/failed-jobs/{id}/retry` | `opconsole.failed_jobs.retry` | `web`, `opconsole.authorize:run`, `throttle:20,1,opconsole-retry` |
+| `GET` | `/admin/opconsole/health` | `opconsole.health` | `throttle:60,1,opconsole-health` (bearer token; disabled by default) |
 | `POST` | `/admin/opconsole/{action}` | `opconsole.run` | `web`, `opconsole.authorize:run`, `throttle:6,1,opconsole-run` |
 
 If your application already has an existing maintenance or status page at another URL, keep `route.prefix` set to `'admin/opconsole'` (or any non-colliding prefix via `OPCONSOLE_ROUTE_PREFIX`) so both routes can run side by side during staging verification without route or route-name collisions.
@@ -146,8 +148,8 @@ php artisan view:cache
 ### Verification Checklist
 
 1. Unauthenticated request to `/admin/opconsole` redirects to your named `login` route (or returns HTTP `401` when `authentication.login_route` is `null` or absent).
-2. Authenticated non-admin user receives HTTP `403`.
-3. Authorized administrator loads `/admin/opconsole` (`HTTP 200`), views grouped health checks, inspects logs, and sees audited entries in **Operation history** (`opconsole_runs`).
+2. An authenticated user outside the view policy receives HTTP `403`.
+3. The authorized operator loads `/admin/opconsole` (`HTTP 200`), views health checks, log tails, and any existing audit history, but cannot run actions, retry jobs, download full logs, or delete logs.
 
 ---
 

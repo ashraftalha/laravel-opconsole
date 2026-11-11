@@ -29,7 +29,7 @@ Plus a separate **static analysis** job (Larastan level 5, Pint dry-run) on Lara
 ## PHP extension notes
 
 - `mbstring`, `openssl`, `tokenizer`, `ctype`, `json`, and your database's PDO extension are required, as with any Laravel application.
-- `pcntl` is optional but strongly recommended on the web SAPI — without it, browser-triggered timer-bound actions are disabled (only `security_scan` still runs). See [Execution environments](/reference/configuration#execution-environments).
+- `pcntl` is optional but strongly recommended on the web SAPI — without it, browser-triggered timer-bound actions are disabled (the self-bounded `security_scan` and `octane_reload` remain available (when enabled and their prerequisites are met)). See [Execution environments](/reference/configuration#execution-environments).
 
 ## What "supported" means here
 

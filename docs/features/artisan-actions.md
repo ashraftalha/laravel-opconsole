@@ -55,15 +55,15 @@ Every operation asks for confirmation first, naming the environment and showing 
 
 ## Security considerations
 
-- **Only one operation runs at a time**, enforced by a dedicated lock store that survives `optimize:clear`. See [Permissions & Security Policies](/advanced/permissions-security-policies).
-- Every run is bounded by `OPCONSOLE_MAX_RUNTIME_SECONDS` (default 1500s), enforced with a `pcntl` alarm.
+- **Only one of the eight `ActionRunner` operations runs at a time**, enforced by a dedicated lock store that survives `optimize:clear`. See [Permissions & Security Policies](/advanced/permissions-security-policies).
+- Timer-bound actions use `OPCONSOLE_MAX_RUNTIME_SECONDS` (default 1500s), enforced with a `pcntl` alarm. The self-bounded exceptions are described under [Execution environments](/reference/configuration#execution-environments). Failed-job retry does not use this action lock or timeout wrapper.
 - Every run is recorded in the audit history. With `OPCONSOLE_AUDIT_POLICY=required`, a run is refused if its audit row can't be written first.
 - Per-operation Gates (`authorization.action_gates`) let you separate low-risk actions (cache clear) from high-risk ones (migrate, maintenance mode) — see [Authentication & Authorization](/guide/authentication#per-operation-permissions).
 - Rate limiting: `throttle:6,1,opconsole-run` on the run endpoint.
 
 ## Limitations
 
-- **Runtimes without `pcntl`** (common on PHP-FPM) refuse every timer-bound action from the browser — only the self-bounded `security_scan` still runs. See [Execution environments](/reference/configuration#execution-environments).
+- **Runtimes without `pcntl`** (common on PHP-FPM) refuse every timer-bound action from the browser — the self-bounded `security_scan` and `octane_reload` remain available when enabled and their prerequisites are met. See [Execution environments](/reference/configuration#execution-environments).
 - There is no way to pass arguments or flags to these commands from the UI; they always run with the exact flags shown in the table above. The one exception is choosing a single pending migration (below).
 - `migrate` only ever runs **forward** — there are no resets and no rollbacks available from the dashboard.
 

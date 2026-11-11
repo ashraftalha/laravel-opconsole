@@ -35,7 +35,7 @@ Yes, but the default action lock store only coordinates a single server. Point `
 
 ### What happens if I don't have `pcntl` available?
 
-Timer-bound Artisan actions (clear caches, optimize, migrate, maintenance mode, storage link) are refused when triggered from the browser; the read-only security scan still runs. Run the disabled operations from the CLI instead, or enable `pcntl` for your web SAPI. See [Execution environments](/reference/configuration#execution-environments).
+Timer-bound Artisan actions (clear caches, optimize, migrate, maintenance mode, storage link) are refused when triggered from the browser; the self-bounded security scan and Octane reload remain available when enabled and their prerequisites are met. Run the disabled operations from the CLI instead, or enable `pcntl` for your web SAPI. See [Execution environments](/reference/configuration#execution-environments).
 
 ### Can support staff clear caches without being able to run migrations?
 

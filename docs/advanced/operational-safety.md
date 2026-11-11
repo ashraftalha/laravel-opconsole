@@ -8,7 +8,7 @@ OpConsole's operational model is built around one idea: an authorized user shoul
 
 ## The allow-list is closed, not configurable-open
 
-`ActionRunner::ACTIONS` is a fixed constant list. Route constraints and `ActionRunner::run()` reject anything not on it, and HTTP request input never supplies command arguments or flags. You can disable entries in `config/opconsole.php`, but you cannot add new ones — see [Allowlisted Artisan Actions](/features/artisan-actions).
+`ActionRunner::ACTIONS` is a fixed constant list. Route constraints and `ActionRunner::run()` reject anything not on it, and HTTP requests cannot supply arbitrary arguments or flags. A migration name may select one pending file; its path is resolved from Laravel's migrator. You can disable entries in `config/opconsole.php`, but you cannot add new ones — see [Allowlisted Artisan Actions](/features/artisan-actions).
 
 ## Confirmation and hold-to-confirm
 
@@ -16,11 +16,11 @@ Every operation requires confirmation first, naming the environment and the exac
 
 ## Single-flight execution
 
-Only one operation runs at a time, enforced by an owner-bound, renewable lock using the isolated `opconsole` lock store (see [Permissions & Security Policies](/advanced/permissions-security-policies)). Every driver's `release()` checks ownership before releasing, so one request can never release another's lock.
+Only one of the eight `ActionRunner` operations runs at a time, enforced by an owner-bound, renewable lock using the isolated `opconsole` lock store (see [Permissions & Security Policies](/advanced/permissions-security-policies)). Every driver's `release()` checks ownership before releasing, so one request can never release another's lock.
 
 ## Bounded runtime
 
-Every run is bounded by `concurrency.max_runtime_seconds` (default 1500s), enforced with a `pcntl` alarm:
+Timer-bound Artisan actions use `concurrency.max_runtime_seconds` (default 1500s), enforced with a `pcntl` alarm. When signal-based timeouts are unavailable, the security scan uses its own subprocess timeouts and Octane reload signals the server without waiting for jobs to finish. Failed-job retry and log operations do not use this action lock or timeout wrapper.
 
 - The lock lease is always raised to exceed the runtime budget, so the lease itself never expires mid-run under normal conditions.
 - On Laravel 12.63+ / 13.16+, the lease is renewed roughly every 10 seconds while the command runs, on drivers that support `refresh()`. Older releases run safely on the single initial lease, since it already outlasts the runtime budget.
@@ -34,7 +34,7 @@ Every run is bounded by `concurrency.max_runtime_seconds` (default 1500s), enfor
 | Command throws | Audit row updated to `failed`, lock released. |
 | PHP fatal error (for example, memory exhaustion) | Audit row closed as `failed` and lock released from a shutdown hook. |
 | Hard kill (`SIGKILL`, PHP-FPM `request_terminate_timeout`) | Audit row stays `started`, shown as **Interrupted / Unknown** (never `Succeeded`); the lock expires naturally with its lease. |
-| Runtime has no `pcntl` | The action is refused **before** it takes the lock or runs anything — see [Execution environments](/reference/configuration#execution-environments). |
+| Runtime has no `pcntl` | Timer-bound actions are refused **before** taking the lock or running anything — see [Execution environments](/reference/configuration#execution-environments). |
 | Inside a Swoole worker | Timer-bound actions refused before locking, by default — see [Octane & Swoole Environments](/advanced/octane-swoole-environments). |
 
 ## Output sanitization

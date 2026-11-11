@@ -109,6 +109,8 @@ Gate::define('manageOpConsole', fn ($user) => $user->hasRole('admin'));
 Gate::define('retryOpConsoleJobs', fn ($user) => $user->hasRole('admin'));
 ```
 
+Failed-job retries require `run_gate` at the HTTP route **and** the Gate mapped to `queue_retry`, if configured. A retry-specific Gate can narrow run access but cannot grant retries to a user denied by the run Gate.
+
 Action keys with no entry in `action_gates` fall back to `run_gate`. A key that **is** mapped to a Gate name your application never defines fails closed (`403`) — it does not silently fall back.
 
 Users who pass `viewOpConsole` but not `runOpConsoleActions` (or a narrower action Gate) see the console in read-only mode: every disabled button explains why it's disabled.

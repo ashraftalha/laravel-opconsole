@@ -20,7 +20,7 @@ OpConsole is deliberately narrow in what it lets a host application extend. This
 ## What you cannot extend
 
 - **You cannot add new Artisan actions.** `ActionRunner::ACTIONS` is a closed constant allow-list; the route itself constrains `{action}` to the known keys. This is a deliberate security boundary, not a current limitation waiting on a future release — see [Operational Safety](/advanced/operational-safety).
-- **You cannot pass arguments from HTTP requests into the underlying commands.** Every allow-listed action runs with fixed flags.
+- **You cannot pass arbitrary arguments from HTTP requests into the underlying commands.** Actions use fixed flags, except that a pending migration name can select a file resolved by Laravel's migrator; failed-job retry accepts a validated job ID.
 - **There is no plugin or hook system** beyond the `HealthCheck` contract and the configuration keys documented in the [Configuration Reference](/reference/configuration).
 
 ## Why the extension surface is this narrow

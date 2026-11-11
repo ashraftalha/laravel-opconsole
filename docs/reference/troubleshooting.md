@@ -43,7 +43,7 @@ After login, follow [C](#c-gate-or-permission) if access becomes `403`.
 ### C. Gate or permission
 
 1. For dashboard access, inspect `authorization.view_gate` and confirm that the exact Gate is defined and allows this user. Default Gates are local-only; a custom undefined Gate denies access in every environment.
-2. For an operation, look up its key in `authorization.action_gates` first (including `queue_retry`). If mapped, that exact Gate must be defined and allow the user; otherwise `authorization.run_gate` applies. The retry example requires `retryOpConsoleJobs` to be defined.
+2. For an operation, look up its key in `authorization.action_gates` first. If mapped, that exact Gate must be defined and allow the user; otherwise `authorization.run_gate` applies. Failed-job retries also require the run Gate at the route middleware, even when `queue_retry` is mapped; the retry example additionally requires `retryOpConsoleJobs` to be defined.
 3. For raw log access, inspect the separate download/delete Gates and `logs.allow_download` / `logs.allow_delete` switches. Read-only policies deliberately deny these capabilities.
 4. Rebuild cached configuration and routes through deployment tooling after edits, and reload long-lived workers if applicable. Check the deployed config rather than assuming an edited `.env` was loaded.
 

@@ -4,13 +4,13 @@ title: Architecture
 
 # Architecture
 
-One service provider, one controller, five focused `Support` classes, one Eloquent model, and one guard-aware Gate middleware. No facades, no repository layer, no DTO hierarchy, and no per-command action classes — keeping the package lightweight, readable, and trivial to audit.
+One service provider, focused controllers and `Support` classes, one Eloquent model, and one guard-aware Gate middleware. No facades, no repository layer, no DTO hierarchy, and no per-command action classes — keeping the package lightweight, readable, and trivial to audit.
 
 ```
-src/
+src/ (selected components)
 ├── OpConsoleServiceProvider.php              Config merge, isolated lock store registration, routes, views, translations, migrations, publishing, default Gates
 ├── Http/
-│   ├── Controllers/OpConsoleController.php   5 actions: index, asset, downloadLog, deleteLog, run
+│   ├── Controllers/OpConsoleController.php   index, asset, downloadLog, deleteLog, retryFailedJob, run
 │   └── Middleware/AuthorizeOpConsole.php     Configured guard check + Gate::forUser() enforcement, fail-closed
 ├── Models/OpConsoleRun.php                   Audit & history row: started / succeeded / failed
 ├── Contracts/HealthCheck.php                 The single host extension contract
@@ -35,7 +35,7 @@ src/
 - **Progressive disclosure and navigation:** Overview, Health, Operations, Logs, History, and System information share a keyboard-operable tab bar. Hash targets and query filters survive navigation and refresh; check details and per-run details remain collapsible.
 - **Self-contained, zero-CDN frontend:** `public/opconsole.css` and `public/opconsole.js` have zero runtime dependencies on Bootstrap, jQuery, or external icon fonts, use scoped `oc-*` classes to avoid colliding with host admin stylesheets, and emit zero inline `<script>` or `style=` attributes for strict Content-Security-Policy compatibility. If assets have not been published to `public/vendor/opconsole/` yet, `OpConsoleController::asset()` serves them behind `opconsole.authorize:view`.
 - **`HealthCheck` is the sole callable extension point:** `config/opconsole.php` contains zero closures (`config:cache` safe). Host applications register class names in `config('opconsole.checks')`; `HealthChecks` resolves each via the container, validates scalar types and shape, deduplicates repeated classes, and blocks collisions with built-in checks.
-- **Bounded synchronous execution:** The seven allow-listed Artisan operations run in the request without queue dispatch. A pcntl alarm enforces `max_runtime_seconds` and renews the owner-bound lease where the driver supports `refresh()`. The lease always exceeds the budget, so renewal is a safety margin rather than a requirement. Runtimes without pcntl refuse every timer-bound action before locking; only the subprocess-bounded `security_scan` runs. Fatal errors release the lock from a shutdown hook, and killed processes release it by lease expiry. Queue workers are deliberately not involved: queue workers stop processing while the application is down, so a queued `up` could never run.
+- **Bounded synchronous execution:** The eight allow-listed Artisan operations run in the request without queue dispatch. A pcntl alarm enforces `max_runtime_seconds` and renews the owner-bound lease where the driver supports `refresh()`. The lease always exceeds the budget, so renewal is a safety margin rather than a requirement. Runtimes without pcntl refuse every timer-bound action before locking; the self-bounded `security_scan` and `octane_reload` remain available when enabled and their prerequisites are met. Fatal errors release the lock from a shutdown hook, and killed processes release it by lease expiry. Queue workers are deliberately not involved: queue workers stop processing while the application is down, so a queued `up` could never run.
 - **One health report policy:** Dashboard, CLI, and HTTP endpoint consume the same check list and unknown-status policy. Notifications run only when explicitly requested from `opconsole:health --notify`, so health reads have no delivery side effects.
 - **Bounded `OpConsoleRun` queries:** `ConsoleStatus` fetches the latest completed run per action via `SELECT MAX(id) ... GROUP BY action` and the 15 most recent audit rows via `ORDER BY id DESC LIMIT 15`, keeping SQL query count and memory constant regardless of historical table size. `user_id` is stored as a nullable string without foreign keys so integer, UUID, and ULID user primary keys all work portably across SQLite, MySQL/MariaDB, PostgreSQL, and SQL Server.
 
@@ -48,13 +48,18 @@ GET    {prefix}/              → web + opconsole.authorize:view
                               → ConsoleStatus::status() + LogViewer::files()/read() → PagePresenter::page() → Blade view
 
 GET    {prefix}/assets/{asset} → web + opconsole.authorize:view
-                              → OpConsoleController::asset() (serves opconsole.css / opconsole.js with nosniff)
+                              → OpConsoleController::asset() (serves opconsole.css / opconsole.js / opconsole.svg with nosniff)
 
 GET    {prefix}/logs/{file}   → web + opconsole.authorize:download + throttle:30,1,opconsole-download
                               → LogViewer::path() → ActionRunner::record('log.download') → response()->download()
 
 DELETE {prefix}/logs/{file}   → web + opconsole.authorize:delete + throttle:6,1,opconsole-delete
-                              → LogViewer::deleteOutcome() → ActionRunner::record('log.delete') → redirect
+                              → recordStart('log.delete') → LogViewer::deleteOutcome() → recordFinish() → redirect
+
+GET    {prefix}/health        → token authentication + throttle → ConsoleStatus::health() → JSON
+
+POST   {prefix}/failed-jobs/{id}/retry → web + run Gate + throttle:20,1,opconsole-retry
+                              → queue_retry Gate → recordStart → FailedJobs::retry → recordFinish → redirect
 
 POST   {prefix}/{action}      → web + opconsole.authorize:run + throttle:6,1,opconsole-run
                               → ActionRunner::run() (validateLockStore → lock->get → recordStart → Artisan::call → recordFinish → lock->release) → redirect

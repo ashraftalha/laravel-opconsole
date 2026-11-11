@@ -28,8 +28,8 @@ php artisan vendor:publish --tag=opconsole-config
 | Key | Environment Variable | Default | Description |
 |---|---|---|---|
 | `route.prefix` | `OPCONSOLE_ROUTE_PREFIX` | `'admin/opconsole'` | URL prefix for all OpConsole endpoints. |
-| `route.name_prefix` | — | `'opconsole.'` | Prefix prepended to `index`, `asset`, `log`, `log.delete`, and `run`. |
-| `route.middleware` | — | `['web']` | Middleware applied to the route group. `'web'` is always kept active to preserve session and CSRF protection. Do **not** add `'auth'` here; `AuthorizeOpConsole` handles guest authentication safely. |
+| `route.name_prefix` | — | `'opconsole.'` | Prefix prepended to `index`, `asset`, `log`, `log.delete`, `failed_jobs.retry`, `run`, and `health`. |
+| `route.middleware` | — | `['web']` | Middleware applied to browser routes; the bearer-token health endpoint is outside this group. `'web'` is always kept active to preserve session and CSRF protection. Do **not** add `'auth'` here; `AuthorizeOpConsole` handles guest authentication safely. |
 | `route.domain` | — | `null` | Optional subdomain constraint (e.g. `'ops.example.com'`). |
 
 ### Authentication (`authentication.*`)
@@ -47,7 +47,7 @@ php artisan vendor:publish --tag=opconsole-config
 | `authorization.run_gate` | `'runOpConsoleActions'` | Gate required to execute enabled Artisan operations. |
 | `authorization.download_gate` | `'downloadOpConsoleLogs'` | Gate required to download raw `.log` files (delegates to `view_gate` if not explicitly defined by the host). |
 | `authorization.delete_gate` | `'deleteOpConsoleLogs'` | Gate required to delete older `.log` files (delegates to `run_gate` if not explicitly defined by the host). |
-| `authorization.action_gates` | `[]` | Optional map from action keys (`clear`, `optimize`, `migrate`, `down`, `up`, `storage_link`, `security_scan`) to independent Gate names. Missing keys inherit `run_gate`; configured but undefined/empty Gates deny access. |
+| `authorization.action_gates` | `[]` | Optional map from action keys (`clear`, `optimize`, `migrate`, `down`, `up`, `storage_link`, `security_scan`, `octane_reload`) to independent Gate names. Missing keys inherit `run_gate`; configured but undefined/empty Gates deny access. `queue_retry` can additionally restrict retries, which also require `run_gate` at the route middleware. |
 
 **Least privilege in production:** by default, everyone who passes `run_gate` can also run the high-risk actions (`migrate`, `down`) and delete logs. Log deletion destroys forensic evidence. Define `deleteOpConsoleLogs` explicitly, and map `migrate`/`down` to a narrower Gate in `action_gates`, as in the example below.
 
@@ -69,10 +69,15 @@ See [Security](/reference/security) for Composer prerequisites, data sent to adv
 For example, let support staff clear caches while only administrators can migrate or change maintenance mode:
 
 ```php
-// AppServiceProvider::boot()
+// AppServiceProvider::boot(); import App\Models\User and Illuminate\Support\Facades\Gate.
+// hasRole() and is_admin must be provided by your application.
 Gate::define('clearOpConsoleCaches', fn (User $user) => $user->hasRole('support') || $user->is_admin);
 Gate::define('manageOpConsole', fn (User $user) => $user->is_admin);
+```
 
+Merge these keys into the existing authorization configuration; keep your view, fallback run, and log Gates defined.
+
+```php
 // config/opconsole.php
 'authorization' => [
     'run_gate' => 'runOpConsoleActions', // compatibility fallback for unmapped actions
@@ -105,7 +110,7 @@ Actions run synchronously inside the HTTP request that triggered them.
 | Runtime | Supported actions |
 |---|---|
 | PHP CLI, or PHP-FPM / mod_php with the `pcntl` functions available | All enabled actions. |
-| PHP-FPM / mod_php **without** `pcntl` (Debian/Ubuntu `php.ini` disables `pcntl_*` for web SAPIs by default) | Only `security_scan`, which is bounded by its own Composer subprocess timeouts. Every other action is refused before it takes the lock or runs; its card is disabled, the reason is shown, and the refusal is audited. Run the equivalent `php artisan` command from the CLI or your deploy pipeline, or enable `pcntl` for the web SAPI. |
+| PHP-FPM / mod_php **without** `pcntl` (Debian/Ubuntu `php.ini` disables `pcntl_*` for web SAPIs by default) | `security_scan` (Composer subprocess timeouts) and `octane_reload` (signals the running Octane server), when enabled and their prerequisites are met. Timer-bound actions are refused before taking the lock or running; their cards are disabled, the reason is shown, and refusals are audited. Run the equivalent `php artisan` command from the CLI or your deploy pipeline, or enable `pcntl` for the web SAPI. |
 | Windows | `pcntl` does not exist; as above. |
 
 While a timer-bound action runs, OpConsole calls `ignore_user_abort(true)` so a browser or proxy disconnect cannot abort a migration halfway. It raises a lower non-zero `max_execution_time` to `max_runtime_seconds + 30` so its own timeout, not a PHP fatal error, ends an over-long command; it never lowers an existing limit. Web server and proxy timeouts (for example nginx `fastcgi_read_timeout`) may still end the HTTP response earlier. The command keeps running, and its outcome appears in Operation history.
@@ -240,7 +245,7 @@ Setting an action to `false` hides its card in the UI and causes `POST /admin/op
 | --- | --- | --- | --- |
 | `failed_jobs.enabled` | `OPCONSOLE_FAILED_JOBS` | `true` | Shows the **Failed jobs** tab with the newest failed queue jobs: job name, connection, queue, failure time and the first line of the sanitised exception. Payloads are never shown. When `false`, the tab is hidden and retry requests return `403`. |
 | `failed_jobs.limit` | `OPCONSOLE_FAILED_JOBS_LIMIT` | `50` | How many jobs to list (1–500). Database providers are queried with this limit, so a large store is never loaded in full. |
-| `failed_jobs.allow_retry` | `OPCONSOLE_FAILED_JOBS_RETRY` | `true` | Shows a **Retry** button per job: `POST /admin/opconsole/failed-jobs/{id}/retry` runs `queue:retry {id}`. It needs the run Gate (or the Gate mapped to `queue_retry` in `authorization.action_gates`), is rate limited to 20 per minute, asks for confirmation, and is audited as `queue.retry`. Under `audit.policy=required`, a retry whose audit row cannot be written is refused. |
+| `failed_jobs.allow_retry` | `OPCONSOLE_FAILED_JOBS_RETRY` | `true` | Shows a **Retry** button per job: `POST /admin/opconsole/failed-jobs/{id}/retry` runs `queue:retry {id}`. It needs the run Gate and, when configured, the Gate mapped to `queue_retry` in `authorization.action_gates`, is rate limited to 20 per minute, asks for confirmation, and is audited as `queue.retry`. Under `audit.policy=required`, a retry whose audit row cannot be written is refused. |
 
 The list reads Laravel's configured failed-job store (`queue.failed.driver`). With the `null` driver, the tab explains that failed jobs are not being stored.
 
@@ -328,7 +333,7 @@ final class ExampleHealthCheck implements HealthCheck
             'ok' => $healthy,
             'status' => $healthy ? 'healthy' : 'warning', // optional: 'healthy' | 'warning' | 'critical' | 'unknown'
             'severity' => 'warning',                      // 'danger' | 'warning' | 'info'
-            'hint' => 'Verifies that the scheduled worker updated its heartbeat within the expected window.',
+            'hint' => 'Checks for a heartbeat key; the worker must write it with a short expiry.',
             'value' => $healthy ? 'recent' : 'stale',
             'fix' => $healthy ? null : 'php artisan queue:work',
         ];

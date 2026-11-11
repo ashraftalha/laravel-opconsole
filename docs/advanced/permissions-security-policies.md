@@ -41,6 +41,8 @@ Gate::define('manageOpConsole', fn ($user) => $user->hasRole('admin'));
 Gate::define('retryOpConsoleJobs', fn ($user) => $user->hasRole('admin'));
 ```
 
+Failed-job retries require `run_gate` at the HTTP route **and** the Gate mapped to `queue_retry`, if configured. A retry-specific Gate can narrow run access but cannot grant retries to a user denied by the run Gate.
+
 Keep the view and fallback run Gates from [Authentication & Authorization](/guide/authentication#defining-gates-in-production). In this example, support can clear caches; only administrators can retry jobs, migrate, or change maintenance mode. A retry repeats the original job's side effects, so grant it separately if your support policy requires it. Keep log deletion separately restricted for audit retention.
 
 A configured but undefined Gate denies the operation (`403`); it does not fall back to the run Gate.
