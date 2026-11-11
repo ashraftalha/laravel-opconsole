@@ -10,6 +10,8 @@ For version-specific migration steps (config keys to merge, assets to republish,
 
 ## Latest release
 
+**v1.12.1** — Failed-job retries always require the run Gate, **Reload Octane workers** works when the dashboard is served by Octane, and the dashboard no longer scrolls sideways on narrow screens.
+
 **v1.12.0** — Run one pending migration at a time or all of them, from a full-width Run migrations card that lists every pending file in apply order.
 
 **v1.11.0** — Laravel Octane and Swoole support (health checks, System information card, Reload Octane workers operation, and a guard that refuses timed actions inside Swoole workers), a Failed jobs tab with per-job retry, and expanded System information (Performance, PHP extensions, Database groups).

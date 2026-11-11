@@ -4,6 +4,20 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-11-11
+
+### Security
+- **Failed-job retries always require the run Gate at the route.** The retry route has no `{action}` parameter, so `opconsole.authorize:run` looked up an empty action name, and an `authorization.action_gates` entry keyed `''` could replace `run_gate` there. Routes without an action now always check `run_gate`; the controller still also checks the Gate mapped to `queue_retry`.
+
+### Fixed
+- The **Retry** button on the Failed jobs tab now appears only when both the run Gate and the `queue_retry` check allow it, matching the endpoint. A user allowed by a mapped `queue_retry` Gate but denied by `run_gate` previously saw a button that returned `403`.
+- **Reload Octane workers** failed with `The command "octane:reload" does not exist`. Octane registers its Artisan commands only in the console, and its workers set `APP_RUNNING_IN_CONSOLE=false`, so the command was missing from web requests. OpConsole now registers Octane's own reload command before running it.
+- On narrow screens the scrolling tab strip widened the whole page, so the dashboard could be dragged sideways. The tab bar now clips its horizontal overflow; republish assets (`php artisan vendor:publish --tag=opconsole-assets --force`) to pick up the change.
+
+### Changed
+- Documentation: an effective permission matrix on the Authentication & Authorization page lists the Gates each route checks. Mapped Gates for normal actions replace `run_gate`; retries need `run_gate` plus `queue_retry` when mapped.
+- The Composer package no longer ships the documentation site's tooling files (`package.json`, `package-lock.json`, `.nvmrc`, `DEPLOYMENT.md`, `RELEASE-CHECKLIST.md`).
+
 ## [1.12.0] - 2026-11-11
 
 ### Added

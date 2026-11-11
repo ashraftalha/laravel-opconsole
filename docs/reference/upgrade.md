@@ -5,7 +5,20 @@ description: "Step-by-step upgrade notes for each Laravel OpConsole release: con
 
 # Upgrade Guide
 
-This document covers upgrades to the current `v1.12.0` release. The later sections retain migration notes for older installations.
+This document covers upgrades to the current `v1.12.1` release. The later sections retain migration notes for older installations.
+
+## Upgrade from v1.12.0 to v1.12.1
+
+No database migrations are required, and no routes, Gates or config keys changed. Existing configuration keeps working.
+
+1. **Update the package:**
+   ```bash
+   composer update ashraftalha/laravel-opconsole
+   php artisan config:clear
+   ```
+2. **Published assets:** the stylesheet changed (the tab bar no longer widens the page on narrow screens). Republish assets with `php artisan vendor:publish --tag=opconsole-assets --force`. Views did not change.
+3. **Permissions to review:** failed-job retries now always require `run_gate` at the route. An `authorization.action_gates` entry keyed `''` no longer replaces it; remove any such entry. The Retry button is hidden from users the run Gate denies, matching the endpoint. See the [permission matrix](/guide/authentication#effective-permission-matrix).
+4. **Octane:** **Reload Octane workers** now works when the dashboard is served by Octane. No configuration is needed.
 
 ## Upgrade from v1.11.0 to v1.12.0
 

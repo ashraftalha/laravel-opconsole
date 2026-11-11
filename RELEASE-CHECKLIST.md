@@ -4,9 +4,9 @@ Use this checklist before tagging any release of `ashraftalha/laravel-opconsole`
 
 ---
 
-## Release Scope: `v1.12.0`
+## Release Scope: `v1.12.1`
 
-This release lets operators run a single pending migration (`POST migrate` with a `migration` name, resolved to a file by the migrator; names that are not pending are refused) as well as all of them, and widens the Run migrations card. No routes, Gates, migrations or config keys were added or removed. Review `CHANGELOG.md`, `CONFIGURATION.md` and `UPGRADE.md` against the exact release commit.
+This patch release makes failed-job retries always require the run Gate at the route (an `action_gates` entry keyed `''` no longer replaces it) and shows the Retry button only when both checks pass. It also fixes **Reload Octane workers** when the dashboard is served by Octane, and stops the tab bar widening the page on narrow screens. No routes, Gates, migrations or config keys were added or removed. Review `CHANGELOG.md`, `CONFIGURATION.md` and `UPGRADE.md` against the exact release commit.
 
 ---
 
