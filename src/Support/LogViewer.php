@@ -337,9 +337,7 @@ class LogViewer
 
         $entries = [];
         foreach (array_chunk($parts, 4) as $chunk) {
-            if (count($chunk) < 4) {
-                continue; // malformed / unparsable tail chunk: skip rather than warn
-            }
+            // ENTRY_START always captures time, environment and level; preg_split adds the body.
             [$time, $env, $level, $body] = $chunk;
             $body = rtrim($body);
             [$firstLine] = explode("\n", $body, 2);

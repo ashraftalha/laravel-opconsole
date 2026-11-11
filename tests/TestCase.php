@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
 use Orchestra\Testbench\TestCase as BaseTestCase;
 
+require_once __DIR__.'/Support/FunctionOverrides.php';
+
 class TestCase extends BaseTestCase
 {
     /** Config overrides re-applied across refreshApplication() calls, which otherwise rebuild the app from scratch. */
@@ -25,6 +27,7 @@ class TestCase extends BaseTestCase
         }
         $this->temporaryDirectories = [];
         static::$configOverrides = [];
+        Support\FunctionOverrides::$callbacks = [];
 
         if ($this->app !== null) {
             $this->app['env'] = 'testing';
