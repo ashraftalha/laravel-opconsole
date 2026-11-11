@@ -98,7 +98,7 @@ class PagePresenter
             'overview' => $overview,
             'history' => $history,
             'tabs' => $this->tabs($status, $actions, $history, $output !== null, $failedJobs),
-            'failedJobs' => $failedJobs === null ? null : $this->failedJobs($failedJobs, $user === null || AuthorizeOpConsole::allowsAction('queue_retry', $user)),
+            'failedJobs' => $failedJobs === null ? null : $this->failedJobs($failedJobs, $canRun && ($user === null || AuthorizeOpConsole::allowsAction('queue_retry', $user))),
             'theme' => $this->theme(),
             'themeToggle' => (bool) config('opconsole.theme_toggle', true),
             'info' => $status['info'],

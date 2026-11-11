@@ -46,8 +46,10 @@ class AuthorizeOpConsole
             Auth::shouldUse($guardName);
         }
 
-        $allowed = $ability === 'run'
-            ? self::allowsAction((string) $request->route('action'), $guard->user())
+        $action = $request->route('action');
+        // Routes without an action (failed-job retries) must always pass the run Gate.
+        $allowed = $ability === 'run' && is_string($action) && $action !== ''
+            ? self::allowsAction($action, $guard->user())
             : self::allows($ability, $guard->user());
         abort_unless($allowed, 403);
 

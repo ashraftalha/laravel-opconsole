@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class FailedJobsTest extends TestCase
 {
@@ -111,6 +112,46 @@ class FailedJobsTest extends TestCase
 
         $this->post('/admin/opconsole/failed-jobs/'.$uuid.'/retry')->assertForbidden();
         $this->assertDatabaseHas('failed_jobs', ['uuid' => $uuid]);
+    }
+
+    #[DataProvider('retryPermissionCases')]
+    public function test_retry_route_and_button_enforce_both_permissions(bool $canRun, array $actionGates, bool $canRetry, bool $allowed): void
+    {
+        $uuid = $this->failJob();
+        $this->actingAsUser();
+        Gate::define('runOpConsoleActions', fn () => $canRun);
+        Gate::define('retryJobs', fn () => $canRetry);
+        config(['opconsole.authorization.action_gates' => $actionGates]);
+        $url = '/admin/opconsole/failed-jobs/'.$uuid.'/retry';
+
+        $dashboard = $this->get('/admin/opconsole')->assertOk();
+        if ($allowed) {
+            $dashboard->assertSee($url, false);
+            $this->post($url)->assertRedirect()->assertSessionHas('opconsole_success');
+            $this->assertDatabaseMissing('failed_jobs', ['uuid' => $uuid]);
+            $this->assertSame(1, DB::table('jobs')->count());
+            $this->assertDatabaseHas('opconsole_runs', ['action' => 'queue.retry', 'subject' => $uuid, 'status' => 'succeeded']);
+        } else {
+            $dashboard->assertDontSee($url, false)->assertSee('read-only: your account cannot retry jobs');
+            $this->post($url)->assertForbidden();
+            $this->assertDatabaseHas('failed_jobs', ['uuid' => $uuid]);
+            $this->assertSame(0, DB::table('jobs')->count());
+            $this->assertDatabaseMissing('opconsole_runs', ['action' => 'queue.retry', 'subject' => $uuid]);
+        }
+    }
+
+    public static function retryPermissionCases(): array
+    {
+        return [
+            'unmapped uses run permission' => [true, [], false, true],
+            'both gates allow' => [true, ['queue_retry' => 'retryJobs'], true, true],
+            'run denied despite retry permission' => [false, ['queue_retry' => 'retryJobs'], true, false],
+            'retry denied despite run permission' => [true, ['queue_retry' => 'retryJobs'], false, false],
+            'both gates deny' => [false, ['queue_retry' => 'retryJobs'], false, false],
+            'undefined retry gate' => [true, ['queue_retry' => 'missingRetryGate'], true, false],
+            'empty retry gate' => [true, ['queue_retry' => ''], true, false],
+            'empty action key cannot bypass run' => [false, ['' => 'retryJobs', 'queue_retry' => 'retryJobs'], true, false],
+        ];
     }
 
     public function test_retry_can_be_turned_off_and_the_tab_can_be_hidden(): void

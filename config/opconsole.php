@@ -185,8 +185,9 @@ return [
     |--------------------------------------------------------------------------
     | Lists the newest failed queue jobs (name, queue, failure time and the first
     | line of the exception; payloads are never shown) and lets operators retry one
-    | job with `queue:retry {id}`. Retrying needs the run Gate, or the Gate mapped to
-    | `queue_retry` in authorization.action_gates. Retries are audited.
+    | job with `queue:retry {id}`. The retry route requires the run Gate; the
+    | controller also requires the Gate mapped to `queue_retry`, when configured
+    | in authorization.action_gates. Retries are audited.
     */
     'failed_jobs' => [
         'enabled' => (bool) env('OPCONSOLE_FAILED_JOBS', true),
