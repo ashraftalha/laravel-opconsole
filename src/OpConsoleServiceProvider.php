@@ -57,8 +57,10 @@ class OpConsoleServiceProvider extends ServiceProvider
             }
         }
 
+        // Also in web requests: the Operations tab runs opconsole:security through Artisan.
+        $this->commands([HealthCommand::class, SecurityCommand::class]);
+
         if ($this->app->runningInConsole()) {
-            $this->commands([HealthCommand::class, SecurityCommand::class]);
             $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
                 if (config('opconsole.security.schedule', false)) {
                     $schedule->command('opconsole:security')->daily()->withoutOverlapping()->name('opconsole:security');

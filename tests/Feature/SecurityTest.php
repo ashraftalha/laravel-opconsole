@@ -5,9 +5,11 @@ namespace AshrafTalha\OpConsole\Tests\Feature;
 use AshrafTalha\OpConsole\Models\OpConsoleRun;
 use AshrafTalha\OpConsole\Support\SecurityScanner;
 use AshrafTalha\OpConsole\Tests\TestCase;
+use Illuminate\Console\Application as ArtisanApplication;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class SecurityTest extends TestCase
 {
@@ -61,6 +63,29 @@ class SecurityTest extends TestCase
      */
     public function test_security_scan_action_succeeds_even_when_advisories_are_found(): void
     {
+        $this->assertSecurityScanActionSucceeds();
+    }
+
+    /** PHP-FPM, Herd and `artisan serve` boot the package outside the console. */
+    public function test_security_scan_action_runs_from_a_web_request(): void
+    {
+        $_ENV['APP_RUNNING_IN_CONSOLE'] = $_SERVER['APP_RUNNING_IN_CONSOLE'] = 'false';
+
+        try {
+            // Artisan bootstrappers are static: drop those the console-booted app from setUp() registered.
+            ArtisanApplication::forgetBootstrappers();
+            $this->refreshApplication();
+            $this->assertFalse($this->app->runningInConsole());
+            $this->withoutCsrfMiddleware(); // Laravel only skips CSRF for tests running in the console.
+
+            $this->assertSecurityScanActionSucceeds();
+        } finally {
+            unset($_ENV['APP_RUNNING_IN_CONSOLE'], $_SERVER['APP_RUNNING_IN_CONSOLE']);
+        }
+    }
+
+    private function assertSecurityScanActionSucceeds(): void
+    {
         $this->allowOpConsole();
         $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
 
@@ -92,6 +117,56 @@ class SecurityTest extends TestCase
         } finally {
             File::deleteDirectory($directory);
         }
+    }
+
+    /**
+     * Web SAPIs hide PATH and HOME from subprocesses ($_SERVER holds request data; PHP-FPM clears the
+     * environment). Like the real one, this composer needs `php` on PATH and a home directory.
+     */
+    #[DataProvider('webEnvironments')]
+    public function test_scan_gives_composer_a_path_and_home_in_web_requests(bool $withHome, string $expectedHome): void
+    {
+        $directory = sys_get_temp_dir().'/opconsole-security-env-'.uniqid('', true);
+        File::makeDirectory($directory.'/cache', 0755, true);
+        file_put_contents($directory.'/composer.json', '{}');
+        file_put_contents($directory.'/composer.lock', json_encode(['packages' => []]));
+        file_put_contents($directory.'/composer', '#!/usr/bin/env php'."\n".'<?php'."\n"
+            .'$home = getenv("COMPOSER_HOME") ?: getenv("HOME");'."\n"
+            .'if (! $home) { fwrite(STDERR, "The HOME or COMPOSER_HOME environment variable must be set"); exit(1); }'."\n"
+            .'file_put_contents(getcwd()."/home.txt", (getenv("COMPOSER_HOME") ? "COMPOSER_HOME" : "HOME"));'."\n"
+            .'echo ($argv[1] ?? "") === "--version" ? "Composer version 2.10.0\n" : json_encode(["advisories" => []]);'."\n");
+        chmod($directory.'/composer', 0755);
+        $this->app->setBasePath($directory);
+        config(['opconsole.security.composer' => $directory.'/composer', 'opconsole.security.store' => 'security_env_fixture', 'cache.stores.security_env_fixture' => ['driver' => 'file', 'path' => $directory.'/cache']]);
+
+        $server = $_SERVER;
+        $home = getenv('HOME');
+        $composerHome = getenv('COMPOSER_HOME');
+        unset($_SERVER['PATH'], $_SERVER['HOME'], $_SERVER['COMPOSER_HOME']);
+        putenv('COMPOSER_HOME');
+        if (! $withHome) {
+            putenv('HOME');
+        }
+
+        try {
+            $report = app(SecurityScanner::class)->scan();
+
+            $this->assertSame('complete', $report['status'], (string) ($report['last_failure']['message'] ?? ''));
+            $this->assertSame($expectedHome, file_get_contents($directory.'/home.txt'));
+        } finally {
+            $_SERVER = $server;
+            putenv($home === false ? 'HOME' : 'HOME='.$home);
+            putenv($composerHome === false ? 'COMPOSER_HOME' : 'COMPOSER_HOME='.$composerHome);
+            File::deleteDirectory($directory);
+        }
+    }
+
+    public static function webEnvironments(): array
+    {
+        return [
+            'server has HOME, request does not' => [true, 'HOME'],
+            'no HOME at all (PHP-FPM clear_env)' => [false, 'COMPOSER_HOME'],
+        ];
     }
 
     public function test_composer_json_fixture_keeps_active_ignored_and_abandoned_records_separate(): void

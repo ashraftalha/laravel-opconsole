@@ -72,5 +72,6 @@ See the complete key list, including `security.risky_actions`, in the [Configura
 - **Security tab shows "unverified":** no scan has run yet — trigger one from the CLI or the Operations tab.
 - **Report marked stale:** either `security.max_age_seconds` has elapsed, or `composer.json`/`composer.lock` changed since the last scan — run the scan again.
 - **Scan fails immediately:** confirm the configured `security.composer` executable exists and is at least version 2.4, and that `composer.lock` is present and valid.
+- **Scan from the Operations tab fails with `The command "opconsole:security" does not exist`, or says Composer 2.4 or later is required although the CLI scan works:** on v1.12.1 and earlier, web requests (PHP-FPM, Herd, `artisan serve`) did not register the command and started Composer without `PATH` or `HOME`. Fixed in v1.12.2; until you upgrade, run `php artisan opconsole:security` from the CLI, and the dashboard reads its report.
 
 See the full threat model in [Security Model](/reference/security).

@@ -86,7 +86,8 @@ class SecurityScanner
             if ($composer === '' || str_contains($composer, "\0")) {
                 return $this->failure('Composer executable is not configured.');
             }
-            $versionProcess = new Process([$composer, '--version', '--no-ansi'], $root);
+            $env = self::composerEnvironment();
+            $versionProcess = new Process([$composer, '--version', '--no-ansi'], $root, $env);
             $versionProcess->setTimeout(10);
             $versionProcess->run();
             if (! $versionProcess->isSuccessful() || ! preg_match('/Composer version (\d+)\.(\d+)/', $versionProcess->getOutput(), $vm) || (int) $vm[1] < 2 || ((int) $vm[1] === 2 && (int) $vm[2] < 4)) {
@@ -97,7 +98,7 @@ class SecurityScanner
             if (! config('opconsole.security.include_dev', false)) {
                 $args[] = '--no-dev';
             }
-            $process = new Process($args, $root);
+            $process = new Process($args, $root, $env);
             $process->setTimeout(max(10, (int) config('opconsole.security.timeout', 120)));
             $tooLarge = false;
             $process->run(function () use ($process, &$tooLarge): void {
@@ -235,6 +236,30 @@ class SecurityScanner
         }
 
         return $warnings;
+    }
+
+    /**
+     * Web requests rarely pass PATH or HOME to subprocesses: Symfony Process only inherits variables
+     * that are also in $_SERVER, and PHP-FPM clears the environment by default. Composer then cannot
+     * find `php` for its `#!/usr/bin/env php` line, nor run without a home directory.
+     *
+     * @return array<string, string>
+     */
+    private static function composerEnvironment(): array
+    {
+        $value = fn (string $name): ?string => is_string($v = getenv($name)) && $v !== '' ? $v : null;
+
+        $env = ['PATH' => $value('PATH') ?? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'];
+        foreach (['HOME', 'COMPOSER_HOME'] as $name) {
+            if ($value($name) !== null) {
+                $env[$name] = $value($name);
+            }
+        }
+        if (! isset($env['HOME']) && ! isset($env['COMPOSER_HOME'])) {
+            $env['COMPOSER_HOME'] = storage_path('framework/cache/opconsole/composer');
+        }
+
+        return $env;
     }
 
     private function failure(string $message): array
