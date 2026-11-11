@@ -5,7 +5,19 @@ description: "Step-by-step upgrade notes for each Laravel OpConsole release: con
 
 # Upgrade Guide
 
-This document covers upgrades to the current `v1.12.1` release. The later sections retain migration notes for older installations.
+This document covers upgrades to the current `v1.12.2` release. The later sections retain migration notes for older installations.
+
+## Upgrade from v1.12.1 to v1.12.2
+
+No database migrations are required, and no routes, Gates, config keys, views or assets changed.
+
+1. **Update the package:**
+   ```bash
+   composer update ashraftalha/laravel-opconsole
+   php artisan config:clear
+   ```
+2. **Security scan:** **Run security scan** now works from the Operations tab under PHP-FPM, Herd and `artisan serve`. When the web server provides neither `HOME` nor `COMPOSER_HOME`, Composer uses `storage/framework/cache/opconsole/composer`, which must be writable.
+3. **Published config:** if your published `config/opconsole.php` predates the scan, add `'security_scan' => (bool) env('OPCONSOLE_ACTION_SECURITY_SCAN', true),` to its `actions` list; otherwise the card stays hidden.
 
 ## Upgrade from v1.12.0 to v1.12.1
 

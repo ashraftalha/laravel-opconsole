@@ -4,9 +4,9 @@ Use this checklist before tagging any release of `ashraftalha/laravel-opconsole`
 
 ---
 
-## Release Scope: `v1.12.1`
+## Release Scope: `v1.12.2`
 
-This patch release makes failed-job retries always require the run Gate at the route (an `action_gates` entry keyed `''` no longer replaces it) and shows the Retry button only when both checks pass. It also fixes **Reload Octane workers** when the dashboard is served by Octane, and stops the tab bar widening the page on narrow screens. No routes, Gates, migrations or config keys were added or removed. Review `CHANGELOG.md`, `CONFIGURATION.md` and `UPGRADE.md` against the exact release commit.
+This patch release makes **Run security scan** work from the Operations tab under PHP-FPM, Herd and `artisan serve`: OpConsole's Artisan commands are registered for web requests, and Composer gets `PATH` and a home directory. No routes, Gates, migrations, config keys, views or assets were added or removed. Review `CHANGELOG.md`, `CONFIGURATION.md` and `UPGRADE.md` against the exact release commit.
 
 ---
 

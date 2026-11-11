@@ -4,6 +4,12 @@ All notable changes to Laravel OpConsole are documented here. This project follo
 
 ## [Unreleased]
 
+## [1.12.2] - 2026-11-11
+
+### Fixed
+- **Run security scan** from the Operations tab failed with `The command "opconsole:security" does not exist` under PHP-FPM, Herd or `artisan serve`: OpConsole registered its Artisan commands only when running in the console. They are now registered for web requests too.
+- The scan then reported "Composer 2.4 or later is required" from web requests although the CLI scan worked: Composer was started without `PATH` (so its `#!/usr/bin/env php` line failed) or a home directory. The scan now passes `PATH`, and `HOME`/`COMPOSER_HOME` when available, falling back to `storage/framework/cache/opconsole/composer`.
+
 ## [1.12.1] - 2026-11-11
 
 ### Security

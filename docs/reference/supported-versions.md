@@ -10,7 +10,7 @@ description: "PHP and Laravel versions supported by Laravel OpConsole, the curre
 | PHP | `^8.3` — tested in CI on `8.3`, `8.4`, `8.5` |
 | Laravel | `^12.0` or `^13.0` |
 | Composer (security audit only) | `2.4+` |
-| Current release | `v1.12.1` |
+| Current release | `v1.12.2` |
 
 ## Verification matrix
 
