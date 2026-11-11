@@ -5,6 +5,8 @@ description: "Laravel Octane and Swoole support in OpConsole: runtime health che
 
 # Octane & Swoole Monitoring and Worker Reload
 
+[View runtime information screenshot](/screenshots/system-light.png) · [Browse all feature screenshots](/guide/introduction#feature-screenshot-directory)
+
 ## What it does
 
 When [Laravel Octane](https://laravel.com/docs/octane) is installed, OpConsole adds:
@@ -31,6 +33,11 @@ Without Octane installed, none of this appears — nothing changes for a non-Oct
 - Worker count against CPU core count
 - Xdebug loaded alongside Swoole
 - The Swoole log file is writable
+
+<figure class="oc-shot">
+  <img src="/screenshots/system-light.png" alt="OpConsole runtime information in the System information tab" width="1920" height="1245" loading="lazy">
+  <figcaption>System information on a non-Octane sample app. An Octane installation adds its own runtime card; that card is not shown in this screenshot.</figcaption>
+</figure>
 
 ## Why it is useful
 

@@ -4,6 +4,8 @@ title: Initial Configuration
 
 # Initial Configuration
 
+For a first production rollout, copy the **[read-only recipe](/advanced/production-recipes#read-only-production-recommended)** before enabling operations. It combines explicit Gates with disabled commands, retries, and log exports/deletion.
+
 This page covers the handful of settings worth reviewing right after install. For every available key, see the [Configuration Reference](/reference/configuration).
 
 ## Publish the config file

@@ -5,6 +5,8 @@ description: "OpConsole audits Composer dependencies for known advisories and ch
 
 # Security Checks
 
+[View security audit screenshot](/screenshots/security-light.png) · [Browse all feature screenshots](/guide/introduction#feature-screenshot-directory)
+
 ## What it does
 
 OpConsole combines two kinds of security coverage:

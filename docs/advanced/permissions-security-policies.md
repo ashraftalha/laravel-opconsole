@@ -32,7 +32,18 @@ The fallback behavior only applies when the Gate **keeps its default name** and 
 ],
 ```
 
-A sensible production split: let a broader "support" group clear caches and retry jobs, while migrations and maintenance mode stay with a narrower "admin" group — and deleting logs (destroys forensic evidence) stays narrower still.
+Define every mapped Gate in `AppServiceProvider::boot()` (import `Illuminate\Support\Facades\Gate` at the top of the file):
+
+```php
+// hasRole() must be supplied by your application's role/permission system.
+Gate::define('clearOpConsoleCaches', fn ($user) => $user->hasRole('support') || $user->hasRole('admin'));
+Gate::define('manageOpConsole', fn ($user) => $user->hasRole('admin'));
+Gate::define('retryOpConsoleJobs', fn ($user) => $user->hasRole('admin'));
+```
+
+Keep the view and fallback run Gates from [Authentication & Authorization](/guide/authentication#defining-gates-in-production). In this example, support can clear caches; only administrators can retry jobs, migrate, or change maintenance mode. A retry repeats the original job's side effects, so grant it separately if your support policy requires it. Keep log deletion separately restricted for audit retention.
+
+A configured but undefined Gate denies the operation (`403`); it does not fall back to the run Gate.
 
 ## Multi-guard setups
 

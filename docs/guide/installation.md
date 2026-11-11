@@ -6,6 +6,24 @@ title: Installation
 
 Laravel OpConsole installs into any Laravel 12 or Laravel 13 application running PHP `^8.3` with zero external frontend build steps or third-party JavaScript/CSS CDN dependencies.
 
+::: tip Start here
+Use the **[5-minute setup](/guide/quick-start)** for a first dashboard. For production, begin with the **[read-only recipe](/advanced/production-recipes#read-only-production-recommended)** and add execution privileges only when needed.
+:::
+
+## Shared-hosting and no-SSH deployments
+
+OpConsole can reduce routine SSH use **after installation**. It does not install dependencies, create your application's login, run deployment migrations automatically, or turn restricted web PHP into a command-line runtime.
+
+| Host capability | What to confirm before installing | If unavailable |
+|---|---|---|
+| Composer and Artisan deployment access | SSH, a control-panel terminal/task, CI/CD, or a provider-managed deployment can install dependencies, run reviewed migrations, and rebuild caches | Ask the provider for a deployment path. Uploading the package alone is not a complete installation. |
+| Web PHP `pcntl` functions | Availability in the actual web SAPI, not just `php -m` in a terminal | Timer-bound browser actions are disabled; use read-only diagnostics and provider/deployment tooling for maintenance. |
+| Subprocesses and Composer audit | Composer 2.4+, `composer.json`, `composer.lock`, process execution, and advisory-repository network access | Security scans cannot run there; do not assume the Security tab has verified dependencies. |
+| Cron and queue workers | A per-minute scheduler and a persistent worker for asynchronous queues | Heartbeats remain unknown or become stale; OpConsole does not start those services for you. |
+| Writable/readable application storage | Laravel can write storage/cache and read the configured log directory | Resolve permissions with the host; filesystem-dependent checks and logs may be unavailable. |
+
+A terminal with `pcntl` does not prove the web runtime has it. Check the disabled card's explanation and [execution environments](/reference/configuration#execution-environments). Keep production Gates in place; use [read-only access](/advanced/production-recipes#read-only-production-recommended) when hosting restrictions prevent operations.
+
 ---
 
 ## 1. Requirements
@@ -139,13 +157,30 @@ php artisan view:cache
 
 Set `OPCONSOLE_ENABLED=false` in `.env` and run `php artisan optimize:clear`. OpConsole registers zero routes while disabled.
 
-### Complete Removal
+### Remove the package while retaining audit history
+
+Package removal does not require rolling back migrations. Keep the audit table by default so incident history and retention obligations survive uninstalling.
+
+Before removing configuration, record `opconsole.connection` and `opconsole.table` (default `opconsole_runs`) and export or back up the audit data according to your retention policy. Disable access with the kill-switch above, then run:
 
 ```bash
 php artisan optimize:clear
-php artisan migrate:rollback --path=vendor/ashraftalha/laravel-opconsole/database/migrations --force
 composer remove ashraftalha/laravel-opconsole
-rm -rf config/opconsole.php public/vendor/opconsole resources/views/vendor/opconsole lang/vendor/opconsole
 ```
 
-Remove the `Gate::define(...)` calls from `App\Providers\AppServiceProvider`.
+Remove package-specific Gate definitions, imports, scheduled commands, and Composer publish hooks from your application. Review and remove only the published files you no longer need: `config/opconsole.php`, `public/vendor/opconsole/`, `resources/views/vendor/opconsole/`, and `lang/vendor/opconsole/`. If you published package migrations into `database/migrations/`, archive and remove those package files after deciding how to retain or clean up their schema; otherwise future migrations on a fresh database can recreate the audit table. Rebuild your normal deployment caches after cleanup.
+
+### Optional destructive audit-table cleanup
+
+::: danger Audit history will be permanently deleted
+The table-creation migration's `down()` method drops the configured audit table and all its rows. The duration migration's `down()` method removes recorded durations. Only perform cleanup after retention approval and a verified backup/export; ordinary package removal does not need this step.
+:::
+
+Prepare cleanup while the package migration files and configuration are still available, or retain reviewed copies for a later maintenance operation:
+
+1. Confirm the exact database connection and table, including any customized configuration. Review the actual schema and both package migrations' `down()` methods.
+2. Run `php artisan migrate:status` and inspect the migration repository's names and batches on the relevant connection. Laravel rollback normally selects the last batch; `--path` alone does **not** mean “roll back every migration belonging to this package.” Check published copies as well as vendor files, and ensure no application migrations or dependent tables are affected.
+3. Rehearse the exact rollback/cleanup plan on a restored copy of the database. A `--pretend` preview can help inspect SQL after reviewing the migration code, but is not a substitute for that rehearsal or a backup.
+4. Only execute the reviewed, explicitly scoped cleanup during an approved maintenance window. Verify the retained export, remaining application schema, and migration repository state afterward.
+
+There is intentionally no unconditional rollback command in the uninstall sequence. If the package is already removed, do not run a generic rollback against the application's latest batch; use the reviewed migration copies or a dedicated cleanup migration targeting the confirmed audit table.

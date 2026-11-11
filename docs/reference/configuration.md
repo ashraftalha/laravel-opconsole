@@ -265,7 +265,9 @@ When embedding OpConsole in a layout with a fixed header, set `--oc-tabs-offset`
 
 ## 2. Read-Only Diagnostic Preset
 
-For conservative production rollouts where operators should inspect health checks, operation history, and in-browser log tails without running Artisan commands or exporting/deleting log files:
+Use the complete **[read-only production recipe](/advanced/production-recipes#read-only-production-recommended)** for copyable Gates, action settings, retry restrictions, and verification steps. It explicitly denies execution and clears action-specific overrides.
+
+For conservative production rollouts where operators should inspect health checks, operation history, and in-browser log tails without running Artisan commands or exporting/deleting log files, replace these sections in the published config:
 
 ```php
 // config/opconsole.php
@@ -273,6 +275,17 @@ For conservative production rollouts where operators should inspect health check
     'clear' => false,
     'optimize' => false,
     'migrate' => false,
+    'down' => false,
+    'up' => false,
+    'storage_link' => false,
+    'security_scan' => false,
+    'octane_reload' => false,
+],
+
+'failed_jobs' => [
+    'enabled' => true,
+    'limit' => 50,
+    'allow_retry' => false,
 ],
 
 'logs' => [

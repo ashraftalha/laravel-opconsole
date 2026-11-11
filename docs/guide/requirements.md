@@ -5,6 +5,8 @@ description: "Laravel OpConsole requirements: PHP 8.3 or newer, Laravel 12 or 13
 
 # Requirements & Compatibility
 
+For shared hosting or no-SSH deployments, check the [installation capability checklist](/guide/installation#shared-hosting-and-no-ssh-deployments) before assuming browser actions can replace deployment tooling.
+
 ## Core requirements
 
 | Requirement | Supported |

@@ -11,15 +11,6 @@
   color: var(--vp-c-text-1);
 }
 
-/* Same blues as the mark (logo-mark.svg / logo-mark-dark.svg). Large bold text, so 3:1 contrast suffices. */
-.oc-wordmark-op {
-  color: #2f80ed;
-}
-
-.dark .oc-wordmark-op {
-  color: #5b9cf5;
-}
-
 /* ---------- Home hero: the mark at a readable size on a soft glow in the mark's blue ---------- */
 :root {
   --vp-home-hero-image-background-image: radial-gradient(circle, rgba(47, 128, 237, 0.28) 0%, rgba(47, 128, 237, 0) 65%);

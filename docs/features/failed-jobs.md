@@ -4,6 +4,8 @@ title: Failed Jobs & Retry
 
 # Failed Jobs & Retry
 
+[View failed jobs and retries screenshot](/screenshots/jobs-light.png) · [Browse all feature screenshots](/guide/introduction#feature-screenshot-directory)
+
 ## What it does
 
 The **Failed jobs** tab lists the newest failed queue jobs — name, connection, queue, failure time, and the first line of the sanitized exception. Job **payloads are never shown**. Each row has a **Retry** button that runs `queue:retry {id}`.

@@ -19,6 +19,10 @@
 
 OpConsole adds one page to your app, `/admin/opconsole` by default. It answers "is anything wrong?" at a glance, shows the fix for every problem, and lets the right people run maintenance tasks without SSH. It ships its own CSS and JavaScript, needs no build step, and makes no CDN requests.
 
+**Start here:** [5-minute setup](https://opconsole.ashraftalha.com/guide/quick-start) · [Read-only production](https://opconsole.ashraftalha.com/advanced/production-recipes#read-only-production-recommended) · [401/403 troubleshooting](https://opconsole.ashraftalha.com/reference/troubleshooting#access-and-actions-decision-tree)
+
+No SSH? [Check shared-hosting limitations](https://opconsole.ashraftalha.com/guide/installation#shared-hosting-and-no-ssh-deployments): installation and migrations still need deployment access, and timed browser actions need web-runtime `pcntl`.
+
 ## Contents
 
 - [What's inside](#whats-inside)
@@ -105,14 +109,34 @@ With `APP_ENV=local` it works right away. In every other environment, access is 
 
 **5. Allow access in production**
 
-In `app/Providers/AppServiceProvider.php`, inside `boot()`:
+Start with a trusted read-only operator. Import `Gate` at the top of `app/Providers/AppServiceProvider.php`, then define the Gates inside `boot()`:
 
 ```php
 use Illuminate\Support\Facades\Gate;
 
-Gate::define('viewOpConsole', fn ($user) => $user->email === 'you@example.com');
-Gate::define('runOpConsoleActions', fn ($user) => $user->email === 'you@example.com');
+// Inside boot(): replace this placeholder with a trusted operator's identity.
+Gate::define('viewOpConsole', fn ($user) => $user->email === 'operator@example.com');
+Gate::define('runOpConsoleActions', fn ($user) => false);
+Gate::define('downloadOpConsoleLogs', fn ($user) => false);
+Gate::define('deleteOpConsoleLogs', fn ($user) => false);
 ```
+
+This permits dashboard and log-tail access but denies commands, job retries, full log downloads, and log deletion with the default configuration. Keep `authorization.action_gates` empty for this read-only policy: a mapped action Gate can independently grant execution. Log tails may contain sensitive data, so viewing still requires a trusted operator.
+
+When administrators need to execute actions, **replace** those definitions with a separate operator/admin policy:
+
+```php
+// Inside boot(): replace both placeholders with identities you control.
+Gate::define('viewOpConsole', fn ($user) => in_array($user->email, [
+    'operator@example.com',
+    'admin@example.com',
+], true));
+Gate::define('runOpConsoleActions', fn ($user) => $user->email === 'admin@example.com');
+Gate::define('downloadOpConsoleLogs', fn ($user) => $user->email === 'admin@example.com');
+Gate::define('deleteOpConsoleLogs', fn ($user) => false);
+```
+
+The operator remains read-only; the administrator can run enabled actions (including migrations and job retries) and download logs. Log deletion stays disabled until explicitly granted. For an existing role or permission system, use equivalent permission checks instead of email addresses.
 
 **6. Start the scheduler and a queue worker** (for the heartbeat checks)
 

@@ -4,12 +4,19 @@ title: Queue Worker & Scheduler Monitoring
 
 # Queue Worker & Scheduler Monitoring
 
+[View scheduler and worker checks screenshot](/screenshots/health-light.png) · [Browse all feature screenshots](/guide/introduction#feature-screenshot-directory)
+
 ## What it does
 
 Two heartbeat checks answer a question logs can't: is the scheduler actually firing every minute, and is a worker actually consuming the queue right now?
 
 - **Scheduler heartbeat (`scheduler.heartbeat`):** the service provider schedules a callback every minute that writes `opconsole:heartbeat:scheduler` to the heartbeat cache store.
 - **Queue worker heartbeat (`queue.worker_heartbeat`):** the scheduler dispatches `OpConsoleHeartbeatJob` every minute on a configurable connection and queue; the worker that processes it writes `opconsole:heartbeat:queue`. This works with Redis, SQS, and any other driver — unlike a "stuck jobs" check, it directly proves a worker is consuming jobs.
+
+<figure class="oc-shot">
+  <img src="/screenshots/health-light.png" alt="OpConsole scheduler and worker checks in the Health tab" width="1920" height="1245" loading="lazy">
+  <figcaption>The Health tab groups these checks with their status and suggested fixes. Sample data.</figcaption>
+</figure>
 
 ## Why it is useful
 

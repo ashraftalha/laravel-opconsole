@@ -5,6 +5,8 @@ description: "Take a Laravel site down and bring it back from the dashboard, wit
 
 # Maintenance Operations
 
+[View maintenance operations screenshot](/screenshots/operations-light.png) · [Browse all feature screenshots](/guide/introduction#feature-screenshot-directory)
+
 ## What it does
 
 Two operations manage Laravel's maintenance mode directly from the dashboard:

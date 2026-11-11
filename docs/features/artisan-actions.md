@@ -4,6 +4,8 @@ title: Allowlisted Artisan Actions
 
 # Allowlisted Artisan Actions
 
+[View artisan actions screenshot](/screenshots/operations-light.png) · [Browse all feature screenshots](/guide/introduction#feature-screenshot-directory)
+
 ## What it does
 
 The **Operations** tab exposes a fixed, closed allow-list of Artisan operations, split into a **Safe** group and a **Danger zone**. There is no way to run an arbitrary command — the list below is exhaustive.
@@ -67,11 +69,26 @@ Every operation asks for confirmation first, naming the environment and showing 
 
 ## Running one migration at a time
 
+::: warning Migration order is not enforced for individual runs
+**Use Run all by default** to apply pending migrations in Laravel's normal order. If running one at a time, execute the earliest pending migration first and continue sequentially. **Run only this can skip earlier pending migrations**, and OpConsole does not detect schema or data dependencies. A later migration may fail or leave the database incompatible with the application. The confirmation is a warning, not a dependency check.
+
+Use an out-of-order run only after reviewing the migration and its dependencies, testing that exact sequence against a representative database, and confirming a recoverable backup.
+:::
+
 The **Run migrations** card spans the full row and lists every pending migration in the order `migrate` would apply them. Use **Run all** to apply them all, or **Run only this** on a row to apply just that file (`migrate --force --isolated --path=… --realpath`). The rest stay pending.
 
 - The request only carries the migration's name. The file path always comes from Laravel's migrator, and a name that is not currently pending is refused without running anything.
 - Running a later file ahead of earlier ones is allowed; the confirmation warns you when it does, so you can check it doesn't depend on them.
 - The audit row records the migration name as its subject, and the output panel title shows it.
+
+### Recovery after a failed or interrupted migration
+
+1. Stop further migration attempts. Save the command output and audit entry; a failed, timed-out, or **Interrupted / Unknown** result does not prove that no changes were applied.
+2. Inspect `php artisan migrate:status`, Laravel's migration repository, and the actual schema and data on the affected connection. Database DDL and custom migration side effects may not be transactional; earlier migrations in a run may already have completed.
+3. Have the migration owner choose and test a recovery plan: a corrective forward migration, a carefully reviewed CLI rollback if its `down()` method is safe, or restoration from a verified backup. Do not blindly rerun a partially applied migration or mark it as completed to suppress the failure.
+4. Verify application behavior and data integrity, then resume migrations in order. Restrict traffic or use maintenance mode when the current schema is incompatible with the running application.
+
+OpConsole does not automatically undo changes or provide a rollback/reset button. Recovery is an operator-managed database operation; retain the audit history and record the recovery steps.
 
 ## Troubleshooting
 

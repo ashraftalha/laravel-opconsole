@@ -4,6 +4,8 @@ title: Health Checks & Health Score
 
 # Health Checks & Health Score
 
+[View health checks screenshot](/screenshots/health-light.png) · [Browse all feature screenshots](/guide/introduction#feature-screenshot-directory)
+
 ## What it does
 
 OpConsole runs a set of built-in diagnostics, plus any checks you register, and reports each as one of four statuses: `healthy`, `warning`, `critical`, or `unknown`. The same report feeds the dashboard's **Health** tab, the `opconsole:health` Artisan command, and the optional JSON health endpoint — there is one health report policy, not three.

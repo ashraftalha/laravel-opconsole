@@ -4,6 +4,8 @@ title: Operational Audit Trail
 
 # Operational Audit Trail
 
+[View audit history screenshot](/screenshots/history-light.png) · [Browse all feature screenshots](/guide/introduction#feature-screenshot-directory)
+
 ## What it does
 
 Every operation run through OpConsole — Artisan actions, log downloads, log deletions, failed-job retries — is recorded in the `opconsole_runs` table and shown in the **History** tab, grouped by day: who ran what, when, how long it took, and any error.

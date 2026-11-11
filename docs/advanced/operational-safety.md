@@ -43,7 +43,7 @@ Command output and exception messages are sanitized before being flashed to the 
 
 ## Migrations only ever move forward
 
-The `migrate` action runs `migrate --force --isolated`. There is no rollback or reset action in the allow-list — reverting a migration is a deliberate, CLI-level decision outside OpConsole's scope.
+The `migrate` action runs `migrate --force --isolated`. Use **Run all**, or run individual migrations sequentially from the earliest pending file. **Run only this** permits out-of-order execution without checking dependencies. There is no automatic undo, rollback, or reset action; a failed or interrupted migration may have partially applied. Review the [migration-order warning and recovery procedure](/features/artisan-actions#running-one-migration-at-a-time) before using individual runs.
 
 ## Why queue workers aren't involved
 

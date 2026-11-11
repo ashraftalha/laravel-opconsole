@@ -4,6 +4,8 @@ title: Cache, Database & Storage Monitoring
 
 # Cache, Database & Storage Monitoring
 
+[View cache, database, and storage checks screenshot](/screenshots/health-light.png) · [Browse all feature screenshots](/guide/introduction#feature-screenshot-directory)
+
 ## What it does
 
 OpConsole probes the services your application actually depends on, using your configured connections and drivers — not generic defaults.
@@ -13,6 +15,11 @@ OpConsole probes the services your application actually depends on, using your c
 - **Production caches built (`performance.caches_built`):** in production, warns when configuration, routes, or events aren't cached, lists which are missing, and suggests `php artisan optimize`. Informational outside production.
 - **Disk space (`files.disk_space`):** warns below 1 GB free or below `disk.min_free_percent` (default 10%) of the volume, critical below 256 MB.
 - **Storage link (`files.storage_link`):** when a `public` disk exists, warns if `public/storage` is missing or doesn't resolve to `storage/app/public`, with fix `php artisan storage:link`.
+
+<figure class="oc-shot">
+  <img src="/screenshots/health-light.png" alt="OpConsole cache, database, and storage checks in the Health tab" width="1920" height="1245" loading="lazy">
+  <figcaption>The Health tab groups these checks with their status and suggested fixes. Sample data.</figcaption>
+</figure>
 
 ## Why it is useful
 

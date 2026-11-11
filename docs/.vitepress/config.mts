@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import { defineConfig } from 'vitepress'
 
 const hostname = 'https://opconsole.ashraftalha.com'
-const ogImage = `${hostname}/screenshots/overview-light.png`
+// PNG export of the package logo for social link previews.
+const ogImage = `${hostname}/opconsole-social.png`
 const siteDescription = 'Monitor. Diagnose. Maintain. An operations console for Laravel: health checks, safe Artisan operations, a security audit and a log viewer, all behind Gates.'
 
 // Single source of truth for the version label: the newest released heading in CHANGELOG.md.
@@ -31,7 +32,8 @@ export default defineConfig({
   description: siteDescription,
   lang: 'en-US',
   cleanUrls: true,
-  lastUpdated: true,
+  // Omit the timestamp UI rather than render an empty client-only date in static output.
+  lastUpdated: false,
   sitemap: {
     hostname,
   },
@@ -45,8 +47,13 @@ export default defineConfig({
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:site_name', content: 'Laravel OpConsole' }],
     ['meta', { property: 'og:image', content: ogImage }],
+    ['meta', { property: 'og:image:type', content: 'image/png' }],
+    ['meta', { property: 'og:image:width', content: '1200' }],
+    ['meta', { property: 'og:image:height', content: '630' }],
+    ['meta', { property: 'og:image:alt', content: 'OpConsole logo' }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['meta', { name: 'twitter:image', content: ogImage }],
+    ['meta', { name: 'twitter:image:alt', content: 'OpConsole logo' }],
   ],
 
   // Per-page canonical URL, Open Graph/Twitter title and description. A site-wide canonical
@@ -77,6 +84,7 @@ export default defineConfig({
     siteTitle: false,
 
     nav: [
+      { text: '5-minute setup', link: '/guide/quick-start' },
       { text: 'Guide', link: '/guide/introduction' },
       { text: 'Features', link: '/features/health-dashboard' },
       { text: 'Advanced', link: '/advanced/custom-health-checks' },
@@ -102,7 +110,8 @@ export default defineConfig({
           { text: 'Installation', link: '/guide/installation' },
           { text: 'Initial Configuration', link: '/guide/initial-configuration' },
           { text: 'Authentication & Authorization', link: '/guide/authentication' },
-          { text: 'Quick Start', link: '/guide/quick-start' },
+          { text: '5-minute setup', link: '/guide/quick-start' },
+          { text: 'Read-only production', link: '/advanced/production-recipes#read-only-production-recommended' },
         ],
       },
       {
@@ -129,6 +138,7 @@ export default defineConfig({
           { text: 'Custom Health Checks', link: '/advanced/custom-health-checks' },
           { text: 'Extension Points & Contracts', link: '/advanced/extension-points' },
           { text: 'Production Deployment', link: '/advanced/production-deployment' },
+          { text: 'Production Recipes', link: '/advanced/production-recipes' },
           { text: 'Octane & Swoole Environments', link: '/advanced/octane-swoole-environments' },
           { text: 'Permissions & Security Policies', link: '/advanced/permissions-security-policies' },
           { text: 'Operational Safety', link: '/advanced/operational-safety' },

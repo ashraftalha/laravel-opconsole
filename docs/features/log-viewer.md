@@ -4,6 +4,8 @@ title: Log Viewer & Log Management
 
 # Log Viewer & Log Management
 
+[View log viewer screenshot](/screenshots/logs-light.png) · [Browse all feature screenshots](/guide/introduction#feature-screenshot-directory)
+
 ## What it does
 
 The **Logs** tab lists readable log files, an entries-per-hour chart for the last 24 hours, level and environment filters, full-text search with highlighting, repeat counts for duplicate consecutive entries, and stack traces with your application's own frames highlighted and vendor frames dimmed.

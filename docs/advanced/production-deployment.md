@@ -5,6 +5,10 @@ description: "Run Laravel OpConsole in production: config and route caching, Gat
 
 # Production Deployment
 
+::: tip Recommended first deployment
+Start with **[read-only production](/advanced/production-recipes#read-only-production-recommended)**. The [copyable production recipes](/advanced/production-recipes) also cover limited administrator actions and token-based health monitoring.
+:::
+
 ## Before you deploy
 
 1. **Define the Gates.** OpConsole is fail-closed outside `local` — see [Authentication & Authorization](/guide/authentication).

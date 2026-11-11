@@ -4,6 +4,8 @@ title: Health Dashboard
 
 # Health Dashboard
 
+[View overview and health score screenshot](/screenshots/overview-light.png) · [Browse all feature screenshots](/guide/introduction#feature-screenshot-directory)
+
 ## What it does
 
 The dashboard is a single page at `/admin/opconsole` (by default) organized into eight tabs, with a header showing a **0–100 health score**, the environment badge, and the Laravel and PHP versions.

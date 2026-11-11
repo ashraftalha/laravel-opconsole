@@ -22,6 +22,14 @@ No database migrations are required, and no routes, Gates or config keys changed
 
 3. **Permissions to review:** anyone allowed to run `migrate` can now apply a single pending migration, including one ahead of earlier pending files. The confirmation warns about this. The same Gate applies as before (`migrate` in `authorization.action_gates`, or the run Gate).
 
+::: warning Migration order is not enforced for individual runs
+**Use Run all by default** to apply pending migrations in Laravel's normal order. If running one at a time, execute the earliest pending migration first and continue sequentially. **Run only this can skip earlier pending migrations**, and OpConsole does not detect schema or data dependencies. A later migration may fail or leave the database incompatible with the application. The confirmation is a warning, not a dependency check.
+
+Use an out-of-order run only after reviewing the migration and its dependencies, testing that exact sequence against a representative database, and confirming a recoverable backup.
+:::
+
+If a migration fails or is interrupted, assume it may have partially applied. Inspect migration status and the actual database before retrying; OpConsole does not automatically roll back. Follow [Migration recovery](/features/artisan-actions#recovery-after-a-failed-or-interrupted-migration) before applying more migrations.
+
 ## Upgrade from v1.10.0 to v1.11.0
 
 No database migrations are required, and no routes, Gates or existing config keys changed. Existing configuration keeps working.
