@@ -58,7 +58,7 @@ Gate::define('downloadOpConsoleLogs', fn ($user) => false);
 Gate::define('deleteOpConsoleLogs', fn ($user) => false);
 ```
 
-This permits dashboard and log-tail access but denies commands, job retries, full log downloads, and log deletion with the default configuration. Keep `authorization.action_gates` empty for this read-only policy: a mapped action Gate can independently grant execution. Log tails may contain sensitive data, so viewing still requires a trusted operator.
+This permits dashboard and log-tail access but denies commands, job retries, full log downloads, and log deletion with the default configuration. Keep `authorization.action_gates` empty for this read-only policy: a mapped Gate for a normal Artisan action can grant execution even when the run Gate denies it. Failed-job retries additionally require the run Gate; see the [permission matrix](/guide/authentication#effective-permission-matrix). Log tails may contain sensitive data, so viewing still requires a trusted operator.
 
 ::: details Optional: add administrator execution later
 When administrators need to execute actions, **replace** those definitions with a separate operator/admin policy:

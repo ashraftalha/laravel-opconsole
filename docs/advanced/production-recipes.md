@@ -1,6 +1,14 @@
 ---
 title: Production Configuration Recipes
 description: "Copyable OpConsole configurations for read-only production access, limited maintenance access, and health monitoring."
+# The pager follows this page's first sidebar entry ("Read-only production", a #hash link).
+# The static render cannot match a hash, so pin those neighbours explicitly.
+prev:
+  text: 5-minute setup
+  link: /guide/quick-start
+next:
+  text: Health Dashboard
+  link: /features/health-dashboard
 ---
 
 # Production Configuration Recipes
@@ -64,7 +72,7 @@ In the existing `logs` section, set `allow_download` and `allow_delete` to `fals
 ],
 ```
 
-Keep `action_gates` empty: an action-specific Gate can independently grant execution even when the run Gate denies it. Review any application-wide `Gate::before` administrator bypass as part of your host authorization policy.
+Keep `action_gates` empty: a mapped Gate for a normal Artisan action replaces the run Gate and can grant execution even when it denies. Failed-job retries are different: they require the run Gate plus `queue_retry` when mapped. See the [permission matrix](/guide/authentication#effective-permission-matrix). Review any application-wide `Gate::before` administrator bypass as part of your host authorization policy.
 
 **3. Environment.** Add these values to your deployment environment:
 
@@ -108,6 +116,8 @@ Replace the `actions` entry in `config/opconsole.php`:
 ```
 
 Keep `failed_jobs.allow_retry=false`, `action_gates=[]`, and `OPCONSOLE_AUDIT_POLICY=required`. Cache actions require `pcntl` in the web runtime and an isolated atomic lock store. Security scanning requires Composer 2.4+, subprocess support, the host's `composer.json` and `composer.lock`, and access to its advisory repositories. The default lock store suits one server; [multi-server deployments need shared, isolated locks](/advanced/permissions-security-policies#the-action-lock-single-server-vs-distributed).
+
+Do not broaden `run_gate` merely to make a retry-specific Gate work: doing so also permits every enabled unmapped action, and log deletion unless its Gate is explicitly restricted. Keep retries disabled for this maintenance role; see [per-operation permissions](/guide/authentication#per-operation-permissions).
 
 **Verify:** the operator can view but cannot execute; the administrator can run only the three enabled operations. Confirm an audit row is written using a reviewed low-impact operation in staging before production. Migrations, maintenance mode, job retries, and log deletion remain disabled.
 

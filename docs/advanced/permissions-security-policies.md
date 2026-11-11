@@ -19,6 +19,8 @@ The fallback behavior only applies when the Gate **keeps its default name** and 
 
 ## Per-action Gates for least privilege
 
+Normal action mappings replace the run Gate; retry mappings add a controller check to the route-level run requirement. Use the [permission matrix](/guide/authentication#effective-permission-matrix) for the complete contract. Merge the following keys into your existing authorization configuration, retaining view and log Gate settings.
+
 ```php
 'authorization' => [
     'run_gate' => 'runOpConsoleActions',

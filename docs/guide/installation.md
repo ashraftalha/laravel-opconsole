@@ -111,7 +111,7 @@ class AppServiceProvider extends ServiceProvider
 }
 ```
 
-Keep `authorization.action_gates` empty for this read-only policy. Viewing includes unredacted log tails; see the [complete production recipe](/advanced/production-recipes#read-only-production-recommended).
+Keep `authorization.action_gates` empty for this read-only policy: normal action mappings can override a denied run Gate. See the [permission matrix](/guide/authentication#effective-permission-matrix) for route requirements and the retry exception. Viewing includes unredacted log tails; see the [complete production recipe](/advanced/production-recipes#read-only-production-recommended).
 
 ---
 

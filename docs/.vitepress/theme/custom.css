@@ -187,3 +187,36 @@
     transform: translateX(2px);
   }
 }
+
+/* The full navigation needs more than 768px with the quick-start link and wordmark. */
+@media (min-width: 768px) and (max-width: 959px) {
+  .VPNavBarMenu, .VPNavBarAppearance, .VPNavBarSocialLinks, .VPNavBarExtra { display: none !important; }
+  .VPNavBarHamburger { display: flex !important; }
+}
+
+/* Subtle text still needs AA contrast in both themes. */
+:root {
+  --vp-code-lang-color: var(--vp-c-text-2);
+  --vp-code-line-number-color: var(--vp-c-text-2);
+}
+.oc-shot-note, .opconsole-shots-note, .oc-slider-count {
+  color: var(--vp-c-text-2) !important;
+}
+.vp-doc .custom-block.danger code {
+  color: var(--vp-c-text-1);
+}
+
+/* Safari applies the native #fragment scroll after VitePress's offset scroll on load, which left
+   deep-linked headings under the fixed header. Match VitePress's 134px offset (less h2 padding). */
+.vp-doc :is(h1, h3, h4, h5, h6)[id] {
+  scroll-margin-top: 134px;
+}
+.vp-doc h2[id] {
+  scroll-margin-top: 110px;
+}
+
+/* White on the default light brand button (brand-3) is 4.48:1; one step darker passes AA. */
+:root:not(.dark) {
+  --vp-button-brand-bg: var(--vp-c-brand-2);
+  --vp-button-brand-hover-bg: var(--vp-c-brand-1);
+}

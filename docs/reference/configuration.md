@@ -44,7 +44,7 @@ php artisan vendor:publish --tag=opconsole-config
 | Key | Default | Description |
 |---|---|---|
 | `authorization.view_gate` | `'viewOpConsole'` | Gate required to view `/admin/opconsole` and fallback assets. |
-| `authorization.run_gate` | `'runOpConsoleActions'` | Gate required to execute enabled Artisan operations. |
+| `authorization.run_gate` | `'runOpConsoleActions'` | Fallback Gate for unmapped Artisan actions; also required at the failed-job retry route. See the [permission matrix](/guide/authentication#effective-permission-matrix). |
 | `authorization.download_gate` | `'downloadOpConsoleLogs'` | Gate required to download raw `.log` files (delegates to `view_gate` if not explicitly defined by the host). |
 | `authorization.delete_gate` | `'deleteOpConsoleLogs'` | Gate required to delete older `.log` files (delegates to `run_gate` if not explicitly defined by the host). |
 | `authorization.action_gates` | `[]` | Optional map from action keys (`clear`, `optimize`, `migrate`, `down`, `up`, `storage_link`, `security_scan`, `octane_reload`) to independent Gate names. Missing keys inherit `run_gate`; configured but undefined/empty Gates deny access. `queue_retry` can additionally restrict retries, which also require `run_gate` at the route middleware. |

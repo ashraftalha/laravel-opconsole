@@ -13,7 +13,7 @@ Reporting a vulnerability: open a private security advisory on the repository, o
 
 | Threat / Risk | Mitigation |
 |---|---|
-| Unauthorized authenticated users accessing the console | Four console Gates plus optional per-action Gate overrides (`action_gates`). Action overrides are enforced in middleware and reflected in action buttons. Missing action entries retain `run_gate`; explicitly mapped empty or undefined Gates fail closed (`403`). |
+| Unauthorized authenticated users accessing the console | Four console Gates plus optional per-action Gate overrides (`action_gates`). Normal action overrides replace `run_gate` in middleware and are reflected in action buttons. Failed-job retries additionally require the route-level run check; see the [permission matrix](/guide/authentication#effective-permission-matrix). Missing action entries retain `run_gate`; explicitly mapped empty or undefined Gates fail closed (`403`). |
 | Multi-guard privilege confusion | `AuthorizeOpConsole` authenticates against `config('opconsole.authentication.guard')`, calls `Auth::shouldUse($guardName)`, and evaluates `Gate::forUser($guard->user())` so both Gate authorization and `OpConsoleRun` audit attribution use the configured guard's user. Invalid guard names fail closed (`403`). |
 | Guest crash (`HTTP 500`) on hosts without a standard `login` route | `AuthorizeOpConsole` checks authentication directly instead of using Laravel's `auth` middleware alias. Guests redirect to `route($login)` when valid and parameterless, or receive a controlled `401` when `login_route` is `null`, nonexistent, or requires URL parameters (catching `UrlGenerationException`). |
 | Accidental CSRF removal via `route.middleware` overrides | `routes/web.php` prepends `'web'` unconditionally (`array_unique(['web', ...$extraMiddleware])`) so overriding `route.middleware` can never strip session or CSRF middleware from `POST`/`DELETE` endpoints. |
@@ -30,6 +30,10 @@ Reporting a vulnerability: open a private security advisory on the repository, o
 | Maintenance-mode bypass | Only the console prefix is exempted from maintenance mode. An empty `route.prefix` registers no exemption, because `/*` would exempt the whole application. |
 
 ---
+
+## Retry authorization
+
+The retry route has no `{action}` parameter, so its middleware explicitly checks `run_gate`; an empty-string entry in `action_gates` cannot override it. The controller additionally checks `queue_retry` when mapped. The retry button requires both checks as well. See the [permission matrix](/guide/authentication#effective-permission-matrix). In v1.12.0 and earlier, an `action_gates` entry keyed `''` replaced `run_gate` on this route (fixed in v1.12.1); do not map an empty key on those versions.
 
 ## Default Gate Behavior
 

@@ -78,4 +78,5 @@ Set `OPCONSOLE_OCTANE_ALLOW_ACTIONS=true` to override this and accept the risk. 
 
 - **Actions disabled, says refused inside Swoole worker:** this is the guard above, working as intended. Either run the action from the CLI, or set `OPCONSOLE_OCTANE_ALLOW_ACTIONS=true` if you've accepted the risk of interrupting a worker.
 - **Octane section missing even though Octane is installed:** check `octane.checks` isn't set to `false`.
+- **Reload Octane workers fails with `The command "octane:reload" does not exist`:** fixed in v1.12.1. On v1.12.0 and earlier, run `php artisan octane:reload` from the CLI instead.
 - **"Not served by Octane" warning in production:** confirm your Octane server process is actually running and in front of these requests; if this is expected (for example, mixed FPM/Octane routing), leave `octane.expected_in_production` at its default so it stays an advisory.

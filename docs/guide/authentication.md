@@ -34,6 +34,24 @@ OpConsole checks four Gates:
 | `downloadOpConsoleLogs` | Downloading full raw log files | `viewOpConsole` |
 | `deleteOpConsoleLogs` | Deleting rotated log files | `runOpConsoleActions` |
 
+### Effective permission matrix
+
+These are the package's HTTP checks with the default Gate names. All browser routes require an authenticated user from `authentication.guard`; the view Gate is checked only on the dashboard and fallback asset routes, not as a prerequisite on every operation. Additional host middleware in `route.middleware` can impose further requirements. Session and CSRF middleware remain mandatory on browser routes; see [Routes & Endpoints](/reference/routes).
+
+| Operation | View Gate | Global Run Gate | Operation-Specific Gate |
+|---|---|---|---|
+| Dashboard, log tail, dashboard health/history, fallback assets | Required | No | No |
+| Allow-listed Artisan actions (`clear`, `optimize`, `migrate`, `storage_link`, `security_scan`, `octane_reload`) | No | Required only when the action is unmapped | When mapped, replaces the run Gate |
+| Failed-job retry | No | Required at the retry route | `queue_retry`, when mapped, is also required in the controller |
+| Log download | Only through the default download Gate fallback | No | `download_gate` required |
+| Log deletion | No | Only through the default delete Gate fallback | `delete_gate` required |
+| Maintenance mode (`down`, `up`) | No | Required only when the action is unmapped | When mapped, replaces the run Gate |
+| Monitoring (`GET {prefix}/health`) | No | No | No Laravel Gate; requires enabled endpoint and matching bearer token |
+
+The default download/delete Gates delegate to view/run only if the host has not defined them. Explicit download/delete Gates can authorize independently. `action_gates` does not control log routes. Grant view access separately when an operator needs the dashboard or the redirect destination after an action.
+
+Authorization does not enable a disabled feature: actions also require `actions.<key>`; retries require both `failed_jobs.enabled` and `failed_jobs.allow_retry`; log routes require `logs.allow_download` or `logs.allow_delete`. Runtime, audit, and execution safety checks still apply. The monitoring endpoint requires `health_endpoint.enabled` and a non-empty `health_endpoint.token`, and is outside `route.middleware`.
+
 ### The fail-closed default
 
 If you never define `viewOpConsole` or `runOpConsoleActions` yourself, OpConsole registers this default:
@@ -59,7 +77,7 @@ Gate::define('downloadOpConsoleLogs', fn ($user) => false);
 Gate::define('deleteOpConsoleLogs', fn ($user) => false);
 ```
 
-This permits dashboard and log-tail access but denies commands, job retries, full log downloads, and log deletion with the default configuration. Keep `authorization.action_gates` empty for this read-only policy: a mapped action Gate can independently grant execution. Log tails may contain sensitive data, so viewing still requires a trusted operator.
+This permits dashboard and log-tail access but denies commands, job retries, full log downloads, and log deletion with the default configuration. Keep `authorization.action_gates` empty for this read-only policy: a mapped Gate for a normal Artisan action can grant execution even when the run Gate denies it. Failed-job retries additionally require the run Gate; see the [permission matrix](/guide/authentication#effective-permission-matrix). Log tails may contain sensitive data, so viewing still requires a trusted operator.
 
 When administrators need to execute actions, **replace** those definitions with a separate operator/admin policy:
 
@@ -87,7 +105,7 @@ Gate::define('deleteOpConsoleLogs', fn ($user) => false);
 
 ### Per-operation permissions
 
-Map individual action keys to independent Gates so, for example, support staff can clear caches while migrations and maintenance mode stay with administrators:
+For normal `POST {prefix}/{action}` requests, a mapped Gate **replaces** `run_gate`; it is not an additional check. This lets support staff clear caches while migrations and maintenance mode stay with administrators. Merge the following keys into the existing authorization configuration, retaining the view and log Gate settings and the role-based Gate definitions above:
 
 ```php
 // config/opconsole.php
@@ -109,11 +127,15 @@ Gate::define('manageOpConsole', fn ($user) => $user->hasRole('admin'));
 Gate::define('retryOpConsoleJobs', fn ($user) => $user->hasRole('admin'));
 ```
 
-Failed-job retries require `run_gate` at the HTTP route **and** the Gate mapped to `queue_retry`, if configured. A retry-specific Gate can narrow run access but cannot grant retries to a user denied by the run Gate.
+Failed-job retries require `run_gate` at the HTTP route **and** the Gate mapped to `queue_retry`, if configured. A retry-specific Gate can narrow run access but cannot grant retries to a user denied by the run Gate. The retry route has `{id}` but no `{action}` parameter, so its run middleware explicitly checks `run_gate`; the controller then checks `queue_retry` (or `run_gate` again when unmapped). An empty-string key in `action_gates` cannot override this route-level check.
 
 Action keys with no entry in `action_gates` fall back to `run_gate`. A key that **is** mapped to a Gate name your application never defines fails closed (`403`) — it does not silently fall back.
 
-Users who pass `viewOpConsole` but not `runOpConsoleActions` (or a narrower action Gate) see the console in read-only mode: every disabled button explains why it's disabled.
+Denying `run_gate` alone is not a read-only policy: mapped normal actions and explicit log Gates may still allow operations. Use the [read-only production recipe](/advanced/production-recipes#read-only-production-recommended). The retry button requires both the run Gate and the `queue_retry` action check, matching the endpoint.
+
+::: warning v1.12.0 and earlier
+On these versions the retry route looks up an empty action name, so an `action_gates` entry keyed `''` replaces `run_gate` there. The Retry button also checks only `queue_retry`: when it is mapped and allows a user the run Gate denies, the button appears but the endpoint returns `403`. Both are fixed in v1.12.1; until you upgrade, do not map an empty key.
+:::
 
 ## Least privilege in production
 

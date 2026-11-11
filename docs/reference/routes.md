@@ -26,9 +26,13 @@ With the default configuration (`route.prefix = 'admin/opconsole'`, `route.name_
 - The health endpoint is **deliberately outside the `web` middleware group** — machine clients get no session, no cookies, and no CSRF; the bearer token is the only credential. It's also the only route not gated by `opconsole.authorize`, since it has no concept of an authenticated user.
 - Do not add Laravel's `auth` middleware alias to `route.middleware`. It calls `route('login')` unconditionally and throws (`500`) on a host with no route named `login`. `AuthorizeOpConsole` performs the guest check itself and handles this gracefully — see [Authentication & Authorization](/guide/authentication).
 
+## Run middleware and action Gates
+
+`opconsole.authorize:run` resolves the route's `{action}` through `authorization.action_gates`, falling back to `run_gate` only for unmapped actions. The failed-job retry route has no `{action}`, so its middleware explicitly checks `run_gate`; its controller additionally checks `queue_retry`. See the [effective permission matrix](/guide/authentication#effective-permission-matrix). The view Gate is not a shared prerequisite for these routes.
+
 ## The asset route as a fallback
 
-`GET {prefix}/assets/{asset}` (constrained to `opconsole.css`, `opconsole.js`, `opconsole.svg`) serves the package's CSS/JS/favicon automatically if you haven't run `vendor:publish --tag=opconsole-assets`. It's gated by the view Gate like every other read-only route. Publishing assets to `public/vendor/opconsole/` is still recommended for production, since it serves them directly from your web server instead of through PHP.
+`GET {prefix}/assets/{asset}` (constrained to `opconsole.css`, `opconsole.js`, `opconsole.svg`) serves the package's CSS/JS/favicon automatically if you haven't run `vendor:publish --tag=opconsole-assets`. It's gated by the view Gate like the dashboard. Log downloads use the download Gate; the health endpoint uses a bearer token. Publishing assets to `public/vendor/opconsole/` is still recommended for production, since it serves them directly from your web server instead of through PHP.
 
 ## Rate limits
 

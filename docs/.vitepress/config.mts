@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineConfig } from 'vitepress'
+import { accessibleTheme } from './accessibility'
 
 const hostname = 'https://opconsole.ashraftalha.com'
 // PNG export of the package logo for social link previews.
@@ -32,6 +33,23 @@ export default defineConfig({
   description: siteDescription,
   lang: 'en-US',
   cleanUrls: true,
+  vite: { plugins: [accessibleTheme()] },
+  markdown: {
+    // Retain the existing syntax palette, darkening/lightening only failing AA colors.
+    shikiSetup(highlighter) {
+      const light = highlighter.getTheme('github-light')
+      const dark = highlighter.getTheme('github-dark')
+      for (const token of light.settings) {
+        const color = token.settings?.foreground?.toLowerCase()
+        if (color === '#d73a49') token.settings.foreground = '#c42c3c'
+        if (color === '#e36209') token.settings.foreground = '#b34b00'
+        if (color === '#6a737d') token.settings.foreground = '#626b75'
+      }
+      for (const token of dark.settings) {
+        if (token.settings?.foreground?.toLowerCase() === '#6a737d') token.settings.foreground = '#9099a3'
+      }
+    },
+  },
   // Omit the timestamp UI rather than render an empty client-only date in static output.
   lastUpdated: false,
   sitemap: {

@@ -80,7 +80,7 @@ onBeforeUnmount(() => {
   >
     <div class="oc-slider-viewport">
       <div ref="track" class="oc-slider-track" tabindex="0" :aria-live="paused || userPaused || reducedMotion ? 'polite' : 'off'">
-        <figure
+        <div
           v-for="(slide, i) in slides"
           :key="slide.src"
           class="oc-slide"
@@ -98,8 +98,8 @@ onBeforeUnmount(() => {
               :loading="i === 0 ? 'eager' : 'lazy'"
             >
           </div>
-          <figcaption>{{ slide.caption }}</figcaption>
-        </figure>
+          <div class="oc-slide-caption">{{ slide.caption }}</div>
+        </div>
       </div>
 
       <button class="oc-slider-arrow is-prev" type="button" aria-label="Previous screenshot" @click="prev">
@@ -179,7 +179,7 @@ onBeforeUnmount(() => {
   cursor: zoom-in;
 }
 
-.oc-slide figcaption {
+.oc-slide-caption {
   margin-top: 10px;
   font-size: 14px;
   color: var(--vp-c-text-2);

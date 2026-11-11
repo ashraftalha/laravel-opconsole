@@ -54,5 +54,5 @@ Open the **Failed jobs** tab — its badge shows the current count. Filter the l
 
 ## Troubleshooting
 
-- **Retry button is disabled:** you don't hold the required Gate, or `failed_jobs.allow_retry` is `false`.
+- **Retry button is disabled:** the run Gate or the mapped `queue_retry` Gate denies access, or `failed_jobs.allow_retry` is `false`. See the [permission matrix](/guide/authentication#effective-permission-matrix).
 - **Tab explains "failed jobs are not being stored":** your `queue.failed.driver` is `null`. Configure a `database` or other supported failed-job driver in Laravel to start recording failures.

@@ -1,33 +1,38 @@
-# Documentation Site Deployment (Cloudflare Pages)
+# Documentation Site Deployment (Cloudflare Workers)
 
-This covers deploying the VitePress documentation site in `docs/` to Cloudflare Pages at `opconsole.ashraftalha.com`. It does not affect the Composer package, which is installed and versioned independently of this site.
+This covers deploying the VitePress documentation site in `docs/` to `opconsole.ashraftalha.com`. Cloudflare Workers Builds deploys it as an assets-only Worker named `laravel-opconsole`; the "Workers Builds: laravel-opconsole" check on each `main` commit is that deployment. It does not affect the Composer package, which is installed and versioned independently of this site.
 
-## One-time Cloudflare Pages setup (manual, via dashboard)
+## Worker configuration
 
-1. **Cloudflare dashboard → Workers & Pages → Create → Pages → Connect to Git.**
-2. Select the `ashraftalha/laravel-opconsole` GitHub repository and authorize Cloudflare's GitHub integration (preferred over any custom FTP/CI-based deploy workflow).
-3. Configure the build:
+`wrangler.jsonc` in the repository root is the deployment configuration:
+
+| Key | Value | Why |
+|---|---|---|
+| `name` | `laravel-opconsole` | Must match the Worker's name in the Cloudflare dashboard, or Workers Builds rejects the deploy. |
+| `assets.directory` | `./docs/.vitepress/dist` | The VitePress build output. |
+| `assets.not_found_handling` | `404-page` | Unknown paths get VitePress's `404.html` with a `404` status. Without it, Cloudflare returns an empty `404` body. |
+
+It is export-ignored, so it never ships in the Composer package.
+
+## One-time Workers Builds setup (manual, via dashboard)
+
+1. **Cloudflare dashboard → Workers & Pages → `laravel-opconsole` → Settings → Build**, connected to the `ashraftalha/laravel-opconsole` GitHub repository.
+2. Configure the build:
 
    | Setting | Value |
    |---|---|
    | Production branch | `main` |
-   | Build command | `npm run docs:build` |
-   | Build output directory | `docs/.vitepress/dist` |
    | Root directory | `/` |
+   | Build command | `npm run docs:build` |
+   | Deploy command | `npx wrangler deploy` (the default; reads `wrangler.jsonc`) |
 
-4. Node version: the repository pins Node via `.nvmrc` (`20`). Cloudflare Pages reads `.nvmrc` automatically; if it doesn't, set the environment variable `NODE_VERSION=20` in the Pages project's build settings.
-5. Save and deploy. Cloudflare builds automatically on every push to `main`, and generates preview deployments for pull requests.
+3. Node version: the repository pins Node via `.nvmrc` (`20`). If the build uses a different version, set the build variable `NODE_VERSION=20`.
+4. Cloudflare builds and deploys on every push to `main`.
 
 ## Custom domain and DNS
 
-1. In the Pages project, go to **Custom domains → Set up a custom domain** and enter `opconsole.ashraftalha.com`.
-2. If `ashraftalha.com` is already on Cloudflare DNS, Cloudflare offers to add the CNAME automatically. Otherwise, add manually at your DNS provider:
-
-   | Type | Name | Target |
-   |---|---|---|
-   | CNAME | `opconsole` | `<your-project>.pages.dev` |
-
-3. Cloudflare issues and manages the TLS certificate for the custom domain automatically once DNS resolves.
+1. In the Worker, go to **Settings → Domains & Routes → Add → Custom domain** and enter `opconsole.ashraftalha.com`.
+2. With `ashraftalha.com` on Cloudflare DNS, Cloudflare creates the DNS record and TLS certificate for the custom domain automatically.
 
 **No DNS changes have been made as part of this work** — this is a manual, authorized step for whoever controls the `ashraftalha.com` zone.
 
@@ -40,6 +45,8 @@ npm run docs:build    # production build -> docs/.vitepress/dist
 npm run docs:preview  # serve the production build locally
 ```
 
+To check Cloudflare's routing (404 page, redirects) before deploying, build and run `npx wrangler dev` from the repository root. It serves `docs/.vitepress/dist` with the settings in `wrangler.jsonc`; its local state in `.wrangler/` is gitignored.
+
 ## What ships to the site vs. what doesn't
 
 - `docs/**/*.md`, `docs/.vitepress/config.mts`, and `docs/public/**` are the site source — all committed.
@@ -49,4 +56,4 @@ npm run docs:preview  # serve the production build locally
 
 ## Redirects / clean URLs
 
-`cleanUrls: true` is set in `docs/.vitepress/config.mts`, so pages are served without a trailing `.html` (for example `/guide/installation`, not `/guide/installation.html`). Cloudflare Pages serves static files as-is and resolves these correctly without any additional `_redirects` configuration, because VitePress's static build already emits the directory structure `cleanUrls` needs (e.g. `guide/installation.html` is requested as `guide/installation`, which most static hosts — including Cloudflare Pages — resolve to the `.html` file automatically). If you observe 404s on direct navigation to a clean URL after deploying, add a `docs/public/_redirects` file with a catch-all rule; this has not been necessary in local `vitepress preview` testing.
+`cleanUrls: true` is set in `docs/.vitepress/config.mts`, so pages are served without `.html` (for example `/guide/installation`). Cloudflare's default HTML handling (`auto-trailing-slash`) serves `guide/installation.html` for that path and redirects `/guide/installation.html` and `/guide/installation/` to it. Cloudflare uses `307` for these redirects and the status is not configurable; every page's canonical URL is the clean URL, and the site never links to the other forms.
