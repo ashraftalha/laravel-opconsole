@@ -17,8 +17,6 @@ class OctaneGuardTest extends TestCase
     /** @var array<string, mixed> */
     private array $serverBackup;
 
-    public bool $reloaded = false;
-
     protected function setUp(): void
     {
         parent::setUp();
@@ -31,12 +29,6 @@ class OctaneGuardTest extends TestCase
         $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
         $this->withoutCsrfMiddleware();
         $this->app['config']->set('octane', ['server' => 'swoole', 'https' => false, 'garbage' => 50, 'swoole' => ['options' => []]]);
-
-        $test = $this;
-        Artisan::command('octane:reload', function () use ($test) {
-            $test->reloaded = true;
-            $this->info('Reloading workers...');
-        });
     }
 
     protected function tearDown(): void
@@ -92,11 +84,27 @@ class OctaneGuardTest extends TestCase
     {
         $this->insideSwooleWorker();
         $this->actingAsUser();
+        // As in a real worker: Octane's provider registered none of its commands.
+        $this->assertArrayNotHasKey('octane:reload', Artisan::all());
 
         $this->post('/admin/opconsole/octane_reload')->assertSessionHas('opconsole_success');
 
-        $this->assertTrue($this->reloaded);
+        $this->assertContains('reload', InspectorState::$called);
         $this->assertDatabaseHas('opconsole_runs', ['action' => 'octane_reload', 'status' => 'succeeded']);
+    }
+
+    public function test_an_already_registered_octane_reload_command_is_used_as_is(): void
+    {
+        $this->actingAsUser();
+        $ran = false;
+        Artisan::command('octane:reload', function () use (&$ran) {
+            $ran = true;
+        });
+
+        $this->post('/admin/opconsole/octane_reload')->assertSessionHas('opconsole_success');
+
+        $this->assertTrue($ran);
+        $this->assertNotContains('reload', InspectorState::$called);
     }
 
     public function test_the_guard_only_applies_to_swoole_and_can_be_overridden(): void

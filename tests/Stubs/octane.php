@@ -44,6 +44,27 @@ namespace Laravel\Octane\RoadRunner {
     }
 }
 
+namespace Laravel\Octane\Commands {
+    use AshrafTalha\OpConsole\Tests\Support\InspectorState;
+    use Illuminate\Console\Command;
+
+    if (! class_exists(ReloadCommand::class, false)) {
+        /** Like Octane's own command, nothing registers it: Octane workers set APP_RUNNING_IN_CONSOLE=false. */
+        class ReloadCommand extends Command
+        {
+            protected $signature = 'octane:reload';
+
+            public function handle(): int
+            {
+                InspectorState::$called[] = 'reload';
+                $this->info('Reloading workers...');
+
+                return 0;
+            }
+        }
+    }
+}
+
 namespace Laravel\Octane\FrankenPhp {
     use AshrafTalha\OpConsole\Tests\Support\InspectorState;
 

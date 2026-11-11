@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Throwable;
 
 /**
@@ -195,6 +196,9 @@ class ActionRunner
             }
 
             try {
+                if ($action === 'octane_reload') {
+                    $this->registerOctaneReloadCommand();
+                }
                 $exitCode = $this->callArtisanWithLease($command, $options, $lock, $action);
                 $output = $this->cleanOutput($this->safeArtisanOutput());
                 $ok = $exitCode === 0;
@@ -470,6 +474,26 @@ class ActionRunner
      * The lease always exceeds the runtime budget, so renewal is a safety margin rather than a
      * requirement: drivers without refresh() (Laravel < 12.63 / < 13.16) still run safely.
      */
+    /**
+     * Octane registers its Artisan commands only in the console, and its workers set
+     * APP_RUNNING_IN_CONSOLE=false, so octane:reload is missing from web requests.
+     */
+    private function registerOctaneReloadCommand(): void
+    {
+        $class = 'Laravel\Octane\Commands\ReloadCommand';
+
+        // Octane is an optional dependency, absent when this package is analysed, hence the ignore.
+        // @phpstan-ignore function.impossibleType
+        if (! class_exists($class) || array_key_exists('octane:reload', Artisan::all())) {
+            return;
+        }
+
+        $reload = app($class);
+        if ($reload instanceof SymfonyCommand) {
+            Artisan::registerCommand($reload);
+        }
+    }
+
     private function callArtisanWithLease(string $command, array $options, Lock $lock, string $action): int
     {
         if (in_array($action, self::SELF_BOUNDED, true) && ! $this->canEnforceTimeout()) {

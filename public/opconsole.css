@@ -400,7 +400,8 @@ body.oc-standalone {
 .oc-palette-btn .oc-kbd { margin-inline-start: auto; }
 
 /* ---- Tabs ---- */
-.oc-tabs-wrap { position: sticky; top: 0; z-index: 20; margin-top: 0.75rem; background: var(--oc-bg); padding-block: 0.35rem; }
+/* overflow-x: clip keeps the scrolling tab strip from widening the page on narrow screens; unlike hidden, it keeps sticky working. */
+.oc-tabs-wrap { position: sticky; top: 0; z-index: 20; margin-top: 0.75rem; background: var(--oc-bg); padding-block: 0.35rem; overflow-x: clip; }
 .oc-tabs { display: flex; gap: 0.25rem; padding: 0.3rem; overflow-x: auto; scrollbar-width: none; background: var(--oc-surface); border: 1px solid var(--oc-line); border-radius: var(--oc-radius); box-shadow: var(--oc-shadow-1); }
 .oc-tabs::-webkit-scrollbar { display: none; }
 .oc-tab { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.5rem 0.8rem; border: 0; border-radius: 7px; background: transparent; color: var(--oc-muted); font-family: inherit; font-size: var(--oc-fs-sm); font-weight: 600; white-space: nowrap; cursor: pointer; transition: background-color var(--oc-dur-1) var(--oc-ease), color var(--oc-dur-1) var(--oc-ease); }
