@@ -3,6 +3,11 @@
 {
   "name": "laravel-opconsole",
   "compatibility_date": "2026-11-01",
+  // With this file present, Cloudflare skips its automatic framework detection, which used to
+  // run the VitePress build, so `wrangler deploy` builds the site itself.
+  "build": {
+    "command": "npm run docs:build"
+  },
   "assets": {
     "directory": "./docs/.vitepress/dist",
     // Serve VitePress's 404.html with a 404 status; the default is an empty 404 response.

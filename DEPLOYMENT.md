@@ -9,6 +9,7 @@ This covers deploying the VitePress documentation site in `docs/` to `opconsole.
 | Key | Value | Why |
 |---|---|---|
 | `name` | `laravel-opconsole` | Must match the Worker's name in the Cloudflare dashboard, or Workers Builds rejects the deploy. |
+| `build.command` | `npm run docs:build` | `wrangler deploy` builds the site itself. With a Wrangler config present, Cloudflare no longer runs its automatic framework detection, which used to build it. |
 | `assets.directory` | `./docs/.vitepress/dist` | The VitePress build output. |
 | `assets.not_found_handling` | `404-page` | Unknown paths get VitePress's `404.html` with a `404` status. Without it, Cloudflare returns an empty `404` body. |
 
@@ -23,7 +24,7 @@ It is export-ignored, so it never ships in the Composer package.
    |---|---|
    | Production branch | `main` |
    | Root directory | `/` |
-   | Build command | `npm run docs:build` |
+   | Build command | Leave empty; the deploy command builds the site (a build command here only builds it twice) |
    | Deploy command | `npx wrangler deploy` (the default; reads `wrangler.jsonc`) |
 
 3. Node version: the repository pins Node via `.nvmrc` (`20`). If the build uses a different version, set the build variable `NODE_VERSION=20`.
@@ -45,7 +46,7 @@ npm run docs:build    # production build -> docs/.vitepress/dist
 npm run docs:preview  # serve the production build locally
 ```
 
-To check Cloudflare's routing (404 page, redirects) before deploying, build and run `npx wrangler dev` from the repository root. It serves `docs/.vitepress/dist` with the settings in `wrangler.jsonc`; its local state in `.wrangler/` is gitignored.
+To check Cloudflare's routing (404 page, redirects) before deploying, run `npx wrangler dev` from the repository root. It builds the site, then serves `docs/.vitepress/dist` with the settings in `wrangler.jsonc`; its local state in `.wrangler/` is gitignored. `npx wrangler deploy --dry-run` checks the configuration without uploading.
 
 ## What ships to the site vs. what doesn't
 
